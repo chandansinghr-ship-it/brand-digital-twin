@@ -12,6 +12,7 @@ export interface RdAppointment {
   startAt: string;
   endAt: string;
   pricePaise: number;
+  paymentStatus: "free" | "pending" | "paid" | "refunded";
   joinUrl: string | null;
   userQuestion: string | null;
   rdNotes: string | null;
@@ -171,9 +172,14 @@ export const rdAdvisoryApi = {
     ),
   consoleMe: () =>
     request<{ rdSlug: string | null }>("/rd/console/me"),
-  consoleClaim: (rdSlug: string) =>
+  consoleClaim: (rdSlug: string, adminToken: string) =>
     request<{ rdSlug: string }>("/rd/console/claim", {
       method: "POST",
-      body: JSON.stringify({ rdSlug }),
+      body: JSON.stringify({ rdSlug, adminToken }),
     }),
+  payAppointment: (id: number) =>
+    request<{ appointment: RdAppointment }>(
+      `/rd/appointments/${id}/pay`,
+      { method: "POST" },
+    ),
 };

@@ -103,9 +103,24 @@ export default function RdProfile() {
         endAt: selected.endAt,
         userQuestion: question.trim() || undefined,
       });
-      toast.success("Booking confirmed", {
-        description: `${meta.label} with ${member?.name.split(" ").slice(-1)[0]} on ${formatDay(appointment.startAt)} at ${formatTime(appointment.startAt)}.`,
-      });
+      // Paid follow-ups are inserted as paymentStatus="pending"; complete a
+      // (mock) checkout step here before the booking is finalised.
+      if (appointment.paymentStatus === "pending") {
+        try {
+          await rdAdvisoryApi.payAppointment(appointment.id);
+          toast.success("Payment received", {
+            description: `${meta.label} confirmed with ${member?.name.split(" ").slice(-1)[0]} on ${formatDay(appointment.startAt)} at ${formatTime(appointment.startAt)}.`,
+          });
+        } catch (e) {
+          toast.error("Payment failed — booking held as pending", {
+            description: String(e),
+          });
+        }
+      } else {
+        toast.success("Booking confirmed", {
+          description: `${meta.label} with ${member?.name.split(" ").slice(-1)[0]} on ${formatDay(appointment.startAt)} at ${formatTime(appointment.startAt)}.`,
+        });
+      }
       navigate("/appointments");
     } catch (err) {
       const msg = String(err);

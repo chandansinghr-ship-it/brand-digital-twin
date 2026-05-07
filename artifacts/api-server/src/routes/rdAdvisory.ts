@@ -232,6 +232,7 @@ router.post("/rd/appointments", async (req: Request, res: Response) => {
           startAt: start,
           endAt: end,
           pricePaise,
+          paymentStatus: pricePaise === 0 ? "free" : "pending",
           userQuestion: userQuestion ?? null,
           status: "scheduled",
         })
@@ -248,6 +249,58 @@ router.post("/rd/appointments", async (req: Request, res: Response) => {
     throw err;
   }
 });
+
+/**
+ * Mark a paid follow-up as paid. The user must own the appointment. The
+ * server records `paid` only after this call — the booking endpoint always
+ * inserts paid kinds as `pending`. This is a placeholder for a real
+ * checkout/Stripe webhook integration; in production the trigger would be a
+ * verified payment event, not a client-initiated POST.
+ */
+router.post(
+  "/rd/appointments/:id/pay",
+  async (req: Request, res: Response) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    const id = Number(req.params["id"]);
+    if (!Number.isInteger(id)) {
+      res.status(400).json({ error: "invalid id" });
+      return;
+    }
+    const [appt] = await db
+      .select()
+      .from(rdAppointmentsTable)
+      .where(
+        and(
+          eq(rdAppointmentsTable.id, id),
+          eq(rdAppointmentsTable.userId, userId),
+        ),
+      )
+      .limit(1);
+    if (!appt) {
+      res.status(404).json({ error: "not found" });
+      return;
+    }
+    if (appt.paymentStatus !== "pending") {
+      res.status(409).json({
+        error: `cannot pay: status is ${appt.paymentStatus}`,
+        appointment: appt,
+      });
+      return;
+    }
+    if (appt.pricePaise === 0) {
+      res.status(400).json({ error: "no payment required" });
+      return;
+    }
+    const [row] = await db
+      .update(rdAppointmentsTable)
+      .set({ paymentStatus: "paid" })
+      .where(eq(rdAppointmentsTable.id, id))
+      .returning();
+    req.log.info({ apptId: id, userId }, "rd appointment paid");
+    res.json({ appointment: row });
+  },
+);
 
 router.post(
   "/rd/appointments/:id/cancel",
@@ -292,13 +345,28 @@ router.get("/rd/console/me", async (req: Request, res: Response) => {
   res.json({ rdSlug: rows[0]?.rdSlug ?? null });
 });
 
-const claimSchema = z.object({ rdSlug: z.string().regex(RD_SLUG_RE) });
+const claimSchema = z.object({
+  rdSlug: z.string().regex(RD_SLUG_RE),
+  adminToken: z.string().min(1),
+});
 router.post("/rd/console/claim", async (req: Request, res: Response) => {
   const userId = requireAuth(req, res);
   if (!userId) return;
+  // Privileged provisioning: requires an out-of-band admin token from env.
+  // This is the only way to bind an account to an RD seat. If the env var is
+  // not set, the endpoint is disabled.
+  const expected = process.env["RD_ADMIN_TOKEN"];
+  if (!expected) {
+    res.status(503).json({ error: "RD provisioning disabled" });
+    return;
+  }
   const parsed = claimSchema.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: "invalid payload" });
+    return;
+  }
+  if (parsed.data.adminToken !== expected) {
+    res.status(403).json({ error: "invalid admin token" });
     return;
   }
   const { rdSlug } = parsed.data;
@@ -405,7 +473,9 @@ router.get("/rd/console/user/:userId", async (req: Request, res: Response) => {
       .where(
         and(
           eq(rdLabUploadsTable.userId, targetUserId),
-          sql`(${rdLabUploadsTable.sharedWithRdSlug} = ${rdSlug} OR ${rdLabUploadsTable.sharedWithRdSlug} IS NULL)`,
+          // PRIVACY: only show labs the user explicitly shared with this RD.
+          // Unshared (NULL) labs are private to the user.
+          eq(rdLabUploadsTable.sharedWithRdSlug, rdSlug),
         ),
       )
       .orderBy(desc(rdLabUploadsTable.createdAt)),
@@ -489,6 +559,22 @@ router.post("/rd/messages", async (req: Request, res: Response) => {
       return;
     }
     if (!(await requireRdRole(req, res, parsed.data.rdSlug))) return;
+    // The RD may only message users who have an existing appointment
+    // (any status) with them. Prevents RDs from cold-DMing arbitrary users.
+    const link = await db
+      .select({ id: rdAppointmentsTable.id })
+      .from(rdAppointmentsTable)
+      .where(
+        and(
+          eq(rdAppointmentsTable.userId, parsed.data.threadUserId),
+          eq(rdAppointmentsTable.rdSlug, parsed.data.rdSlug),
+        ),
+      )
+      .limit(1);
+    if (link.length === 0) {
+      res.status(403).json({ error: "no relationship with this user" });
+      return;
+    }
     targetUserId = parsed.data.threadUserId;
   } else {
     targetUserId = userId;

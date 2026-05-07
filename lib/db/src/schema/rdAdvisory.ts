@@ -36,7 +36,31 @@ export const rdUsersTable = pgTable(
 
 export type AppointmentKind = "intro_15m" | "follow_up_30m" | "follow_up_45m";
 export type AppointmentStatus = "scheduled" | "completed" | "cancelled";
+export type PaymentStatus = "free" | "pending" | "paid" | "refunded";
 export type RdMessageSender = "user" | "rd";
+
+/**
+ * Optional override for RD office-hour windows. When no rows exist for an
+ * RD, the API falls back to the static schedule shipped in the client
+ * (rdBookingData.ts). When rows exist, they take precedence.
+ *
+ * dayOfWeek: 0=Sun..6=Sat. startMinute/endMinute are minutes-since-midnight
+ * in the RD's local timezone (server treats as IST for this app).
+ */
+export const rdAvailabilityTable = pgTable(
+  "rd_availability",
+  {
+    id: serial("id").primaryKey(),
+    rdSlug: varchar("rd_slug", { length: 64 }).notNull(),
+    dayOfWeek: integer("day_of_week").notNull(),
+    startMinute: integer("start_minute").notNull(),
+    endMinute: integer("end_minute").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [index("idx_rd_avail_slug").on(t.rdSlug, t.dayOfWeek)],
+);
 
 export const rdAppointmentsTable = pgTable(
   "rd_appointments",
@@ -54,6 +78,10 @@ export const rdAppointmentsTable = pgTable(
     startAt: timestamp("start_at", { withTimezone: true }).notNull(),
     endAt: timestamp("end_at", { withTimezone: true }).notNull(),
     pricePaise: integer("price_paise").notNull().default(0),
+    paymentStatus: varchar("payment_status", { length: 16 })
+      .$type<PaymentStatus>()
+      .notNull()
+      .default("free"),
     joinUrl: text("join_url"),
     userQuestion: text("user_question"),
     rdNotes: text("rd_notes"),
@@ -136,3 +164,4 @@ export type RdMessage = typeof rdMessagesTable.$inferSelect;
 export type RdProgressLog = typeof rdProgressLogsTable.$inferSelect;
 export type RdLabUpload = typeof rdLabUploadsTable.$inferSelect;
 export type RdUser = typeof rdUsersTable.$inferSelect;
+export type RdAvailability = typeof rdAvailabilityTable.$inferSelect;

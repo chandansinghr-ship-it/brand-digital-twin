@@ -50,6 +50,7 @@ export default function RdConsole() {
   const [claimSlug, setClaimSlug] = useState<string>(
     rds[0]?.profile.slug ?? "",
   );
+  const [adminToken, setAdminToken] = useState("");
 
   // On mount, ask the server which RD slug the signed-in user is bound to.
   useEffect(() => {
@@ -86,15 +87,21 @@ export default function RdConsole() {
   }, [refresh]);
 
   async function claim() {
-    if (!claimSlug) return;
+    if (!claimSlug || !adminToken.trim()) return;
     setClaiming(true);
     try {
-      const r = await rdAdvisoryApi.consoleClaim(claimSlug);
+      const r = await rdAdvisoryApi.consoleClaim(claimSlug, adminToken.trim());
       setRdSlug(r.rdSlug);
       toast.success("RD role claimed", { description: r.rdSlug });
     } catch (e) {
       const msg = String(e);
-      if (msg.includes("409"))
+      if (msg.includes("503"))
+        toast.error("RD provisioning disabled", {
+          description: "Operator must set RD_ADMIN_TOKEN.",
+        });
+      else if (msg.includes("403"))
+        toast.error("Invalid admin token");
+      else if (msg.includes("409"))
         toast.error("Already claimed by another account");
       else toast.error("Could not claim", { description: msg });
     } finally {
@@ -135,9 +142,8 @@ export default function RdConsole() {
         </Badge>
         <h1 className="font-serif text-2xl text-white">Claim your RD seat</h1>
         <p className="text-xs text-clinical-zinc">
-          Each RD slug can be bound to a single account. Pick yours below to
-          unlock the console. Already claimed slugs cannot be re-bound from
-          here.
+          Each RD slug binds to one account. Provisioning is privileged —
+          enter the operator-issued admin token alongside your RD slug.
         </p>
         <select
           value={claimSlug}
@@ -150,9 +156,16 @@ export default function RdConsole() {
             </option>
           ))}
         </select>
+        <input
+          type="password"
+          placeholder="Admin token"
+          value={adminToken}
+          onChange={(e) => setAdminToken(e.target.value)}
+          className="bg-clinical-surface border border-clinical-slate/30 text-xs rounded-md px-3 h-9 text-white w-full"
+        />
         <Button
           onClick={claim}
-          disabled={claiming}
+          disabled={claiming || !adminToken.trim()}
           className="bg-clinical-gold text-[#050505] hover:bg-clinical-gold/90 text-xs h-9 w-full"
         >
           Claim this RD seat
