@@ -27,6 +27,10 @@ import {
   Trash2,
   Wheat,
   HeartPulse,
+  Smartphone,
+  Copy,
+  Check,
+  EyeOff,
 } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -408,6 +412,119 @@ function WearableCard({
   );
 }
 
+function PairMobileCard() {
+  const [token, setToken] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [copied, setCopied] = useState(false);
+
+  async function issueToken() {
+    setBusy(true);
+    try {
+      const res = await fetch(`${import.meta.env.BASE_URL}api/auth/mobile-pair`, {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+      });
+      if (!res.ok) throw new Error(`${res.status}`);
+      const json = (await res.json()) as { token: string };
+      setToken(json.token);
+      setCopied(false);
+    } catch (e) {
+      toast.error(`Could not issue token: ${(e as Error).message}`);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function copy() {
+    if (!token) return;
+    try {
+      await navigator.clipboard.writeText(token);
+      setCopied(true);
+      toast.success("Token copied");
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      toast.error("Copy failed — long-press to select");
+    }
+  }
+
+  const masked = token
+    ? `${token.slice(0, 6)}${"•".repeat(20)}${token.slice(-4)}`
+    : "";
+
+  return (
+    <Card className="bg-clinical-slate/5 border border-clinical-slate/20">
+      <CardContent className="p-5">
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center gap-2">
+            <Smartphone className="w-4 h-4 text-clinical-sage" />
+            <div>
+              <div className="text-xs uppercase tracking-widest text-clinical-slate">
+                Pair Tanmatra mobile
+              </div>
+              <div className="text-white text-sm mt-1">
+                Stream Apple Health / Health Connect activity from your phone.
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {!token ? (
+          <div className="space-y-3">
+            <p className="text-[12px] text-clinical-slate leading-relaxed">
+              Generate a pairing token, then paste it into the Tanmatra mobile
+              app on your device. Each token is a dedicated mobile session you
+              can revoke separately from your web sign-in.
+            </p>
+            <Button
+              size="sm"
+              disabled={busy}
+              onClick={issueToken}
+              className="bg-clinical-sage text-clinical-dark hover:bg-clinical-sage/90"
+            >
+              {busy ? "Generating…" : "Generate pairing token"}
+            </Button>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            <div className="flex items-stretch gap-2">
+              <code className="flex-1 px-3 py-2 rounded-md bg-clinical-dark border border-clinical-slate/30 text-[12px] font-mono text-clinical-sage break-all">
+                {masked}
+              </code>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={copy}
+                className="border-clinical-slate/40 text-clinical-slate hover:text-white"
+              >
+                {copied ? (
+                  <Check className="w-4 h-4" />
+                ) : (
+                  <Copy className="w-4 h-4" />
+                )}
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => setToken(null)}
+                className="border-clinical-slate/40 text-clinical-slate hover:text-white"
+                title="Hide"
+              >
+                <EyeOff className="w-4 h-4" />
+              </Button>
+            </div>
+            <p className="text-[11px] text-clinical-slate leading-relaxed">
+              Tap copy, open the Tanmatra mobile app, and paste into the
+              pairing field. Treat this token like a password — anyone with it
+              can post activity as you.
+            </p>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
 function StreakBadge({
   label,
   current,
@@ -747,6 +864,7 @@ export default function Wellness() {
               </CardContent>
             </Card>
             <WearableCard data={data} refresh={refreshAll} />
+            <PairMobileCard />
           </div>
         </section>
       )}

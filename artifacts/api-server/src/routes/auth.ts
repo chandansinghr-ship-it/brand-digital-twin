@@ -261,6 +261,29 @@ router.post(
   },
 );
 
+router.post(
+  "/auth/mobile-pair",
+  async (req: Request, res: Response) => {
+    if (!req.isAuthenticated()) {
+      res.status(401).json({ error: "unauthorized" });
+      return;
+    }
+    const user = req.user;
+    const sessionData: SessionData = {
+      user: {
+        id: user.id,
+        email: user.email,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        profileImageUrl: user.profileImageUrl,
+      },
+      access_token: "",
+    };
+    const sid = await createSession(sessionData);
+    res.json({ token: sid });
+  },
+);
+
 router.post("/mobile-auth/logout", async (req: Request, res: Response) => {
   const sid = getSessionId(req);
   if (sid) {
