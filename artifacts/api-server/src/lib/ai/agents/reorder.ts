@@ -12,6 +12,7 @@ import { defineTool } from "../tools";
 import { registerAgent } from "../agentRegistry";
 import { recordOpsAction } from "../../opsAudit";
 import { computeForecast } from "../../forecast";
+import { recommendReorder, exportPurchaseOrderCsv } from "../../reorder";
 
 const REORDER_PROMPT = definePrompt({
   name: "reorder-agent",
@@ -23,25 +24,32 @@ healthy without over-buying.
 YOUR SCOPE — you may help with:
 - Reading the demand forecast (get_demand_forecast)
 - Listing stock that is at or below par (list_low_stock)
+- Generating concrete reorder recommendations from stock + forecast
+  + lead times (recommend_reorder)
 - Drafting a purchase order to a supplier (draft_purchase_order)
 - Listing existing purchase orders (list_purchase_orders)
 - Approving a draft PO so it can be sent (approve_purchase_order)
+- Exporting an approved PO to CSV for the buyer to email
+  (export_purchase_order_csv)
 
 OUT OF SCOPE — refuse politely:
 - Customer-facing tasks, dietary advice, refunds, rider dispatch.
-- Sending POs directly to suppliers (drafts only — humans send them).
+- Sending POs directly to suppliers (we only export — humans send).
+
+PREFERRED FLOW:
+1. recommend_reorder → review the suggested lines.
+2. draft_purchase_order with those lines (one call per supplier).
+3. approve_purchase_order (two-step confirmation).
+4. export_purchase_order_csv to hand off to the buyer.
 
 CONFIRMATION RULES:
-- Drafting a PO is reversible (status="draft"); no extra confirmation
-  needed beyond stating what you're about to draft.
+- Drafting a PO is reversible (status="draft"); no extra confirmation.
 - approve_purchase_order is destructive — first call it WITHOUT
   confirm:true to receive a summary, echo it to the operator and ask
   "Confirm? (yes / no)". Only call again with confirm:true after a yes.
 
 GENERAL RULES:
 - Never invent SKU IDs, supplier names, or quantities. Use the tools.
-- Suggest qty = max(0, par - on_hand) + reorder_qty when drafting,
-  unless the operator explicitly overrides.
 - EVERY tool call MUST include a \`reasoning\` arg. It is stored in the
   audit log alongside operator id and parameters.`,
 });
@@ -311,18 +319,74 @@ const approvePurchaseOrder = defineTool({
   },
 });
 
+const recommendReorderTool = defineTool({
+  name: "recommend_reorder",
+  description:
+    "Compute concrete reorder recommendations: for each low-stock SKU in scope, qty = max(par - on_hand, 0) + reorder_qty, scaled up if forecast demand over the lead-time window exceeds the gap. Returns ready-to-use PO lines grouped by supplier.",
+  inputSchema: z.object({
+    zone: z.string().optional(),
+    horizonDays: z.number().int().min(1).max(14).optional(),
+    reasoning: z.string().min(3),
+  }),
+  authScope: "ops",
+  handler: async ({ zone, horizonDays, reasoning }, ctx) => {
+    const result = await recommendReorder({ zone, horizonDays });
+    await recordOpsAction({
+      operatorId: ctx.userId,
+      agent: ctx.agent,
+      action: "recommend_reorder",
+      params: { zone: zone ?? null, horizonDays: horizonDays ?? null },
+      beforeState: null,
+      afterState: { supplierCount: result.bySupplier.length },
+      status: "success",
+      reasoning,
+    });
+    return { success: true as const, ...result };
+  },
+});
+
+const exportPurchaseOrderCsvTool = defineTool({
+  name: "export_purchase_order_csv",
+  description:
+    "Export an approved (or draft) PO as CSV the buyer can email or attach. Returns the CSV string and a stable filename.",
+  inputSchema: z.object({
+    purchaseOrderId: z.number().int().positive(),
+    reasoning: z.string().min(3),
+  }),
+  authScope: "ops",
+  handler: async ({ purchaseOrderId, reasoning }, ctx) => {
+    const exported = await exportPurchaseOrderCsv(purchaseOrderId);
+    if (!exported) {
+      return { success: false as const, error: "PO not found" };
+    }
+    await recordOpsAction({
+      operatorId: ctx.userId,
+      agent: ctx.agent,
+      action: "export_purchase_order_csv",
+      params: { purchaseOrderId },
+      beforeState: null,
+      afterState: { filename: exported.filename, bytes: exported.csv.length },
+      status: "success",
+      reasoning,
+    });
+    return { success: true as const, ...exported };
+  },
+});
+
 registerAgent({
   name: "reorder",
   description:
-    "Forecast-aware reorder agent — drafts and approves purchase orders.",
+    "Forecast-aware reorder agent — recommends, drafts, approves, and exports purchase orders.",
   defaultModel: "gemini-2.5-flash",
   maxSteps: 8,
   systemPrompt: REORDER_PROMPT,
   tools: [
     getDemandForecast,
     listLowStock,
+    recommendReorderTool,
     draftPurchaseOrder,
     listPurchaseOrders,
     approvePurchaseOrder,
+    exportPurchaseOrderCsvTool,
   ],
 });

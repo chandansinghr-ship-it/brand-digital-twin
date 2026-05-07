@@ -315,6 +315,7 @@ export default function AdminForecasting() {
                       <th>Status</th>
                       <th>ETA</th>
                       <th className="text-right">Total</th>
+                      <th className="text-right">CSV</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -334,6 +335,16 @@ export default function AdminForecasting() {
                         <td>{p.etaDate ?? "—"}</td>
                         <td className="text-right">
                           ₹{(p.totalPaise / 100).toFixed(0)}
+                        </td>
+                        <td className="text-right">
+                          <a
+                            className="underline text-xs"
+                            href={`/api/forecasting/purchase-orders/${p.id}/export.csv`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                          >
+                            export CSV
+                          </a>
                         </td>
                       </tr>
                     ))}

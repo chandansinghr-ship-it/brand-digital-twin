@@ -8,7 +8,14 @@ import {
   purchaseOrderLinesTable,
 } from "@workspace/db";
 import { and, asc, desc, eq, lte, type SQL } from "drizzle-orm";
-import { computeForecast, forecastMape } from "../lib/forecast";
+import {
+  computeForecast,
+  forecastMape,
+  persistForecastSnapshots,
+  backfillActuals,
+  type Granularity,
+} from "../lib/forecast";
+import { recommendReorder, exportPurchaseOrderCsv } from "../lib/reorder";
 import { runAgent, type GatewayEvent } from "../lib/ai";
 
 const router: IRouter = Router();
@@ -42,8 +49,42 @@ router.get("/forecasting/forecast", async (req: Request, res: Response) => {
   if (!gate(req, res)) return;
   const zone = typeof req.query.zone === "string" ? req.query.zone : undefined;
   const lookback = parseInt(String(req.query.lookbackDays ?? "28"), 10) || 28;
-  const rows = await computeForecast({ zone, lookbackDays: lookback });
-  res.json({ forecast: rows });
+  const granularity: Granularity =
+    req.query.granularity === "hour" ? "hour" : "daypart";
+  const rows = await computeForecast({
+    zone,
+    lookbackDays: lookback,
+    granularity,
+  });
+  res.json({ forecast: rows, granularity });
+});
+
+router.post("/forecasting/snapshots/run", async (req: Request, res: Response) => {
+  if (!gate(req, res)) return;
+  const zone = typeof req.body?.zone === "string" ? req.body.zone : undefined;
+  const result = await persistForecastSnapshots({ zone });
+  res.json(result);
+});
+
+router.post(
+  "/forecasting/snapshots/backfill-actuals",
+  async (req: Request, res: Response) => {
+    if (!gate(req, res)) return;
+    const sinceDays =
+      parseInt(String(req.body?.sinceDays ?? "14"), 10) || 14;
+    const result = await backfillActuals({ sinceDays });
+    res.json(result);
+  },
+);
+
+router.get("/forecasting/recommend-reorder", async (req: Request, res: Response) => {
+  if (!gate(req, res)) return;
+  const zone = typeof req.query.zone === "string" ? req.query.zone : undefined;
+  const horizon = req.query.horizonDays
+    ? parseInt(String(req.query.horizonDays), 10)
+    : undefined;
+  const result = await recommendReorder({ zone, horizonDays: horizon });
+  res.json(result);
 });
 
 router.get("/forecasting/accuracy", async (req: Request, res: Response) => {
@@ -97,6 +138,29 @@ router.get("/forecasting/purchase-orders", async (req: Request, res: Response) =
     .limit(50);
   res.json({ purchaseOrders: rows });
 });
+
+router.get(
+  "/forecasting/purchase-orders/:id/export.csv",
+  async (req: Request, res: Response) => {
+    if (!gate(req, res)) return;
+    const id = parseInt(String(req.params["id"]), 10);
+    if (!Number.isFinite(id)) {
+      res.status(400).json({ error: "invalid id" });
+      return;
+    }
+    const out = await exportPurchaseOrderCsv(id);
+    if (!out) {
+      res.status(404).json({ error: "not found" });
+      return;
+    }
+    res.setHeader("Content-Type", "text/csv; charset=utf-8");
+    res.setHeader(
+      "Content-Disposition",
+      `attachment; filename="${out.filename}"`,
+    );
+    res.send(out.csv);
+  },
+);
 
 router.get(
   "/forecasting/purchase-orders/:id",

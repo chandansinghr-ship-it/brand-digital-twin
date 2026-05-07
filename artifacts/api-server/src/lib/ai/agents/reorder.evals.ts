@@ -23,7 +23,12 @@ export const reorderEvals: EvalCase[] = [
   },
   {
     name: "demand forecast uses tool",
-    message: "Show me tomorrow's demand forecast for the default zone.",
+    message: "Just call get_demand_forecast for the default zone and show me the top dishes — don't recommend or draft anything.",
     expect: { toolUsed: "get_demand_forecast" },
+  },
+  {
+    name: "reorder recommendation uses tool",
+    message: "Recommend what we should reorder today.",
+    expect: { toolUsed: "recommend_reorder" },
   },
 ];
