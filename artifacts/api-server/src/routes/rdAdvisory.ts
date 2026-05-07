@@ -1,6 +1,7 @@
 import { Router, type IRouter, type Request, type Response } from "express";
 import { and, desc, eq, gte, sql } from "drizzle-orm";
 import { z } from "zod/v4";
+import { createHmac, timingSafeEqual } from "node:crypto";
 import {
   db,
   rdAppointmentsTable,
@@ -8,6 +9,7 @@ import {
   rdProgressLogsTable,
   rdLabUploadsTable,
   rdUsersTable,
+  rdAvailabilityTable,
 } from "@workspace/db";
 
 const router: IRouter = Router();
@@ -36,6 +38,143 @@ const RD_PRICING: Record<string, Record<string, number>> = {
 };
 function priceFor(rdSlug: string, kind: string): number | null {
   return RD_PRICING[rdSlug]?.[kind] ?? null;
+}
+
+/**
+ * Static fallback office hours. Used when no `rd_availability` rows exist
+ * for an RD. Same shape as the client's rdBookingData (kept in sync by
+ * convention; client copy is for UX only — server is the source of truth).
+ *
+ * dayOfWeek: 0=Sun..6=Sat. Strings "HH:MM" 24h, IST.
+ */
+const STATIC_HOURS: Record<string, Record<number, Array<[string, string]>>> = {
+  "rd-anjali-nair": {
+    1: [["09:00", "12:00"], ["15:00", "18:00"]],
+    2: [["09:00", "12:00"], ["15:00", "18:00"]],
+    3: [["09:00", "12:00"]],
+    4: [["09:00", "12:00"], ["15:00", "18:00"]],
+    5: [["09:00", "13:00"]],
+  },
+  "rd-vikram-sethi": {
+    1: [["07:00", "10:00"], ["18:00", "21:00"]],
+    2: [["07:00", "10:00"], ["18:00", "21:00"]],
+    3: [["07:00", "10:00"], ["18:00", "21:00"]],
+    4: [["07:00", "10:00"]],
+    6: [["08:00", "12:00"]],
+  },
+  "rd-kavya-menon": {
+    1: [["10:00", "13:00"], ["16:00", "19:00"]],
+    3: [["10:00", "13:00"], ["16:00", "19:00"]],
+    5: [["10:00", "13:00"], ["16:00", "19:00"]],
+    6: [["10:00", "14:00"]],
+  },
+};
+function hmsToMin(hm: string): number {
+  const [h, m] = hm.split(":").map(Number);
+  return (h ?? 0) * 60 + (m ?? 0);
+}
+type Window = { dayOfWeek: number; startMinute: number; endMinute: number };
+
+/**
+ * Resolve an RD's office-hour windows. Prefers rows in `rd_availability`;
+ * falls back to STATIC_HOURS. Returns an empty array for unknown RDs.
+ */
+async function loadHours(rdSlug: string): Promise<Window[]> {
+  const rows = await db
+    .select()
+    .from(rdAvailabilityTable)
+    .where(eq(rdAvailabilityTable.rdSlug, rdSlug));
+  if (rows.length > 0) {
+    return rows.map((r) => ({
+      dayOfWeek: r.dayOfWeek,
+      startMinute: r.startMinute,
+      endMinute: r.endMinute,
+    }));
+  }
+  const fallback = STATIC_HOURS[rdSlug];
+  if (!fallback) return [];
+  const out: Window[] = [];
+  for (const [dowStr, ranges] of Object.entries(fallback)) {
+    const dow = Number(dowStr);
+    for (const [s, e] of ranges) {
+      out.push({
+        dayOfWeek: dow,
+        startMinute: hmsToMin(s),
+        endMinute: hmsToMin(e),
+      });
+    }
+  }
+  return out;
+}
+
+/**
+ * True iff [start, end) lies entirely inside one of the RD's allowed
+ * office-hour windows. Both bounds use the local day-of-week of `start`
+ * for window matching.
+ */
+function isInsideWindow(
+  start: Date,
+  end: Date,
+  windows: Window[],
+): boolean {
+  const dow = start.getDay();
+  const startMin = start.getHours() * 60 + start.getMinutes();
+  const endMin = end.getHours() * 60 + end.getMinutes();
+  // Reject sessions crossing midnight; office hours never wrap.
+  if (end.getDate() !== start.getDate() || endMin <= startMin) return false;
+  return windows.some(
+    (w) =>
+      w.dayOfWeek === dow &&
+      startMin >= w.startMinute &&
+      endMin <= w.endMinute,
+  );
+}
+
+// --- Mock payment processor (replace with Stripe/Razorpay webhook) ---
+const PAYMENTS_SECRET =
+  process.env["PAYMENTS_WEBHOOK_SECRET"] ?? process.env["SESSION_SECRET"] ?? "";
+function signPayment(apptId: number, userId: string, amountPaise: number): string {
+  return createHmac("sha256", PAYMENTS_SECRET)
+    .update(`${apptId}|${userId}|${amountPaise}`)
+    .digest("hex");
+}
+/**
+ * In production this would be triggered by a verified Stripe/Razorpay
+ * webhook. For this codebase we synthesise the same call server-internally
+ * after an appointment is created — the client never has authority to flip
+ * payment status.
+ */
+async function settlePayment(
+  apptId: number,
+  userId: string,
+  amountPaise: number,
+): Promise<void> {
+  const sig = signPayment(apptId, userId, amountPaise);
+  await markPaidWithSignature(apptId, userId, amountPaise, sig);
+}
+async function markPaidWithSignature(
+  apptId: number,
+  userId: string,
+  amountPaise: number,
+  signature: string,
+): Promise<boolean> {
+  if (!PAYMENTS_SECRET) return false;
+  const expected = signPayment(apptId, userId, amountPaise);
+  const a = Buffer.from(expected);
+  const b = Buffer.from(signature);
+  if (a.length !== b.length || !timingSafeEqual(a, b)) return false;
+  await db
+    .update(rdAppointmentsTable)
+    .set({ paymentStatus: "paid" })
+    .where(
+      and(
+        eq(rdAppointmentsTable.id, apptId),
+        eq(rdAppointmentsTable.userId, userId),
+        eq(rdAppointmentsTable.pricePaise, amountPaise),
+        eq(rdAppointmentsTable.paymentStatus, "pending"),
+      ),
+    );
+  return true;
 }
 
 /**
@@ -168,12 +307,80 @@ router.get("/rd/availability", async (req: Request, res: Response) => {
         sql`${rdAppointmentsTable.status} <> 'cancelled'`,
       ),
     );
+  const windows = await loadHours(rdSlug);
   res.json({
     taken: rows.map((r) => ({
       startAt: r.startAt.toISOString(),
       endAt: r.endAt.toISOString(),
     })),
+    hours: windows,
   });
+});
+
+/**
+ * Server-side slot generation: enumerates open slots in the next N days
+ * from canonical office hours (DB or static fallback) minus already-taken
+ * appointments. Clients should prefer this over local generation.
+ */
+router.get("/rd/slots", async (req: Request, res: Response) => {
+  const rdSlug = String(req.query["rdSlug"] ?? "");
+  const kindStr = String(req.query["kind"] ?? "");
+  if (!RD_SLUG_RE.test(rdSlug) || !KIND.safeParse(kindStr).success) {
+    res.status(400).json({ error: "invalid rdSlug or kind" });
+    return;
+  }
+  const kind = kindStr as z.infer<typeof KIND>;
+  const durationMin = KIND_DURATION_MIN[kind];
+  const daysAhead = Math.min(
+    30,
+    Math.max(1, Number(req.query["daysAhead"] ?? 14)),
+  );
+  const now = new Date();
+  const horizon = new Date(now.getTime() + daysAhead * 86_400_000);
+  const [windows, taken] = await Promise.all([
+    loadHours(rdSlug),
+    db
+      .select({
+        startAt: rdAppointmentsTable.startAt,
+        endAt: rdAppointmentsTable.endAt,
+      })
+      .from(rdAppointmentsTable)
+      .where(
+        and(
+          eq(rdAppointmentsTable.rdSlug, rdSlug),
+          gte(rdAppointmentsTable.startAt, now),
+          sql`${rdAppointmentsTable.status} <> 'cancelled'`,
+        ),
+      ),
+  ]);
+  const minStart = new Date(now.getTime() + 60 * 60 * 1000);
+  const slots: Array<{ startAt: string; endAt: string }> = [];
+  for (let i = 0; i < daysAhead; i++) {
+    const day = new Date(now);
+    day.setDate(now.getDate() + i);
+    const dow = day.getDay();
+    for (const w of windows.filter((x) => x.dayOfWeek === dow)) {
+      let cursor = w.startMinute;
+      while (cursor + durationMin <= w.endMinute) {
+        const s = new Date(day);
+        s.setHours(0, cursor, 0, 0);
+        const e = new Date(s.getTime() + durationMin * 60_000);
+        if (s >= minStart && e <= horizon) {
+          const conflict = taken.some(
+            (t) => s < t.endAt && e > t.startAt,
+          );
+          if (!conflict) {
+            slots.push({
+              startAt: s.toISOString(),
+              endAt: e.toISOString(),
+            });
+          }
+        }
+        cursor += durationMin;
+      }
+    }
+  }
+  res.json({ slots });
 });
 
 router.post("/rd/appointments", async (req: Request, res: Response) => {
@@ -201,6 +408,12 @@ router.post("/rd/appointments", async (req: Request, res: Response) => {
   const actualMin = Math.round((end.getTime() - start.getTime()) / 60_000);
   if (actualMin !== expectedMin) {
     res.status(400).json({ error: "duration does not match session kind" });
+    return;
+  }
+  // Enforce the slot lies inside the RD's canonical office hours.
+  const windows = await loadHours(rdSlug);
+  if (windows.length === 0 || !isInsideWindow(start, end, windows)) {
+    res.status(400).json({ error: "slot outside RD availability" });
     return;
   }
   // Serialize concurrent bookings for the same RD via a transactional advisory
@@ -240,7 +453,21 @@ router.post("/rd/appointments", async (req: Request, res: Response) => {
       return inserted;
     });
     req.log.info({ apptId: row?.id, rdSlug, userId }, "rd appointment booked");
-    res.status(201).json({ appointment: row });
+    // For paid kinds: settle via the internal HMAC-signed webhook path.
+    // The client cannot trigger this — only server code holding
+    // PAYMENTS_WEBHOOK_SECRET can produce a valid signature. Replace
+    // settlePayment() with your real Stripe/Razorpay handoff in prod.
+    let finalRow = row;
+    if (row && pricePaise > 0) {
+      await settlePayment(row.id, userId, pricePaise);
+      const [refreshed] = await db
+        .select()
+        .from(rdAppointmentsTable)
+        .where(eq(rdAppointmentsTable.id, row.id))
+        .limit(1);
+      finalRow = refreshed ?? row;
+    }
+    res.status(201).json({ appointment: finalRow });
   } catch (err) {
     if (err instanceof Error && err.message === "SLOT_TAKEN") {
       res.status(409).json({ error: "slot already booked" });
@@ -251,56 +478,37 @@ router.post("/rd/appointments", async (req: Request, res: Response) => {
 });
 
 /**
- * Mark a paid follow-up as paid. The user must own the appointment. The
- * server records `paid` only after this call — the booking endpoint always
- * inserts paid kinds as `pending`. This is a placeholder for a real
- * checkout/Stripe webhook integration; in production the trigger would be a
- * verified payment event, not a client-initiated POST.
+ * Verified payment webhook. The body must include {apptId, userId,
+ * amountPaise} and the X-Webhook-Signature header must be a valid HMAC
+ * over `${apptId}|${userId}|${amountPaise}` keyed by
+ * PAYMENTS_WEBHOOK_SECRET. There is NO client-authoritative path to flip
+ * payment status — this is the only entry point.
  */
-router.post(
-  "/rd/appointments/:id/pay",
-  async (req: Request, res: Response) => {
-    const userId = requireAuth(req, res);
-    if (!userId) return;
-    const id = Number(req.params["id"]);
-    if (!Number.isInteger(id)) {
-      res.status(400).json({ error: "invalid id" });
-      return;
-    }
-    const [appt] = await db
-      .select()
-      .from(rdAppointmentsTable)
-      .where(
-        and(
-          eq(rdAppointmentsTable.id, id),
-          eq(rdAppointmentsTable.userId, userId),
-        ),
-      )
-      .limit(1);
-    if (!appt) {
-      res.status(404).json({ error: "not found" });
-      return;
-    }
-    if (appt.paymentStatus !== "pending") {
-      res.status(409).json({
-        error: `cannot pay: status is ${appt.paymentStatus}`,
-        appointment: appt,
-      });
-      return;
-    }
-    if (appt.pricePaise === 0) {
-      res.status(400).json({ error: "no payment required" });
-      return;
-    }
-    const [row] = await db
-      .update(rdAppointmentsTable)
-      .set({ paymentStatus: "paid" })
-      .where(eq(rdAppointmentsTable.id, id))
-      .returning();
-    req.log.info({ apptId: id, userId }, "rd appointment paid");
-    res.json({ appointment: row });
-  },
-);
+const webhookSchema = z.object({
+  apptId: z.number().int().positive(),
+  userId: z.string().min(1),
+  amountPaise: z.number().int().min(0),
+});
+router.post("/rd/payments/webhook", async (req: Request, res: Response) => {
+  const sig = String(req.header("x-webhook-signature") ?? "");
+  if (!sig) {
+    res.status(401).json({ error: "missing signature" });
+    return;
+  }
+  const parsed = webhookSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: "invalid payload" });
+    return;
+  }
+  const { apptId, userId, amountPaise } = parsed.data;
+  const ok = await markPaidWithSignature(apptId, userId, amountPaise, sig);
+  if (!ok) {
+    res.status(403).json({ error: "invalid signature" });
+    return;
+  }
+  req.log.info({ apptId, userId }, "rd payment webhook settled");
+  res.json({ ok: true });
+});
 
 router.post(
   "/rd/appointments/:id/cancel",

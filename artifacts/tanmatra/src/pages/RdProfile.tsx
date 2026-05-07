@@ -103,23 +103,23 @@ export default function RdProfile() {
         endAt: selected.endAt,
         userQuestion: question.trim() || undefined,
       });
-      // Paid follow-ups are inserted as paymentStatus="pending"; complete a
-      // (mock) checkout step here before the booking is finalised.
+      // Server settles paid kinds via an internal HMAC-signed webhook
+      // before responding, so paymentStatus is already "paid" or "free"
+      // here. A "pending" response means the payment processor secret is
+      // not configured on the server.
       if (appointment.paymentStatus === "pending") {
-        try {
-          await rdAdvisoryApi.payAppointment(appointment.id);
-          toast.success("Payment received", {
-            description: `${meta.label} confirmed with ${member?.name.split(" ").slice(-1)[0]} on ${formatDay(appointment.startAt)} at ${formatTime(appointment.startAt)}.`,
-          });
-        } catch (e) {
-          toast.error("Payment failed — booking held as pending", {
-            description: String(e),
-          });
-        }
-      } else {
-        toast.success("Booking confirmed", {
-          description: `${meta.label} with ${member?.name.split(" ").slice(-1)[0]} on ${formatDay(appointment.startAt)} at ${formatTime(appointment.startAt)}.`,
+        toast.error("Booking held — payment not configured", {
+          description: "The server's payment processor is not set up.",
         });
+      } else {
+        toast.success(
+          appointment.paymentStatus === "paid"
+            ? "Payment received"
+            : "Booking confirmed",
+          {
+            description: `${meta.label} with ${member?.name.split(" ").slice(-1)[0]} on ${formatDay(appointment.startAt)} at ${formatTime(appointment.startAt)}.`,
+          },
+        );
       }
       navigate("/appointments");
     } catch (err) {

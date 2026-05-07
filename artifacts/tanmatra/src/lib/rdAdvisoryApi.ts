@@ -177,9 +177,4 @@ export const rdAdvisoryApi = {
       method: "POST",
       body: JSON.stringify({ rdSlug, adminToken }),
     }),
-  payAppointment: (id: number) =>
-    request<{ appointment: RdAppointment }>(
-      `/rd/appointments/${id}/pay`,
-      { method: "POST" },
-    ),
 };
