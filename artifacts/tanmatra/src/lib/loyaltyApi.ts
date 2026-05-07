@@ -112,11 +112,19 @@ export const loyaltyApi = {
     ),
   finalizeOrder: (args: {
     orderId: string;
-    grossPaise: number;
+    items: Array<{ id: number; name: string; qty: number; price: number }>;
+    address?: {
+      label?: string | null;
+      line?: string | null;
+      city?: string | null;
+      pincode?: string | null;
+      phone?: string | null;
+    };
     applyCreditsPaise?: number;
   }) =>
     request<{
       orderId: string;
+      serverOrderId: number;
       grossPaise: number;
       redeemedPaise: number;
       finalPaise: number;

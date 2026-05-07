@@ -5,6 +5,7 @@ import {
   loyaltyConfigTable,
   notificationsTable,
   orderClaimsTable,
+  ordersTable,
   referralRedemptionsTable,
   subscriptionDeliveriesTable,
   subscriptionsTable,
@@ -317,13 +318,30 @@ async function awardPendingReferralInTx(
  * Either everything commits or nothing does — no partial state where
  * an order is discounted but the ledger is unchanged.
  */
+export interface FinalizeOrderItem {
+  id: number;
+  name: string;
+  qty: number;
+  price: number;
+}
+
+export interface FinalizeOrderAddress {
+  label?: string | null;
+  line?: string | null;
+  city?: string | null;
+  pincode?: string | null;
+  phone?: string | null;
+}
+
 export async function finalizeOrder(args: {
   userId: string;
   orderId: string;
-  grossPaise: number;
+  items: FinalizeOrderItem[];
+  address?: FinalizeOrderAddress;
   applyCreditsPaise?: number;
 }): Promise<{
   orderId: string;
+  serverOrderId: number;
   grossPaise: number;
   redeemedPaise: number;
   finalPaise: number;
@@ -331,17 +349,68 @@ export async function finalizeOrder(args: {
   duplicate: boolean;
   referral: AwardReferralResult;
 }> {
+  // Server computes gross from item line totals — client cannot
+  // forge a discount by sending a smaller grossPaise.
+  if (args.items.length === 0) {
+    throw new Error("order has no items");
+  }
+  const grossPaise = args.items.reduce(
+    (acc, it) => acc + Math.max(0, Math.floor(it.qty)) * Math.max(0, Math.floor(it.price)),
+    0,
+  );
+  if (grossPaise <= 0) {
+    throw new Error("order total must be positive");
+  }
   const requested = Math.max(0, Math.floor(args.applyCreditsPaise ?? 0));
   return db.transaction(async (tx) => {
-    // 1. Claim insertion — wins or returns nothing on conflict.
+    // 1. Persist a real server-side order row, idempotent on
+    //    (userId, externalOrderId). This is the source of truth
+    //    that referral awards are tied to — no order row, no award.
+    const [createdOrder] = await tx
+      .insert(ordersTable)
+      .values({
+        userId: args.userId,
+        externalOrderId: args.orderId,
+        status: "placed",
+        totalPaise: grossPaise,
+        items: args.items,
+        addressLabel: args.address?.label ?? null,
+        addressLine: args.address?.line ?? null,
+        city: args.address?.city ?? null,
+        pincode: args.address?.pincode ?? null,
+        phone: args.address?.phone ?? null,
+      })
+      .onConflictDoNothing({
+        target: [ordersTable.userId, ordersTable.externalOrderId],
+      })
+      .returning();
+
+    let serverOrderId: number;
+    if (createdOrder) {
+      serverOrderId = createdOrder.id;
+    } else {
+      const [existingOrder] = await tx
+        .select({ id: ordersTable.id })
+        .from(ordersTable)
+        .where(
+          and(
+            eq(ordersTable.userId, args.userId),
+            eq(ordersTable.externalOrderId, args.orderId),
+          ),
+        );
+      if (!existingOrder) throw new Error("order persistence race");
+      serverOrderId = existingOrder.id;
+    }
+
+    // 2. Loyalty claim — same idempotency story as the order row.
     const [created] = await tx
       .insert(orderClaimsTable)
       .values({
         userId: args.userId,
         orderId: args.orderId,
-        grossPaise: args.grossPaise,
+        grossPaise,
         redeemedPaise: 0,
-        finalPaise: args.grossPaise,
+        finalPaise: grossPaise,
       })
       .onConflictDoNothing({
         target: [orderClaimsTable.userId, orderClaimsTable.orderId],
@@ -362,9 +431,10 @@ export async function finalizeOrder(args: {
       const balance = await getCreditBalancePaise(args.userId, tx);
       return {
         orderId: args.orderId,
-        grossPaise: existing?.grossPaise ?? args.grossPaise,
+        serverOrderId,
+        grossPaise: existing?.grossPaise ?? grossPaise,
         redeemedPaise: existing?.redeemedPaise ?? 0,
-        finalPaise: existing?.finalPaise ?? args.grossPaise,
+        finalPaise: existing?.finalPaise ?? grossPaise,
         balancePaise: balance,
         duplicate: true,
         referral: {
@@ -374,14 +444,14 @@ export async function finalizeOrder(args: {
       };
     }
 
-    // 2. Optional credit redemption, atomic with the claim.
+    // 3. Optional credit redemption, atomic with the order + claim.
     let redeemed = 0;
     if (requested > 0) {
       await tx.execute(
         sql`select pg_advisory_xact_lock(hashtextextended(${"credit:" + args.userId}, 0))`,
       );
       const balance = await getCreditBalancePaise(args.userId, tx);
-      redeemed = Math.min(requested, balance, args.grossPaise);
+      redeemed = Math.min(requested, balance, grossPaise);
       if (redeemed > 0) {
         await issueCredit(
           {
@@ -396,24 +466,43 @@ export async function finalizeOrder(args: {
         );
       }
     }
-    const finalPaise = args.grossPaise - redeemed;
+    const finalPaise = grossPaise - redeemed;
 
-    // 3. Persist actual amounts on the claim.
+    // 4. Persist actual amounts on the claim and the order total.
     await tx
       .update(orderClaimsTable)
       .set({ redeemedPaise: redeemed, finalPaise })
       .where(eq(orderClaimsTable.id, created.id));
+    if (redeemed > 0) {
+      await tx
+        .update(ordersTable)
+        .set({ totalPaise: finalPaise })
+        .where(eq(ordersTable.id, serverOrderId));
+    }
 
-    // 4. Award referral now that we have a real first-order record.
-    const referral = await awardPendingReferralInTx(tx, {
-      refereeUserId: args.userId,
-      orderId: args.orderId,
-    });
+    // 5. Award referral — server-recorded first order satisfies the
+    //    "both earn credits on first order" requirement. We additionally
+    //    require this be the user's first qualifying order.
+    const [orderCount] = await tx
+      .select({ n: count() })
+      .from(ordersTable)
+      .where(eq(ordersTable.userId, args.userId));
+    let referral: AwardReferralResult = {
+      awarded: false,
+      reason: "no_qualifying_activity",
+    };
+    if (Number(orderCount?.n ?? 0) === 1) {
+      referral = await awardPendingReferralInTx(tx, {
+        refereeUserId: args.userId,
+        orderId: args.orderId,
+      });
+    }
 
     const balancePaise = await getCreditBalancePaise(args.userId, tx);
     return {
       orderId: args.orderId,
-      grossPaise: args.grossPaise,
+      serverOrderId,
+      grossPaise,
       redeemedPaise: redeemed,
       finalPaise,
       balancePaise,

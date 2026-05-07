@@ -219,7 +219,26 @@ router.post(
 
 const finalizeOrderSchema = z.object({
   orderId: z.string().min(1).max(64),
-  grossPaise: z.number().int().nonnegative().max(10_000_000),
+  items: z
+    .array(
+      z.object({
+        id: z.number().int().nonnegative(),
+        name: z.string().min(1).max(128),
+        qty: z.number().int().positive().max(100),
+        price: z.number().int().nonnegative().max(1_000_000),
+      }),
+    )
+    .min(1)
+    .max(50),
+  address: z
+    .object({
+      label: z.string().max(64).nullable().optional(),
+      line: z.string().max(256).nullable().optional(),
+      city: z.string().max(64).nullable().optional(),
+      pincode: z.string().max(16).nullable().optional(),
+      phone: z.string().max(32).nullable().optional(),
+    })
+    .optional(),
   applyCreditsPaise: z.number().int().nonnegative().max(10_000_000).optional(),
 });
 

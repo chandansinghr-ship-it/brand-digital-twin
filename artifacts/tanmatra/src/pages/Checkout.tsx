@@ -119,19 +119,32 @@ export default function Checkout() {
     const placedAt = new Date().toISOString();
     const etaAt = new Date(Date.now() + 25 * 60 * 1000).toISOString();
 
-    // Server-owned atomic finalize: records the order, redeems credits,
-    // and awards any pending referral inside one transaction. If this
-    // call fails for any reason, no order is committed and no credits
-    // are debited.
+    // Server-owned atomic finalize: persists the order in the database,
+    // redeems credits, and awards any pending referral inside one
+    // transaction. The server computes the gross from item prices
+    // (client-supplied amounts cannot underprice the order).
     let finalTotal = grossTotal;
     let referralAwarded = false;
     try {
       const out = await loyaltyApi.finalizeOrder({
         orderId,
-        grossPaise: grossTotal,
+        items: items.map((it) => ({
+          id: it.dishId,
+          name: it.name,
+          qty: it.quantity,
+          price: it.unitPrice,
+        })),
+        address: {
+          label: activeAddr.label,
+          line: [activeAddr.line1, activeAddr.line2].filter(Boolean).join(", "),
+          city: activeAddr.city,
+          pincode: activeAddr.pincode,
+          phone: activeAddr.phone,
+        },
         applyCreditsPaise: creditApplied > 0 ? creditApplied : undefined,
       });
-      finalTotal = out.finalPaise;
+      // Add delivery + tip on top of the server-validated meal total.
+      finalTotal = out.finalPaise + deliveryFee + effectiveTip;
       setCreditBalance(out.balancePaise);
       referralAwarded = out.referral.awarded;
     } catch {
