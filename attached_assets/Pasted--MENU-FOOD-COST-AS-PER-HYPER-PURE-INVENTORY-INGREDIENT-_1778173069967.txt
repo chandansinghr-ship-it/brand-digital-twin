@@ -1,0 +1,114 @@
+		MENU 			FOOD COST ( AS PER HYPER PURE INVENTORY )					INGREDIENT AS PER RECEIPE AND WEIGHT							
+Activated Charcoal Smoothie					11.43	5.67	1.5	3	0.63	0.63							
+Aglio Olio (o) (Veg)					40.03	26	5	1.2	0.5	1	0.12	0.76	4	1.45			
+Aglio Olio (o) (Chicken)					56.03	26	21	1.2	0.5	1	0.12	0.76	4	1.45			
+Aglio Olio (o) (Prawns)					63.03	26	28	1.2	0.5	1	0.12	0.76	4	1.45			
+Alfredo Pasta (o) (Veg)		veg penne)			44.04	15.7	5	1.45	1	16	0.37	1.57	1.57	0.5	0.12	0.76	
+Alfredo Pasta (o) (Veg)		speghetti 			54.34	26	5	1.45	1	16	0.37	1.57	1.57	0.5	0.12	0.76	
+Alfredo Pasta (o) (Chicken)		penne chicken 			60.04	15.7	21	1.45	1	16	0.37	1.57	1.57	0.5	0.12	0.76	
+Alfredo Pasta (o) (Chicken)		spegh chicken			70.34	26	21	1.45	1	16	0.37	1.57	1.57	0.5	0.12	0.76	
+Alfredo Pasta (o) (Prawns)		penne prawns			67.04	15.7	28	1.45	1	16	0.37	1.57	1.57	0.5	0.12	0.76	
+Alfredo Pasta (o) (Prawns)		speghetti prawns			77.34	26	28	1.45	1	16	0.37	1.57	1.57	0.5	0.12	0.76	
+Almond Chicken Salad					47.87	21	2.1	2.1	6	2.5	3	0.12	0.76	2.36	7.93		
+Antioxidant Detox					53	1	0.5	20	2	3	26.5						
+Apple Cinnamon Smoothie					46.65	24	2	6	0.65	14							
+Arrabbiata (o) (Veg)	 PENNE VEG				32.3	15.7	1.57	1.57	1.2	0.5	0.12	0.76	5	1.43	1.45	3	
+Arrabbiata (o) (Veg)	 SPEGEHETTI VEG				39.46	26	1.2	0.5	0.12	0.76	5	1.43	1.45	3			
+Arrabbiata (o) (Chicken)	 PENNE CHICKEN 				48.3	15.7	1.57	1.57	1.2	0.5	0.12	0.76	21	1.43	1.45	3	
+Arrabbiata (o) (Chicken)	 SPEGHETT CHICHEKNI				55.46	26	1.2	0.5	0.12	0.76	21	1.43	1.45	3			
+Arrabbiata (o) (PENNE PRAWNS s)					55.3	15.7	1.57	1.57	1.2	0.5	0.12	0.76	28	1.43	1.45	3	
+Arrabbiata (o) (SPEHGETTI PRAWNS s)					62.46	26	1.2	0.5	0.12	0.76	28	1.43	1.45	3			
+Avocado Toast (o)					75	6	3	60	3	1	2						
+Avocado Toast With Poached Boiled Egg (o)					87	75	12										
+Avocado Toast With Sunny Side Up (o)					87	75	12										
+Barbeque Chicken Burrito Wrap					50	21	11.5	4.5	2	2	1	1	3				
+Barbeque Grilled Chicken Rice Bowl					53.09	21	2.1	2.1	4.57	4.57	4.5	7	3	1	0.25	1.5	1.5
+Barbeque Paneer Fiesta Rice Bowl (o)					52.09	20	2.1	2.1	4.57	4.57	4.5	7	3	1	0.25	1.5	1.5
+Blue Berry Smoothie					72.5	20	5.5	41	6								
+Boiled 3 Egg With Sautéed Veggies (o)					25	7	6	6	6								
+Boiled Chicken Breast [single Serve]					32												
+Broccoli Almonds Soup (o)					27.08	1.45	1	1.2	2	13.5	7.93						
+Broccoli Babycorn Tomato Salad (o)					31.44	10.8	10	0.76	0.12	4.76	2	3					
+Broccoli Lemon Chicken Salad (o)					47.88	10.8	3	6	21	2.1	2.1	2	0.12	0.76			
+Cheese Omelette (o)					26.57	6	6	6	6.24	1.45	0.12	0.76					
+Cheese Tomato Omelette (o)					27												
+Cheesy Delight Nachos					40												
+Chicken Caesar Story Salad					62.2	21	2.1	2.1	10	3	4	10	5	5			
+Chicken Hummus Pita					40	6.56	21	6.54	2.13								
+Chicken Pita Pockets With Hummus					36	6.56	16	6.45	2.13								
+Chicken Tikka Sandwich With Ranch Yoghurt					48.63	6	6	21	3	1	1.76	1.76	1.2	5	0.76	0.5	0.12
+Chickpea & Peanut Tabbouleh Salad					22.92	4	5	1	1	2	0.12	3	6.8				
+Chilli Chipotle Paneer Burrito Wrap					47.46	9.3	20	1.45	5	3	0.75	2.5	2.5	1.48	1.48		
+Chilli Chipotle Paneer Rice Bowl					44.16		24	1.45	7	3	0.75	2.5	2.5	1.48	1.48		
+Chipotle Chicken Burrito Wrap					52.46	9.3	25	1.45	5	3	0.75	2.5	2.5	1.48	1.48		
+Chipotle Grilled Chicken Rice Bowl					45.16	25	1.45	7	3	0.75	2.5	2.5	1.48	1.48			
+Classic Bread Omelette (2 Egg) (o)					20.33	6	6	6	0.12	0.76	1.45						
+Classic Nachos					35												
+Classic Vegetable Poha (o)					24.97	8.4	5	2	0.12	3	1.45	5					
+Cream Of Broccoli (o)					38.31	13.5	1	1	5.93	16	0.12	0.76					
+Cream Of Chicken (o)					49.81	25	1	1	5.93	16	0.12	0.76					
+Cream Of Mushroom (o)					44.81	20	1	1	5.93	16	0.12	0.76					
+Creamy Egg White Sandwich (o)					39.43	18	12.76	3.12	1.76	3.78							
+Crispy Mushroom Burrito Wrap					59.97	13	3	15	5	0.12	0.76	0.5	4.56	2.5	0.75	4.25	3
+Crispy Mushroom Rice Bowl					58.97		10	20	5	0.12	0.76	0.5	4.56	2.5	0.75	4.25	3
+Crispy Peri Peri Chicken Burrito Wrap					71.65	25	10	3	5	2.5	2	0.12	0.76	2.5	0.75	0.53	1.75
+Crispy Peri Peri Chicken Rice Bowl					69.15	25	7.5	3	5	2.5	2	0.12	0.76	2.5	0.75	0.53	1.75
+Crispy Peri Peri Mushroom Burrito Wrap					58.4	4.25	7.53	3	10	20	0.76	0.5	0.12	0.53	1.48	1.48	2
+Crispy Peri Peri Mushroom Rice Bowl					55.35	4.25	7.53	3	20	7.5	7	0.76	0.5	0.12	0.53	1.48	1.48
+Crispy Peri Peri Potato Rice Bowl					70.86		7.53	3	5	3	7.53	18.2	9.1	3	5	2	7.5
+Dates Banana Smoothie (o)					33.5	5	8.5	14	6								
+Exotic Egg Bhurji (o)					23												
+Falafal Hummus Wrap (o)					AS PER FALAFEL PRICE I WILL UPDATE LATER												
+Falafal Pita Pockets With Hummus					AS PER FALAFEL PRICE I WILL UPDATE LATER												
+Falafel Garden Salad					AS PER FALAFEL PRICE I WILL UPDATE LATER												
+French Omelette (sweet/savoury) (o)		SALT 			31.63	12	0.12	5	7.75	0.76	4	2					
+Fruity Sprout Salad (o)					UPDATE LATER												
+Greek Roman Chicken Salad					60.28	25	3.12	1.76	6.8	6.8	3	2	1	10.8			
+Greek Roman Veg Salad					35.28		3.12	1.76	6.8	6.8	3	2	1	10.8			
+Grilled Chicken					45	21	10.5	0.12	0.76	0.5							
+Grilled Chicken Club Sandwich (o)					64.12	18	21	3	1	6.24	3	5	0.12	0.76	6		
+Grilled Chicken With Brown Rice And Veggies					40												
+Grilled Chicken With Sautéed Vegetable And Mash Potato High Protein					47.07	25	1.2	0.12	0.76	1.45	7	4	1.54	4	2		
+Grilled Paneer Salad					42.64	24	0.12	0.76	0.5	0.76	4	4	2	1	3	2.5	
+Grilled Paneer Sandwich With Ranch Yoghurt					47.63	6	6	20	3	1	1.76	1.76	1.2	5	0.76	0.5	0.12
+Grilled Paneer With Brown Rice And Veggies					45.58	24	7	6	0.12	0.76	0.5	0.75	1.45	5			
+Grilled Paneer With Sauteed Veggies					37.58	10	0.12	0.76	0.5	0.75	1.45	24					
+Grilled Veggie Sandwich With Ranch Yoghurt					32	12	2	3	5	10							
+Healthy Liver Juice					15												
+Healthy Whole Wheat Chicken Tikka Wrap					48.78	12	25	1	3	3	0.75	0.5	0.76	0.12	1.2	1.45	
+Healthy Whole Wheat Paneer Wrap					47.78	12	24	1	3	3	0.75	0.5	0.76	0.12	1.2	1.45	
+High Protein Chicken Omelette (o)					39.13	12	6	1	0.12	0.76	1	1.45	16.8				
+Hot N Sour (o) (Veg)					20 (tentative )												
+Hot N Sour (o) (Chicken)					40(tentative)												
+Hummus Pita Classic					9.6	4.1	2.5	3									
+Hummus Pita With Falafel					UPDATE LATER												
+Hydrating Watermelon Juice					10 ( tentative )		2	1									
+Lebanese Hummus Salad (o)					18.1	4.1	2	1	3	3	2	3					
+Manchow (o) (Veg)					20 (tentative )												
+Manchow (o) (Chicken)					40(tentative)												
+Masala Bread Omelette (2 Egg) (o)					25.33	6	12	0.12	0.76	2	3	6	1.45				
+Mix Berry Smoothie (High Protein)					72.5	20	5.5	41	6								
+Moong Dal Chilla With Curd (o)					26.97	10.6	5.5	0.12	0.3	1.45	5	2	2				
+Mushroom Omelette (o)					30.33	6	6	6	0.12	0.76	1.45	10					
+Paneer Tikka Burrito Wrap					52.78	11	24	1	3	2	0.12	0.5	1.48	1.48	1.45	4	0.75
+Peanut Butter Banana Smoothie					UPDATE LATER												
+Peri Peri Paneer Burrito Wrap					52.78												
+Peri Peri Paneer Fiesta Rice Bowl					52.09												
+Pesto Pasta (o) (Veg)					50.78	17	7	1.45	1.2	0.12	0.76	0.75	0.5	2	20		
+Pesto Pasta (o) (Chicken)					64.78	17	21	1.45	1.2	0.12	0.76	0.75	0.5	2	20		
+Pesto Pasta (o) (Prawns)					71.78	17	28	1.45	1.2	0.12	0.76	0.75	0.5	2	20		
+Plain Omelette (o)					26.33	12	12	0.12	0.76	1.45							
+Power House Smoothie ( WITHOUT WHEY)					20.03	6	3	7.93	2.1	7							
+Quinoa Khichdi (o)					22.07	14	1	1	0.12	0.5	1.45	3	1				
+Quinoa Upma (o)					24.07	14	1	1	0.12	0.5	1.45	5	1				
+Ragi Dates Eggless Brownie (o)					PRICE NOT UPDATED												
+Roast Chicken Russian (o)					43.88	31.5	6	3	2.5	0.12	0.76						
+Signature Quinoa Salad (o)					27.88	10	3	3	2	5	2	0.12	0.76	2			
+Smoked Chicken Cheese Omelette (o)					55.33	6	6	6	17	12	0.12	0.76	1.45	6			
+Smokey Chicken Salad					42.88	25	4	3	5	1	2	2	0.12	0.76			
+Spinach Mushroom Omelette (o)					32												
+Tomato Basil Omelette (o)					25.33	6	6	2	3	0.12	0.76	1.45	6				
+Two Boiled Egg (o)					17												
+Veg Caesar Story Salad					41.2		2.1	2.1	10	3	4	10	5	5			
+Veg Loaded Bread Omelette (2 Egg) (o)					25.33	12	5	6									
+Zero Calorie Mint Mojito					23.75	0.95	3	13.8	6								
