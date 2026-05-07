@@ -2,11 +2,11 @@ import { Link, useLocation } from "react-router";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
-  ClipboardList,
   Home,
   Utensils,
   MapPin,
   Package,
+  ShoppingCart,
   Menu as MenuIcon,
   X,
 } from "lucide-react";
@@ -62,8 +62,8 @@ export default function Header() {
               variant="ghost"
               className="h-8 gap-1.5 text-xs text-clinical-zinc hover:text-clinical-gold hover:bg-clinical-gold/10"
             >
-              <ClipboardList className="w-4 h-4" />
-              <span className="hidden sm:inline">Plan</span>
+              <ShoppingCart className="w-4 h-4" />
+              <span className="hidden sm:inline">Cart</span>
               {totalQuantity > 0 && (
                 <Badge className="h-4 min-w-4 px-1 text-[10px] bg-clinical-gold text-[#050505] border-0 ml-0.5 font-bold">
                   {totalQuantity}

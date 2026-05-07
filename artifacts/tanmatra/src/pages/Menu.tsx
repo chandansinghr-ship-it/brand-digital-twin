@@ -2,11 +2,14 @@ import { useState, useMemo } from "react";
 import { Link } from "react-router";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import MacroOverlay from "@/components/dish/MacroOverlay";
 import { formatPrice } from "@/lib/api/adapter";
-import { DISHES, CATEGORY_LABELS, type DishCategory, type DishKitchen } from "@/lib/menuData";
-import { AlertTriangle, ChefHat, Search, X } from "lucide-react";
+import { DISHES, CATEGORY_LABELS, type DishCategory, type DishKitchen, type DishData } from "@/lib/menuData";
+import { useCart } from "@/lib/cartContext";
+import { toast } from "sonner";
+import { AlertTriangle, ChefHat, Plus, Search, X } from "lucide-react";
 
 const KITCHEN_TABS: Array<"all" | DishKitchen> = ["all", "continental", "indian", "asian", "mediterranean"];
 const CATEGORY_TABS: Array<"all" | DishCategory> = [
@@ -28,6 +31,28 @@ export default function Menu() {
   const [category, setCategory] = useState<"all" | DishCategory>("all");
   const [diet, setDiet] = useState<DietFilter>("all");
   const [query, setQuery] = useState("");
+  const { addItem } = useCart();
+
+  const handleQuickAdd = (e: React.MouseEvent, item: DishData) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!item.isAvailable) return;
+    addItem({
+      dishId: item.id,
+      slug: item.slug,
+      name: item.name,
+      image: item.image,
+      basePrice: item.price,
+      unitPrice: item.price,
+      quantity: 1,
+      kitchen: item.kitchen,
+      isVeg: item.isVeg,
+      rdVerified: item.rdVerified,
+      macros: item.macros,
+      customizations: [],
+    });
+    toast.success(`Added ${item.name} to cart`);
+  };
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -234,13 +259,24 @@ export default function Menu() {
                   <p className="text-xs text-clinical-zinc line-clamp-2 leading-relaxed">
                     {item.description}
                   </p>
-                  <div className="flex items-center gap-2 pt-1">
-                    <Badge variant="outline" className="text-[9px] capitalize border-clinical-slate/30 text-clinical-zinc">
-                      {CATEGORY_LABELS[item.category]}
-                    </Badge>
-                    <Badge variant="outline" className="text-[9px] border-clinical-slate/30 text-clinical-zinc">
-                      GI: {item.glycaemicIndex}
-                    </Badge>
+                  <div className="flex items-center justify-between gap-2 pt-1">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <Badge variant="outline" className="text-[9px] capitalize border-clinical-slate/30 text-clinical-zinc">
+                        {CATEGORY_LABELS[item.category]}
+                      </Badge>
+                      <Badge variant="outline" className="text-[9px] border-clinical-slate/30 text-clinical-zinc">
+                        GI: {item.glycaemicIndex}
+                      </Badge>
+                    </div>
+                    <Button
+                      size="sm"
+                      onClick={(e) => handleQuickAdd(e, item)}
+                      disabled={!item.isAvailable}
+                      className="h-7 px-2.5 text-[11px] font-semibold bg-clinical-gold text-[#050505] hover:bg-clinical-gold/90 disabled:opacity-50 disabled:pointer-events-none gap-1 shrink-0"
+                    >
+                      <Plus className="w-3 h-3" />
+                      Add
+                    </Button>
                   </div>
                 </div>
               </CardContent>
