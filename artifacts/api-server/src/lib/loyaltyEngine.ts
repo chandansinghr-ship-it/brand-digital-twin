@@ -512,32 +512,6 @@ export async function finalizeOrder(args: {
   });
 }
 
-/**
- * Back-compat thin wrapper. Should only be used after a successful
- * finalizeOrder; it will return `order_already_claimed` once the order
- * has been finalized (which is the desired idempotent behavior).
- */
-export async function awardPendingReferral(args: {
-  refereeUserId: string;
-  orderId: string;
-}): Promise<AwardReferralResult> {
-  // If no claim exists yet for this order, refuse — referral awards
-  // must be tied to a real server-recorded order.
-  const [claim] = await db
-    .select({ id: orderClaimsTable.id })
-    .from(orderClaimsTable)
-    .where(
-      and(
-        eq(orderClaimsTable.userId, args.refereeUserId),
-        eq(orderClaimsTable.orderId, args.orderId),
-      ),
-    );
-  if (!claim) {
-    return { awarded: false, reason: "no_qualifying_activity" } as const;
-  }
-  return db.transaction((tx) => awardPendingReferralInTx(tx, args));
-}
-
 async function checkBirthdayOrAnniversary(
   userId: string,
   field: "birthDate" | "anniversaryDate",

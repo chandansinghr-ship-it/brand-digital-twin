@@ -167,21 +167,6 @@ export const loyaltyApi = {
       method: "PUT",
       body: JSON.stringify(data),
     }),
-  notifyOrderCompleted: (orderId: string) =>
-    request<
-      | { awarded: true; redemptionId: number }
-      | {
-          awarded: false;
-          reason:
-            | "no_pending_referral"
-            | "order_already_claimed"
-            | "no_qualifying_activity"
-            | "already_awarded";
-        }
-    >("/loyalty/order-completed", {
-      method: "POST",
-      body: JSON.stringify({ orderId }),
-    }),
   getLoyaltyProgress: () =>
     request<{
       progress: Array<{

@@ -11,7 +11,6 @@ import {
   userProfileTable,
 } from "@workspace/db";
 import {
-  awardPendingReferral,
   finalizeOrder,
   getCreditBalancePaise,
   getLoyaltyConstantsSnapshot,
@@ -148,9 +147,9 @@ router.post("/referral/redeem", async (req: Request, res: Response) => {
     }
     throw e;
   }
-  // Award nothing yet: credits are released when the referee places their
-  // first order (POST /loyalty/order-completed). We notify the referrer of
-  // the pending redemption so the action is visible.
+  // Credits are released only inside finalizeOrder once the referee
+  // places a first server-recorded order. Notify the referrer that
+  // a pending redemption exists.
   await db
     .insert(notificationsTable)
     .values({
@@ -257,25 +256,6 @@ router.post("/orders/finalize", async (req: Request, res: Response) => {
     req.log.error({ err }, "finalize order failed");
     res.status(500).json({ error: "finalize failed" });
   }
-});
-
-const orderCompletedSchema = z.object({
-  orderId: z.string().min(1).max(64),
-});
-
-router.post("/loyalty/order-completed", async (req: Request, res: Response) => {
-  const userId = requireAuth(req, res);
-  if (!userId) return;
-  const parsed = orderCompletedSchema.safeParse(req.body);
-  if (!parsed.success) {
-    res.status(400).json({ error: "invalid payload" });
-    return;
-  }
-  const result = await awardPendingReferral({
-    refereeUserId: userId,
-    orderId: parsed.data.orderId,
-  });
-  res.json(result);
 });
 
 router.get("/notifications", async (req: Request, res: Response) => {

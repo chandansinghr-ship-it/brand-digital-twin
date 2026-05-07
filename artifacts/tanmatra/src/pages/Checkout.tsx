@@ -87,8 +87,10 @@ export default function Checkout() {
   const effectiveTip = tipAmount === -1 ? Math.round((parseFloat(customTip) || 0) * 100) : tipAmount;
   const deliveryFee = subtotal >= FREE_DELIVERY_THRESHOLD ? 0 : DELIVERY_FEE;
   const grossTotal = subtotal + deliveryFee + effectiveTip;
+  // Server only redeems against the meal subtotal; cap here too so
+  // the UI total matches the server final total exactly.
   const creditApplied =
-    applyCredits && creditBalance > 0 ? Math.min(creditBalance, grossTotal) : 0;
+    applyCredits && creditBalance > 0 ? Math.min(creditBalance, subtotal) : 0;
   const razorpayTotal = Math.max(0, grossTotal - creditApplied);
 
   const activeAddr = SAVED_ADDRESSES.find((a) => a.id === selectedAddress);
