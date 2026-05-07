@@ -17,6 +17,7 @@ import { Separator } from "@/components/ui/separator";
 import { toast } from "sonner";
 import { formatCurrency } from "@/lib/utils";
 import DecisionsTable from "@/components/ops/DecisionsTable";
+import EtaAccuracyPanel from "@/components/ops/EtaAccuracyPanel";
 import {
   Send,
   Bot,
@@ -415,6 +416,8 @@ export default function AdminOpsDashboard() {
             />
           </CardContent>
         </Card>
+
+        <EtaAccuracyPanel />
 
         <Card>
           <CardHeader className="pb-2">

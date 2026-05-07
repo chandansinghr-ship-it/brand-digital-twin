@@ -4,6 +4,13 @@ import { eq, asc, sql } from "drizzle-orm";
 import { z } from "zod/v4";
 import { emitDeliveryEvent, emitRiderPosition } from "../lib/realtime";
 import { scheduleOrderAdvance } from "../lib/queue";
+import {
+  estimateEtaForCart,
+  getDeliveryEta,
+  recordActualDelivery,
+  etaAccuracyByZone,
+  maybeRecordDeliveredFromEvent,
+} from "../lib/etaModel";
 
 const router: IRouter = Router();
 
@@ -41,6 +48,7 @@ router.post("/delivery/events", async (req: Request, res: Response) => {
   const { orderId, riderId, event, meta } = parsed.data;
   await db.insert(deliveryEventsTable).values({ orderId, riderId, event, meta });
   emitDeliveryEvent(orderId, { event, riderId, meta });
+  await maybeRecordDeliveredFromEvent(orderId, event);
   res.json({ ok: true });
 });
 
@@ -135,6 +143,98 @@ router.post("/delivery/auto-assign", async (req: Request, res: Response) => {
   });
   emitDeliveryEvent(orderId, { event: "rider_assigned", riderId: rider.id, riderName: rider.name });
   res.json({ ok: true, rider });
+});
+
+// ─── Dynamic ETA model ─────────────────────────────────────────────────────
+
+const estimateBody = z.object({
+  items: z
+    .array(z.object({ id: z.number().int().positive(), qty: z.number().int().positive() }))
+    .default([]),
+  address: z
+    .object({
+      city: z.string().nullable().optional(),
+      pincode: z.string().nullable().optional(),
+      line: z.string().nullable().optional(),
+    })
+    .nullable()
+    .optional(),
+});
+
+router.post("/delivery/eta/estimate", async (req: Request, res: Response) => {
+  const parsed = estimateBody.safeParse(req.body ?? {});
+  if (!parsed.success) {
+    res.status(400).json({ error: "invalid payload" });
+    return;
+  }
+  const out = await estimateEtaForCart({
+    items: parsed.data.items,
+    address: parsed.data.address ?? null,
+  });
+  res.json(out);
+});
+
+router.get("/delivery/eta/:orderId", async (req: Request, res: Response) => {
+  const orderId = Number(req.params.orderId);
+  if (!Number.isFinite(orderId)) {
+    res.status(400).json({ error: "invalid orderId" });
+    return;
+  }
+  const out = await getDeliveryEta(orderId);
+  if (!out) {
+    res.status(404).json({ error: "order not found" });
+    return;
+  }
+  res.json(out);
+});
+
+const recordActualBody = z.object({
+  orderId: z.number().int().positive(),
+  deliveredAt: z.string().datetime().optional(),
+});
+
+router.post("/delivery/eta/record-actual", async (req: Request, res: Response) => {
+  if (!req.isAuthenticated()) {
+    res.status(401).json({ error: "unauthorized" });
+    return;
+  }
+  const parsed = recordActualBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: "invalid payload" });
+    return;
+  }
+  const out = await recordActualDelivery(
+    parsed.data.orderId,
+    parsed.data.deliveredAt ? new Date(parsed.data.deliveredAt) : new Date(),
+  );
+  if (!out) {
+    res.status(404).json({ error: "order not found or no predictions" });
+    return;
+  }
+  res.json({ ok: true, ...out });
+});
+
+function resolveOps(req: Request): boolean {
+  const adminToken = process.env["RD_ADMIN_TOKEN"];
+  const headerToken = req.header("x-admin-token");
+  if (adminToken && headerToken && headerToken === adminToken) return true;
+  const allowlist = (process.env["OPS_USER_IDS"] ?? "")
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+  if (req.isAuthenticated() && allowlist.includes(req.user.id)) return true;
+  return false;
+}
+
+router.get("/delivery/eta/accuracy/by-zone", async (req: Request, res: Response) => {
+  if (!resolveOps(req)) {
+    res.status(403).json({ error: "ops scope required" });
+    return;
+  }
+  const sinceDays = parseInt(String(req.query.sinceDays ?? "14"), 10) || 14;
+  const zone = typeof req.query.zone === "string" ? req.query.zone : undefined;
+  const rows = await etaAccuracyByZone({ sinceDays, zone });
+  res.json({ rows, sinceDays });
 });
 
 export default router;

@@ -56,6 +56,12 @@ const orderPipelineProcessor: Processor<OrderPipelineJob> = async (job) => {
     } catch (err) {
       logger.error({ err, orderId }, "wellness auto-log failed");
     }
+    try {
+      const { recordActualDelivery } = await import("./etaModel");
+      await recordActualDelivery(orderId);
+    } catch (err) {
+      logger.error({ err, orderId }, "eta actual record failed");
+    }
   }
   // Hook for socket fanout — late-bound to avoid import cycle.
   try {

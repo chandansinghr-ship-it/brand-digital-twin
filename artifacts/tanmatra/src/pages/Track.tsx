@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link, useSearchParams } from "react-router";
 import { useQueryClient } from "@tanstack/react-query";
 import { useDeliveryTimeline, useRecordDeliveryEvent } from "@/lib/queries";
@@ -84,6 +84,39 @@ export default function Track() {
   const { data: timeline, isLoading } = useDeliveryTimeline(numericOrderId || 0);
   const recordEvent = useRecordDeliveryEvent();
   const qc = useQueryClient();
+
+  // Dynamic ETA pulled from the server model. Falls back to the static
+  // etaAt stored on the order if the request fails or the model is disabled.
+  const [dynamicEta, setDynamicEta] = useState<{
+    etaAt: string;
+    source: "model" | "static";
+  } | null>(null);
+  useEffect(() => {
+    if (!numericOrderId || !order) return;
+    if (order.status === "delivered" || order.status === "cancelled") return;
+    let cancelled = false;
+    const fetchEta = async () => {
+      try {
+        const base = `${import.meta.env.BASE_URL.replace(/\/$/, "")}/api`;
+        const r = await fetch(`${base}/delivery/eta/${numericOrderId}`, {
+          credentials: "include",
+        });
+        if (!r.ok) return;
+        const data = (await r.json()) as { etaAt: string; source: "model" | "static" };
+        if (!cancelled && data?.etaAt) setDynamicEta(data);
+      } catch {
+        /* keep static */
+      }
+    };
+    void fetchEta();
+    const id = window.setInterval(fetchEta, 60_000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(id);
+    };
+  }, [numericOrderId, order]);
+
+  const displayEtaAt = dynamicEta?.etaAt ?? order?.etaAt;
 
   const currentStepIndex = order ? statusToStepIndex(order.status) : -1;
 
@@ -198,8 +231,15 @@ export default function Track() {
               <p className="text-white tabular-nums font-medium">{formatAbsoluteTime(order.placedAt)}</p>
             </div>
             <div>
-              <p className="text-clinical-zinc text-[10px] uppercase tracking-wide">Arriving by</p>
-              <p className="text-clinical-gold tabular-nums font-semibold">{formatAbsoluteTime(order.etaAt)}</p>
+              <p className="text-clinical-zinc text-[10px] uppercase tracking-wide">
+                Arriving by
+                {dynamicEta?.source === "model" ? (
+                  <span className="ml-1 text-clinical-gold/80">· live</span>
+                ) : null}
+              </p>
+              <p className="text-clinical-gold tabular-nums font-semibold">
+                {formatAbsoluteTime(displayEtaAt ?? order.etaAt)}
+              </p>
             </div>
             <div>
               <p className="text-clinical-zinc text-[10px] uppercase tracking-wide">Items</p>
@@ -290,7 +330,7 @@ export default function Track() {
                   <p className="text-xs text-muted-foreground">
                     {order.status === "delivered"
                       ? `Completed at ${formatAbsoluteTime(order.etaAt)}`
-                      : `Arriving by ${formatAbsoluteTime(order.etaAt)}`}
+                      : `Arriving by ${formatAbsoluteTime(displayEtaAt ?? order.etaAt)}`}
                   </p>
                 </div>
               </div>

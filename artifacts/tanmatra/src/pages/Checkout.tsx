@@ -137,7 +137,31 @@ export default function Checkout() {
 
     const orderId = generateOrderId();
     const placedAt = new Date().toISOString();
-    const etaAt = new Date(Date.now() + 25 * 60 * 1000).toISOString();
+    // Dynamic ETA from server (kitchen queue + rider load + distance + time-of-day).
+    // Falls back to legacy 25-min static if the model errors or is disabled.
+    let etaAt = new Date(Date.now() + 25 * 60 * 1000).toISOString();
+    try {
+      const apiBase = `${import.meta.env.BASE_URL.replace(/\/$/, "")}/api`;
+      const r = await fetch(`${apiBase}/delivery/eta/estimate`, {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          items: items.map((it) => ({ id: it.dishId, qty: it.quantity })),
+          address: {
+            line: [activeAddr.line1, activeAddr.line2].filter(Boolean).join(", "),
+            city: activeAddr.city,
+            pincode: activeAddr.pincode,
+          },
+        }),
+      });
+      if (r.ok) {
+        const data = (await r.json()) as { etaAt?: string };
+        if (data.etaAt) etaAt = data.etaAt;
+      }
+    } catch {
+      // keep static fallback
+    }
 
     // Server-owned atomic finalize: persists the order in the database,
     // redeems credits, and awards any pending referral inside one
