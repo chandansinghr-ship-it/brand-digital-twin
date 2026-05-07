@@ -11,6 +11,7 @@ import {
   Sparkles,
   SlidersHorizontal,
   Users,
+  Stethoscope,
   Menu as MenuIcon,
   X,
 } from "lucide-react";
@@ -28,8 +29,9 @@ export default function Header() {
   const navItems = [
     { path: "/", label: "Home", icon: Home },
     { path: "/menu", label: "Menu", icon: Utensils },
+    { path: "/plans", label: "RD Plans", icon: Stethoscope },
     { path: "/orders", label: "Orders", icon: Package },
-    { path: "/subscriptions", label: "Plans", icon: CalendarClock },
+    { path: "/subscriptions", label: "My Plans", icon: CalendarClock },
     { path: "/rewards", label: "Rewards", icon: Sparkles },
     { path: "/preferences", label: "Preferences", icon: SlidersHorizontal },
     { path: "/team", label: "Team", icon: Users },

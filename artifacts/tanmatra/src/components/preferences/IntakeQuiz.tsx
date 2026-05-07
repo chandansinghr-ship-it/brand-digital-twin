@@ -124,7 +124,16 @@ export default function IntakeQuiz({ open, onOpenChange }: IntakeQuizProps) {
       return;
     }
     if (markComplete) {
-      toast.success("Preferences saved — your menu is now personalized");
+      toast.success("Preferences saved — your menu is now personalized", {
+        description: "See RD-curated plans matched to your goal.",
+        action: {
+          label: "View plans",
+          onClick: () => {
+            window.location.href = `${import.meta.env.BASE_URL}plans`;
+          },
+        },
+        duration: 8000,
+      });
       onOpenChange(false);
     }
   };

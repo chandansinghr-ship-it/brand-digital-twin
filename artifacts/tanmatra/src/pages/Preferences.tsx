@@ -19,7 +19,12 @@ import {
   type WellnessGoal,
 } from "@/lib/preferencesApi";
 import { usePreferences } from "@/lib/preferencesContext";
-import { Sparkles, Save } from "lucide-react";
+import { Sparkles, Save, Stethoscope, ChevronRight } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import {
+  recommendPlansForPreferences,
+  PLAN_GOAL_LABEL,
+} from "@/lib/rdPlans";
 
 export default function Preferences() {
   const { preferences, loading, unauthorized, update, refresh } =
@@ -132,6 +137,8 @@ export default function Preferences() {
     );
   }
 
+  const recommendations = recommendPlansForPreferences(preferences, 3);
+
   return (
     <div className="max-w-3xl mx-auto px-4 py-8 space-y-6">
       <div className="space-y-1">
@@ -140,6 +147,44 @@ export default function Preferences() {
           Used by menu, dish detail, and recommendations
         </p>
       </div>
+
+      {preferences && recommendations.length > 0 && (
+        <Card className="bg-gradient-to-br from-clinical-gold/10 to-transparent border-clinical-gold/30">
+          <CardContent className="p-5 space-y-4">
+            <div className="flex items-center justify-between gap-2 flex-wrap">
+              <div className="flex items-center gap-2">
+                <Stethoscope className="w-4 h-4 text-clinical-gold" />
+                <h2 className="text-sm font-semibold text-clinical-gold uppercase tracking-wider">
+                  RD plans matched to your profile
+                </h2>
+              </div>
+              <Link
+                to="/plans"
+                className="text-[11px] text-clinical-gold hover:underline flex items-center gap-1"
+              >
+                Browse all <ChevronRight className="w-3 h-3" />
+              </Link>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              {recommendations.map(({ plan, reasons }) => (
+                <Link to={`/plans/${plan.slug}`} key={plan.slug}>
+                  <div className="rounded-lg border border-clinical-slate/30 bg-clinical-surface p-3 hover:border-clinical-gold/40 transition-all h-full space-y-1.5">
+                    <Badge className="bg-clinical-gold/15 text-clinical-gold border-clinical-gold/30 text-[9px]">
+                      {PLAN_GOAL_LABEL[plan.goal]}
+                    </Badge>
+                    <h3 className="text-sm font-semibold text-white">
+                      {plan.name}
+                    </h3>
+                    <p className="text-[10px] text-clinical-sage line-clamp-2">
+                      {reasons[0]}
+                    </p>
+                  </div>
+                </Link>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       <Card className="bg-clinical-surface border-clinical-slate/20">
         <CardContent className="p-6 space-y-6">

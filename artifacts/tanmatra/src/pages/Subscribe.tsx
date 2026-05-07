@@ -1,5 +1,9 @@
-import { useState } from "react";
-import { useNavigate } from "react-router";
+import { useEffect, useMemo, useState } from "react";
+import { useNavigate, useSearchParams, Link } from "react-router";
+import { getRdPlanBySlug, getRdAuthor, resolvePlanWeek } from "@/lib/rdPlans";
+import { ACCENT_CLASSES } from "@/lib/teamData";
+import type { SubscriptionItem } from "@/lib/subscriptionsApi";
+import { Stethoscope } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -84,8 +88,38 @@ function basePrice(cadence: SubscriptionCadence, meals: number): number {
 
 export default function Subscribe() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const planSlug = searchParams.get("plan");
+  const rdPlan = planSlug ? getRdPlanBySlug(planSlug) : undefined;
+  const rdAuthor = rdPlan ? getRdAuthor(rdPlan) : undefined;
+  const planWeekItems = useMemo<SubscriptionItem[]>(() => {
+    if (!rdPlan) return [];
+    const week = resolvePlanWeek(rdPlan);
+    const items: SubscriptionItem[] = [];
+    const seen = new Set<string>();
+    for (const day of week) {
+      for (const meal of [day.lunch, day.dinner]) {
+        if (!meal || seen.has(meal.slug)) continue;
+        seen.add(meal.slug);
+        items.push({
+          slug: meal.slug,
+          name: meal.name,
+          image: meal.image,
+          quantity: 1,
+          unitPricePaise: meal.price,
+        });
+      }
+    }
+    return items.slice(0, 14);
+  }, [rdPlan]);
   const [cadence, setCadence] = useState<SubscriptionCadence>("weekly");
   const [meals, setMeals] = useState(10);
+  useEffect(() => {
+    if (rdPlan) {
+      setCadence("weekly");
+      setMeals(Math.min(planWeekItems.length || 10, 14));
+    }
+  }, [rdPlan, planWeekItems.length]);
   const [window, setWindow] = useState(TIME_WINDOWS[1]);
   const [startDate, setStartDate] = useState(() => {
     const d = new Date();
@@ -150,6 +184,7 @@ export default function Subscribe() {
         city: address.city,
         pincode: address.pincode,
         phone: address.phone,
+        notes: rdPlan ? `RD Plan: ${rdPlan.name}` : undefined,
         members: members.map((m) => ({
           name: m.name.trim(),
           diet: m.diet,
@@ -157,7 +192,7 @@ export default function Subscribe() {
           lifestyle: m.lifestyle || undefined,
           spiceLevel: m.spiceLevel,
         })),
-        defaultItems: [],
+        defaultItems: planWeekItems,
       });
       toast.success("Subscription activated", {
         description: `Next delivery: ${new Date(result.subscription.nextDeliveryAt).toLocaleDateString()}`,
@@ -191,6 +226,48 @@ export default function Subscribe() {
           as credits.
         </p>
       </header>
+
+      {rdPlan && (
+        <Card className="bg-gradient-to-br from-clinical-gold/10 to-transparent border-clinical-gold/40">
+          <CardContent className="p-5 flex flex-col sm:flex-row sm:items-center gap-4">
+            <div className="w-12 h-12 rounded-xl bg-clinical-gold/15 ring-1 ring-clinical-gold/30 flex items-center justify-center shrink-0">
+              <Stethoscope className="w-5 h-5 text-clinical-gold" />
+            </div>
+            <div className="flex-1 space-y-1">
+              <p className="text-[10px] uppercase tracking-widest text-clinical-gold">
+                Subscribing to RD Plan
+              </p>
+              <h2 className="font-serif text-xl text-white">{rdPlan.name}</h2>
+              <p className="text-xs text-clinical-zinc">
+                We've pre-loaded {planWeekItems.length} curated meals. Allergens
+                and dislikes you set in{" "}
+                <Link to="/preferences" className="text-clinical-gold underline">
+                  Preferences
+                </Link>{" "}
+                are auto-swapped at delivery.
+                {rdAuthor && (
+                  <>
+                    {" "}Curated by{" "}
+                    <Link
+                      to={`/team/${rdAuthor.slug}`}
+                      className={`underline ${ACCENT_CLASSES[rdAuthor.accent].text}`}
+                    >
+                      {rdAuthor.name}
+                    </Link>
+                    .
+                  </>
+                )}
+              </p>
+            </div>
+            <Link
+              to={`/plans/${rdPlan.slug}`}
+              className="text-[11px] uppercase tracking-wider text-clinical-gold hover:underline shrink-0"
+            >
+              View week →
+            </Link>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Cadence */}
       <Card className="bg-clinical-surface border-clinical-slate/20">

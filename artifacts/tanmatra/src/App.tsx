@@ -31,6 +31,8 @@ import Performance from "@/pages/Performance";
 import Clinical from "@/pages/Clinical";
 import Team from "@/pages/Team";
 import TeamMember from "@/pages/TeamMember";
+import RdPlans from "@/pages/RdPlans";
+import RdPlanDetail from "@/pages/RdPlanDetail";
 import AdminOpsDashboard from "@/pages/AdminOpsDashboard";
 import Login from "@/pages/Login";
 import NotFound from "@/pages/not-found";
@@ -80,6 +82,8 @@ export default function App() {
                     <Route path="/clinical" element={<Clinical />} />
                     <Route path="/team" element={<Team />} />
                     <Route path="/team/:slug" element={<TeamMember />} />
+                    <Route path="/plans" element={<RdPlans />} />
+                    <Route path="/plans/:slug" element={<RdPlanDetail />} />
                     <Route
                       path="/admin/ops"
                       element={
