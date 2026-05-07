@@ -6,9 +6,9 @@ import { Link } from "react-router";
 import { Dna, Syringe, HeartPulse, ShieldCheck, AlertCircle } from "lucide-react";
 
 const FEATURED = [
-  { id: 3, name: "Keto Prime Ribeye", image: "/dishes/steak-keto.jpg", price: 62500, slug: "keto-ribeye", macros: { protein: 48, carbs: 8, fat: 38, fiber: 5, calories: 540 }, rdVerified: true, description: "Grass-fed ribeye with cauliflower puree. Ketogenic 75F/20P/5C macro split." },
-  { id: 4, name: "Miso Glazed Black Cod", image: "/dishes/miso-cod.jpg", price: 54500, slug: "miso-cod", macros: { protein: 32, carbs: 18, fat: 16, fiber: 4, calories: 360 }, rdVerified: true, description: "Anti-inflammatory black cod with bok choy and shiitake." },
-  { id: 1, name: "Grilled Atlantic Salmon", image: "/dishes/salmon-quinoa.jpg", price: 48500, slug: "grilled-salmon", macros: { protein: 34, carbs: 28, fat: 18, fiber: 6, calories: 420 }, rdVerified: true, description: "Omega-3 optimized for cardiovascular and cognitive protocols." },
+  { id: 56, name: "Moong Dal Chilla with Curd", image: "https://images.unsplash.com/photo-1525351484163-7529414344d8?w=800&q=80", price: 7500, slug: "moong-dal-chilla-with-curd", macros: { protein: 12, carbs: 22, fat: 14, fiber: 3, calories: 260 }, rdVerified: true, description: "Protein-rich moong dal pancake with curd. Low-glycemic and gut-friendly." },
+  { id: 99, name: "Quinoa Khichdi", image: "https://images.unsplash.com/photo-1525351484163-7529414344d8?w=800&q=80", price: 9000, slug: "quinoa-khichdi", macros: { protein: 12, carbs: 22, fat: 14, fiber: 3, calories: 260 }, rdVerified: true, description: "One-pot quinoa & moong dal khichdi — easy on the gut, balanced macros." },
+  { id: 107, name: "Tomato Basil Soup", image: "https://images.unsplash.com/photo-1547592180-85f173990554?w=800&q=80", price: 9500, slug: "tomato-basil-soup", macros: { protein: 6, carbs: 14, fat: 6, fiber: 3, calories: 140 }, rdVerified: true, description: "Lycopene-rich tomato soup with fresh basil. Low-cal, anti-inflammatory." },
 ];
 
 const PILLARS = [

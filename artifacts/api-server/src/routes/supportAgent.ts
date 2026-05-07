@@ -31,18 +31,20 @@ GENERAL RULES:
 - Never invent order IDs, ETAs, rider names, prices, or ingredients. If a tool didn't return it, you don't know it.
 - Be concise and warm. If unsure, escalate.`;
 
-// Static allergen table — kept in sync with artifacts/tanmatra/src/lib/menuData.ts
+// Static allergen table — representative subset of artifacts/tanmatra/src/lib/menuData.ts
 const DISH_ALLERGENS: Record<string, { name: string; allergens: string[] }> = {
-  "grilled-salmon": { name: "Grilled Atlantic Salmon", allergens: ["Fish"] },
-  "power-bowl": { name: "Performance Power Bowl", allergens: ["Sesame"] },
-  "keto-ribeye": { name: "Keto Prime Ribeye", allergens: ["Dairy"] },
-  "miso-cod": { name: "Miso Glazed Black Cod", allergens: ["Fish", "Soy", "Sesame"] },
-  "smoothie-bowl": { name: "Superfood Smoothie Bowl", allergens: ["Tree Nuts"] },
-  "mediterranean-salad": { name: "Mediterranean Grain Salad", allergens: ["Dairy"] },
-  "kung-pao-tofu": { name: "Kung Pao Tofu", allergens: ["Peanuts", "Soy", "Gluten"] },
-  "steamed-bass": { name: "Cantonese Steamed Sea Bass", allergens: ["Fish", "Soy"] },
-  "dark-chocolate-mousse": { name: "Dark Chocolate Avocado Mousse", allergens: [] },
-  "vegan-protein-wrap": { name: "Tempeh Multigrain Wrap", allergens: ["Soy", "Gluten", "Sesame"] },
+  "activated-charcoal-smoothie": { name: "Activated Charcoal Smoothie", allergens: ["Dairy", "Tree Nuts"] },
+  "aglio-olio-veg": { name: "Aglio Olio - Veg", allergens: ["Dairy", "Gluten"] },
+  "aglio-olio-chicken": { name: "Aglio Olio - Chicken", allergens: ["Dairy", "Gluten"] },
+  "aglio-olio-prawns": { name: "Aglio Olio - Prawns", allergens: ["Dairy", "Gluten", "Shellfish"] },
+  "signature-quinoa-salad": { name: "Signature Quinoa Salad", allergens: [] },
+  "tomato-basil-soup": { name: "Tomato Basil Soup", allergens: [] },
+  "power-house-smoothie": { name: "Power House Smoothie", allergens: ["Dairy", "Peanuts", "Tree Nuts"] },
+  "peri-peri-paneer-fiesta-rice-bowl": { name: "Peri Peri Paneer Fiesta Rice Bowl", allergens: ["Dairy"] },
+  "moong-dal-chilla-with-curd": { name: "Moong Dal Chilla with Curd", allergens: ["Dairy"] },
+  "quinoa-khichdi": { name: "Quinoa Khichdi", allergens: [] },
+  "falafal-pita-pockets-with-hummus": { name: "Falafal Pita Pockets with Hummus", allergens: ["Gluten"] },
+  "pesto-pasta-veg": { name: "Pesto Pasta (Veg)", allergens: ["Gluten"] },
 };
 
 const tools: any = [
@@ -91,16 +93,18 @@ const tools: any = [
 ];
 
 const STATIC_INVENTORY: Record<string, boolean> = {
-  "grilled atlantic salmon": true,
-  "performance power bowl": true,
-  "keto prime ribeye": true,
-  "miso glazed black cod": true,
-  "superfood smoothie bowl": true,
-  "mediterranean grain salad": false,
-  "kung pao tofu": true,
-  "cantonese steamed sea bass": true,
-  "dark chocolate avocado mousse": true,
-  "tempeh multigrain wrap": true,
+  "activated charcoal smoothie": true,
+  "aglio olio - veg": true,
+  "aglio olio - chicken": true,
+  "aglio olio - prawns": true,
+  "signature quinoa salad": true,
+  "tomato basil soup": true,
+  "power house smoothie": true,
+  "peri peri paneer fiesta rice bowl": true,
+  "moong dal chilla with curd": true,
+  "quinoa khichdi": true,
+  "falafal pita pockets with hummus": true,
+  "pesto pasta (veg)": true,
 };
 
 function lookupDishAllergens(dish: string): { name: string; allergens: string[] } | null {

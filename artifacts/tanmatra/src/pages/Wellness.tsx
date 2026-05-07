@@ -6,9 +6,9 @@ import { Link } from "react-router";
 import { HeartPulse, Leaf, Sparkles, ShieldCheck } from "lucide-react";
 
 const FEATURED = [
-  { id: 1, name: "Grilled Atlantic Salmon", image: "/dishes/salmon-quinoa.jpg", price: 48500, slug: "grilled-salmon", macros: { protein: 34, carbs: 28, fat: 18, fiber: 6, calories: 420 }, rdVerified: true, description: "Omega-3 rich with quinoa pilaf and steamed broccoli." },
-  { id: 5, name: "Superfood Smoothie Bowl", image: "/dishes/smoothie-bowl.jpg", price: 28500, slug: "smoothie-bowl", macros: { protein: 12, carbs: 45, fat: 14, fiber: 11, calories: 340 }, rdVerified: true, description: "Antioxidant-dense acai with berries and chia seeds." },
-  { id: 6, name: "Mediterranean Grain Salad", image: "/dishes/mediterranean-salad.jpg", price: 32500, slug: "mediterranean-salad", macros: { protein: 18, carbs: 38, fat: 20, fiber: 10, calories: 380 }, rdVerified: false, description: "Heart-healthy chickpeas, feta, olives, and fresh herbs." },
+  { id: 1, name: "Activated Charcoal Smoothie", image: "https://images.unsplash.com/photo-1570696516188-ade861b84a49?w=800&q=80", price: 5000, slug: "activated-charcoal-smoothie", macros: { protein: 3, carbs: 22, fat: 4, fiber: 2, calories: 140 }, rdVerified: true, description: "Detox smoothie with activated charcoal, banana, almond milk." },
+  { id: 102, name: "Signature Quinoa Salad", image: "https://images.unsplash.com/photo-1512621776951-a57141f2eefd?w=800&q=80", price: 9000, slug: "signature-quinoa-salad", macros: { protein: 12, carbs: 12, fat: 14, fiber: 6, calories: 220 }, rdVerified: true, description: "Quinoa, cucumber, tomato, pomegranate with olive-oil dressing." },
+  { id: 97, name: "Power House Smoothie", image: "https://images.unsplash.com/photo-1570696516188-ade861b84a49?w=800&q=80", price: 8000, slug: "power-house-smoothie", macros: { protein: 15, carbs: 22, fat: 4, fiber: 2, calories: 140 }, rdVerified: true, description: "Banana, oats, almonds, peanut butter, and whey protein." },
 ];
 
 const PILLARS = [

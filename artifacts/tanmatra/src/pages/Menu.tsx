@@ -8,8 +8,19 @@ import { formatPrice } from "@/lib/api/adapter";
 import { DISHES, CATEGORY_LABELS, type DishCategory, type DishKitchen } from "@/lib/menuData";
 import { AlertTriangle, ChefHat, Search, X } from "lucide-react";
 
-const KITCHEN_TABS: Array<"all" | DishKitchen> = ["all", "continental", "chinese"];
-const CATEGORY_TABS: Array<"all" | DishCategory> = ["all", "wellness", "performance", "clinical", "desserts"];
+const KITCHEN_TABS: Array<"all" | DishKitchen> = ["all", "continental", "indian", "asian", "mediterranean"];
+const CATEGORY_TABS: Array<"all" | DishCategory> = [
+  "all",
+  "beverages",
+  "breakfast",
+  "salads",
+  "soups",
+  "pasta",
+  "wraps",
+  "bowls",
+  "snacks",
+  "mains",
+];
 type DietFilter = "all" | "veg" | "nonveg";
 
 export default function Menu() {

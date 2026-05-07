@@ -6,9 +6,9 @@ import { Link } from "react-router";
 import { Zap, Timer, TrendingUp, ShieldCheck } from "lucide-react";
 
 const FEATURED = [
-  { id: 2, name: "Performance Power Bowl", image: "/dishes/buddha-bowl.jpg", price: 39500, slug: "power-bowl", macros: { protein: 42, carbs: 55, fat: 22, fiber: 9, calories: 580 }, rdVerified: true, description: "Grilled chicken, brown rice, sweet potato, avocado — engineered for recovery." },
-  { id: 3, name: "Keto Prime Ribeye", image: "/dishes/steak-keto.jpg", price: 62500, slug: "keto-ribeye", macros: { protein: 48, carbs: 8, fat: 38, fiber: 5, calories: 540 }, rdVerified: true, description: "Grass-fed ribeye with cauliflower puree. Ketogenic macro ratio." },
-  { id: 1, name: "Grilled Atlantic Salmon", image: "/dishes/salmon-quinoa.jpg", price: 48500, slug: "grilled-salmon", macros: { protein: 34, carbs: 28, fat: 18, fiber: 6, calories: 420 }, rdVerified: true, description: "Omega-3 rich salmon for muscle protein synthesis support." },
+  { id: 3, name: "Aglio Olio (Chicken)", image: "https://images.unsplash.com/photo-1551183053-bf91a1d81141?w=800&q=80", price: 18000, slug: "aglio-olio-chicken", macros: { protein: 28, carbs: 65, fat: 22, fiber: 5, calories: 580 }, rdVerified: true, description: "Spaghetti tossed in garlic-olive oil with grilled chicken strips." },
+  { id: 92, name: "Peri Peri Paneer Fiesta Rice Bowl", image: "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=800&q=80", price: 16500, slug: "peri-peri-paneer-fiesta-rice-bowl", macros: { protein: 22, carbs: 60, fat: 18, fiber: 7, calories: 460 }, rdVerified: true, description: "Brown rice with peri peri grilled paneer and steamed veggies." },
+  { id: 97, name: "Power House Smoothie", image: "https://images.unsplash.com/photo-1570696516188-ade861b84a49?w=800&q=80", price: 8000, slug: "power-house-smoothie", macros: { protein: 15, carbs: 22, fat: 4, fiber: 2, calories: 140 }, rdVerified: true, description: "Banana, oats, almonds, peanut butter, and whey protein recovery shake." },
 ];
 
 const PILLARS = [
