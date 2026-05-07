@@ -365,7 +365,7 @@ function countPlanConflicts(plan: RdPlan, prefs: UserPreferences): number {
   return getPlanConflicts(plan, prefs).length;
 }
 
-function findPlanSafeSwap(
+export function findPlanSafeSwap(
   plan: RdPlan,
   blocked: DishData,
   prefs: UserPreferences,

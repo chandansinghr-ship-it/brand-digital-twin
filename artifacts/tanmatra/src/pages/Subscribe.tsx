@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useSearchParams, Link } from "react-router";
-import { getRdPlanBySlug, getRdAuthor, resolvePlanWeek } from "@/lib/rdPlans";
+import { getRdPlanBySlug, getRdAuthor, resolvePlanWeek, findPlanSafeSwap } from "@/lib/rdPlans";
+import { evaluateDishForPreferences } from "@/lib/preferencesMatch";
+import { usePreferences } from "@/lib/preferencesContext";
 import { ACCENT_CLASSES } from "@/lib/teamData";
 import type { SubscriptionItem } from "@/lib/subscriptionsApi";
 import { Stethoscope } from "lucide-react";
@@ -92,26 +94,44 @@ export default function Subscribe() {
   const planSlug = searchParams.get("plan");
   const rdPlan = planSlug ? getRdPlanBySlug(planSlug) : undefined;
   const rdAuthor = rdPlan ? getRdAuthor(rdPlan) : undefined;
-  const planWeekItems = useMemo<SubscriptionItem[]>(() => {
-    if (!rdPlan) return [];
+  const { preferences } = usePreferences();
+  const planItemsResult = useMemo<{ items: SubscriptionItem[]; swappedCount: number; droppedCount: number }>(() => {
+    if (!rdPlan) return { items: [], swappedCount: 0, droppedCount: 0 };
     const week = resolvePlanWeek(rdPlan);
     const items: SubscriptionItem[] = [];
     const seen = new Set<string>();
+    let swappedCount = 0;
+    let droppedCount = 0;
     for (const day of week) {
       for (const meal of [day.lunch, day.dinner]) {
-        if (!meal || seen.has(meal.slug)) continue;
-        seen.add(meal.slug);
+        if (!meal) continue;
+        let chosen = meal;
+        if (preferences) {
+          const evalResult = evaluateDishForPreferences(meal, preferences);
+          if (evalResult.blocked) {
+            const swap = findPlanSafeSwap(rdPlan, meal, preferences);
+            if (!swap) {
+              droppedCount += 1;
+              continue;
+            }
+            chosen = swap;
+            swappedCount += 1;
+          }
+        }
+        if (seen.has(chosen.slug)) continue;
+        seen.add(chosen.slug);
         items.push({
-          slug: meal.slug,
-          name: meal.name,
-          image: meal.image,
+          slug: chosen.slug,
+          name: chosen.name,
+          image: chosen.image,
           quantity: 1,
-          unitPricePaise: meal.price,
+          unitPricePaise: chosen.price,
         });
       }
     }
-    return items.slice(0, 14);
-  }, [rdPlan]);
+    return { items: items.slice(0, 14), swappedCount, droppedCount };
+  }, [rdPlan, preferences]);
+  const planWeekItems = planItemsResult.items;
   const [cadence, setCadence] = useState<SubscriptionCadence>("weekly");
   const [meals, setMeals] = useState(10);
   useEffect(() => {
@@ -239,12 +259,22 @@ export default function Subscribe() {
               </p>
               <h2 className="font-serif text-xl text-white">{rdPlan.name}</h2>
               <p className="text-xs text-clinical-zinc">
-                We've pre-loaded {planWeekItems.length} curated meals. Allergens
-                and dislikes you set in{" "}
+                We've pre-loaded {planWeekItems.length} curated meals
+                {planItemsResult.swappedCount > 0 && (
+                  <>
+                    {" "}— <span className="text-clinical-sage">{planItemsResult.swappedCount} auto-swapped</span> for your allergens
+                  </>
+                )}
+                {planItemsResult.droppedCount > 0 && (
+                  <>
+                    {" "}({planItemsResult.droppedCount} skipped — no safe match in catalog)
+                  </>
+                )}
+                . Update{" "}
                 <Link to="/preferences" className="text-clinical-gold underline">
                   Preferences
                 </Link>{" "}
-                are auto-swapped at delivery.
+                any time to re-curate.
                 {rdAuthor && (
                   <>
                     {" "}Curated by{" "}
