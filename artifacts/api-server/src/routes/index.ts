@@ -12,6 +12,7 @@ import bundlesRouter from "./bundles";
 import groupOrdersRouter from "./groupOrders";
 import wellnessRouter from "./wellness";
 import aiRunsRouter from "./aiRuns";
+import opsAgentRouter from "./opsAgent";
 
 const router: IRouter = Router();
 
@@ -28,5 +29,6 @@ router.use(bundlesRouter);
 router.use(groupOrdersRouter);
 router.use(wellnessRouter);
 router.use(aiRunsRouter);
+router.use(opsAgentRouter);
 
 export default router;
