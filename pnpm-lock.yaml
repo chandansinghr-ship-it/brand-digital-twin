@@ -185,6 +185,9 @@ importers:
       '@workspace/integrations-gemini-ai':
         specifier: workspace:*
         version: link:../../lib/integrations-gemini-ai
+      '@workspace/menu-catalog':
+        specifier: workspace:*
+        version: link:../../lib/menu-catalog
       ai:
         specifier: ^6.0.175
         version: 6.0.175(zod@3.25.76)
@@ -583,6 +586,9 @@ importers:
       '@workspace/api-client-react':
         specifier: workspace:*
         version: link:../../lib/api-client-react
+      '@workspace/menu-catalog':
+        specifier: workspace:*
+        version: link:../../lib/menu-catalog
       class-variance-authority:
         specifier: 'catalog:'
         version: 0.7.1
@@ -713,6 +719,8 @@ importers:
       p-retry:
         specifier: ^7.1.1
         version: 7.1.1
+
+  lib/menu-catalog: {}
 
   lib/replit-auth-web:
     dependencies:

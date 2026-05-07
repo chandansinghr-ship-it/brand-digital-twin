@@ -15,6 +15,7 @@ import {
   type Notification,
   type NotificationKind,
 } from "@workspace/db";
+import { getDishById } from "@workspace/menu-catalog";
 import type { PgTransaction } from "drizzle-orm/pg-core";
 
 type DbOrTx = typeof db | PgTransaction<any, any, any>;
@@ -128,13 +129,8 @@ export async function issueCredit(
   });
 }
 
-/**
- * FIFO lot-based balance: each positive ledger row is a lot with its own
- * expiry; each negative row consumes from the lots that were unexpired
- * at the time of the redemption, oldest-expiring first. Lots expire only
- * by their unconsumed remainder, so redemptions can never drive the
- * balance negative when their backing lots later expire.
- */
+// FIFO lot-based balance — redemptions consume oldest-expiring
+// unexpired lots first, so an expired grant can't drive balance < 0.
 async function computeRemainingLots(
   userId: string,
   tx: DbOrTx,
@@ -262,12 +258,8 @@ async function ensureNotification(
   return created ?? null;
 }
 
-/**
- * Award pending referral credits when the referee completes their first
- * order. Idempotent: redemption.awardedAt acts as a guard, the unique
- * (userId, dedupeKey) on notifications prevents duplicates, and the whole
- * thing runs in a transaction with an advisory lock per redemption row.
- */
+// Award pending referral on first order. Idempotent via awardedAt
+// + advisory lock + unique notification dedupe key.
 export type AwardReferralResult =
   | { awarded: true; redemptionId: number }
   | {
@@ -356,21 +348,8 @@ async function awardPendingReferralInTx(
   return { awarded: true, redemptionId: pending.id };
 }
 
-/**
- * Server-owned checkout finalization. Inside one transaction:
- *  1. Idempotently records the order via loyalty_order_claims (unique
- *     on userId+orderId — duplicate calls return the existing claim).
- *  2. Optionally redeems credits up to `applyCreditsPaise` against the
- *     ledger with an advisory lock + balance recheck (no overspend).
- *  3. Updates the claim with redeemed/final amounts so refunds and
- *     audits are server-side facts, not client claims.
- *  4. Awards the pending referral (if any) — first-order completion
- *     gating is satisfied because we now have a real server record
- *     of this order regardless of subscription state.
- *
- * Either everything commits or nothing does — no partial state where
- * an order is discounted but the ledger is unchanged.
- */
+// Server-owned checkout finalization: one transaction that records
+// the order, redeems credits, and awards any pending referral.
 export interface FinalizeOrderItem {
   id: number;
   name: string;
@@ -402,15 +381,22 @@ export async function finalizeOrder(args: {
   duplicate: boolean;
   referral: AwardReferralResult;
 }> {
-  // Server computes gross from item line totals — client cannot
-  // forge a discount by sending a smaller grossPaise.
+  // Server-authoritative pricing from the shared menu catalog.
+  // Client-supplied `price` is ignored.
   if (args.items.length === 0) {
     throw new Error("order has no items");
   }
-  const grossPaise = args.items.reduce(
-    (acc, it) => acc + Math.max(0, Math.floor(it.qty)) * Math.max(0, Math.floor(it.price)),
-    0,
-  );
+  const validatedItems: FinalizeOrderItem[] = [];
+  let grossPaise = 0;
+  for (const it of args.items) {
+    const dish = getDishById(it.id);
+    if (!dish) throw new Error(`unknown dish id: ${it.id}`);
+    if (!dish.isAvailable) throw new Error(`dish unavailable: ${dish.slug}`);
+    const qty = Math.max(0, Math.floor(it.qty));
+    if (qty <= 0) throw new Error(`invalid qty for dish ${dish.slug}`);
+    grossPaise += dish.price * qty;
+    validatedItems.push({ id: dish.id, name: dish.name, qty, price: dish.price });
+  }
   if (grossPaise <= 0) {
     throw new Error("order total must be positive");
   }
@@ -426,7 +412,7 @@ export async function finalizeOrder(args: {
         externalOrderId: args.orderId,
         status: "placed",
         totalPaise: grossPaise,
-        items: args.items,
+        items: validatedItems,
         addressLabel: args.address?.label ?? null,
         addressLine: args.address?.line ?? null,
         city: args.address?.city ?? null,
@@ -596,7 +582,7 @@ async function checkBirthdayOrAnniversary(
     kind === "birthday" ? config.birthdayPaise : config.anniversaryPaise;
   const created = await ensureNotification({
     userId,
-    kind: kind === "birthday" ? "birthday" : "loyalty_premium_unlock",
+    kind,
     title:
       kind === "birthday"
         ? "Happy birthday from Tanmatra!"
@@ -771,11 +757,7 @@ export async function runLoyaltyEngineForUser(userId: string): Promise<{
   return { notifications: out };
 }
 
-/**
- * Returns per-subscription loyalty progress so the UI can show
- * "X / N to next free meal" and the premium-unlock state without
- * duplicating the threshold logic.
- */
+// Per-subscription loyalty progress for the UI.
 export async function getSubscriptionLoyaltyProgress(
   userId: string,
 ): Promise<
@@ -825,9 +807,8 @@ export async function getSubscriptionLoyaltyProgress(
 }
 
 /**
- * Sweep loyalty rules for all users with any engagement signal
- * (subscriptions, profile dates, or referral state). Idempotent via
- * notification dedupe keys + per-redemption awardedAt guards.
+ * Sweep loyalty rules for users with any engagement signal. Idempotent
+ * via dedupe keys + awardedAt guards.
  */
 export async function runLoyaltyEngineForAll(): Promise<{
   scanned: number;
