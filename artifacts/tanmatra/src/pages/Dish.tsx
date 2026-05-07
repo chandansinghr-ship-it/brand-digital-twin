@@ -18,6 +18,11 @@ import {
   stripIngredientAmount,
 } from "@/lib/dishEnrichment";
 import { useCart } from "@/lib/cartContext";
+import { usePreferences } from "@/lib/preferencesContext";
+import {
+  evaluateDishForPreferences,
+  findSmartSwap,
+} from "@/lib/preferencesMatch";
 import { formatPrice } from "@/lib/api/adapter";
 import {
   ArrowLeft,
@@ -31,13 +36,24 @@ import {
   Flame,
   Sparkles,
   Utensils,
+  ShieldAlert,
+  ArrowRight,
 } from "lucide-react";
 
 export default function Dish() {
   const { slug } = useParams<{ slug: string }>();
   const navigate = useNavigate();
   const { addItem } = useCart();
+  const { preferences } = usePreferences();
   const meal = slug ? getDishBySlug(slug) : undefined;
+  const match = useMemo(
+    () => (meal ? evaluateDishForPreferences(meal, preferences) : null),
+    [meal, preferences],
+  );
+  const smartSwap = useMemo(
+    () => (meal ? findSmartSwap(meal, preferences) : null),
+    [meal, preferences],
+  );
 
   const customizations = useMemo(
     () => (meal ? getCustomizationsForDish(meal) : []),
@@ -290,6 +306,67 @@ export default function Dish() {
               )}
             </div>
           </div>
+
+          {match && (match.warnings.length > 0 || match.reasons.length > 0) && (
+            <div
+              className={`rounded-xl p-4 border space-y-3 ${
+                match.warnings.length > 0
+                  ? "bg-orange-500/5 border-orange-500/30"
+                  : "bg-clinical-sage/5 border-clinical-sage/30"
+              }`}
+            >
+              {match.warnings.length > 0 ? (
+                <div className="flex items-start gap-2">
+                  <ShieldAlert className="w-4 h-4 text-orange-400 shrink-0 mt-0.5" />
+                  <div className="space-y-1">
+                    <p className="text-xs font-medium text-orange-400">
+                      Heads up — based on your preferences
+                    </p>
+                    <ul className="text-xs text-clinical-zinc leading-relaxed space-y-0.5">
+                      {match.warnings.map((w) => (
+                        <li key={w}>• {w}</li>
+                      ))}
+                    </ul>
+                  </div>
+                </div>
+              ) : (
+                <div className="flex items-start gap-2">
+                  <Sparkles className="w-4 h-4 text-clinical-sage shrink-0 mt-0.5" />
+                  <div className="space-y-1">
+                    <p className="text-xs font-medium text-clinical-sage">
+                      Why this for you
+                    </p>
+                    <ul className="text-xs text-clinical-zinc leading-relaxed space-y-0.5">
+                      {match.reasons.map((r) => (
+                        <li key={r}>• {r}</li>
+                      ))}
+                    </ul>
+                  </div>
+                </div>
+              )}
+              {smartSwap && (
+                <Link
+                  to={`/dish/${smartSwap.slug}`}
+                  className="flex items-center gap-2 rounded-lg border border-clinical-gold/30 bg-clinical-gold/5 px-3 py-2 hover:border-clinical-gold/60 transition-colors"
+                >
+                  <img
+                    src={smartSwap.image}
+                    alt={smartSwap.name}
+                    className="w-10 h-10 rounded object-cover"
+                  />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-[10px] uppercase tracking-[0.12em] text-clinical-gold font-semibold">
+                      Smart swap for your profile
+                    </p>
+                    <p className="text-xs text-white truncate">
+                      {smartSwap.name}
+                    </p>
+                  </div>
+                  <ArrowRight className="w-3.5 h-3.5 text-clinical-gold shrink-0" />
+                </Link>
+              )}
+            </div>
+          )}
 
           <Separator className="bg-clinical-slate/20" />
 

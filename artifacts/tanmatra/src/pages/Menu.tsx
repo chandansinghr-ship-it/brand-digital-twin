@@ -1,5 +1,4 @@
 import { useState, useMemo } from "react";
-import { Link } from "react-router";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { formatPrice } from "@/lib/api/adapter";
@@ -17,6 +16,11 @@ import {
   type Lifestyle,
 } from "@/lib/dishEnrichment";
 import { useCart } from "@/lib/cartContext";
+import { usePreferences } from "@/lib/preferencesContext";
+import {
+  evaluateDishForPreferences,
+  rankDishesForPreferences,
+} from "@/lib/preferencesMatch";
 import { toast } from "sonner";
 import {
   AlertTriangle,
@@ -28,7 +32,11 @@ import {
   Search,
   X,
   Plus,
+  ShieldAlert,
+  Sparkles as SparklesIcon,
+  SlidersHorizontal,
 } from "lucide-react";
+import { Link } from "react-router";
 
 const KITCHEN_TABS: Array<"all" | DishKitchen> = [
   "all",
@@ -65,7 +73,9 @@ export default function Menu() {
   const [diet, setDiet] = useState<DietFilter>("all");
   const [lifestyle, setLifestyle] = useState<Lifestyle>("all");
   const [query, setQuery] = useState("");
+  const [hideBlocked, setHideBlocked] = useState(true);
   const { addItem } = useCart();
+  const { preferences } = usePreferences();
 
   const handleQuickAdd = (e: React.MouseEvent, item: DishData) => {
     e.preventDefault();
@@ -90,7 +100,7 @@ export default function Menu() {
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
-    return DISHES.filter((d) => {
+    const baseList = DISHES.filter((d) => {
       if (kitchen !== "all" && d.kitchen !== kitchen) return false;
       if (category !== "all" && d.category !== category) return false;
       if (diet === "veg" && !d.isVeg) return false;
@@ -100,7 +110,16 @@ export default function Menu() {
         return false;
       return true;
     });
-  }, [kitchen, category, diet, lifestyle, query]);
+    const ranked = rankDishesForPreferences(baseList, preferences);
+    return hideBlocked ? ranked.filter((r) => !r.match.blocked) : ranked;
+  }, [kitchen, category, diet, lifestyle, query, preferences, hideBlocked]);
+
+  const blockedCount = useMemo(() => {
+    if (!preferences) return 0;
+    return DISHES.filter(
+      (d) => evaluateDishForPreferences(d, preferences).blocked,
+    ).length;
+  }, [preferences]);
 
   const lifestyleTag =
     lifestyle !== "all" ? LIFESTYLE_TAGS[lifestyle as Exclude<Lifestyle, "all">] : null;
@@ -227,6 +246,40 @@ export default function Menu() {
         </div>
       </div>
 
+      {preferences && (
+        <div className="flex flex-wrap items-center gap-2 rounded-lg border border-clinical-gold/20 bg-clinical-gold/5 px-3 py-2">
+          <SparklesIcon className="w-3.5 h-3.5 text-clinical-gold" />
+          <span className="text-[11px] text-clinical-zinc">
+            Personalized for your{" "}
+            <span className="text-clinical-gold capitalize">
+              {preferences.dietaryStyle}
+            </span>{" "}
+            profile
+            {blockedCount > 0 && (
+              <>
+                {" · "}
+                <button
+                  type="button"
+                  onClick={() => setHideBlocked((v) => !v)}
+                  className="text-clinical-gold underline-offset-2 hover:underline"
+                >
+                  {hideBlocked
+                    ? `${blockedCount} hidden by your preferences — show`
+                    : "hide conflicts"}
+                </button>
+              </>
+            )}
+          </span>
+          <Link
+            to="/preferences"
+            className="ml-auto text-[11px] text-clinical-gold hover:underline flex items-center gap-1"
+          >
+            <SlidersHorizontal className="w-3 h-3" />
+            Edit
+          </Link>
+        </div>
+      )}
+
       <div className="text-xs text-clinical-zinc/70 tabular-nums">
         {filtered.length} {filtered.length === 1 ? "dish" : "dishes"}
       </div>
@@ -252,12 +305,12 @@ export default function Menu() {
 
       {/* Dish grid — dark luxury cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {filtered.map((item) => (
+        {filtered.map(({ dish: item, match }) => (
           <article
             key={item.id}
             className={`group relative flex flex-col rounded-2xl overflow-hidden bg-clinical-surface-elevated border border-clinical-slate/20 hover:border-clinical-gold/50 transition-all duration-300 ${
               !item.isAvailable ? "opacity-50 grayscale" : ""
-            }`}
+            } ${match.blocked ? "ring-1 ring-orange-500/40" : ""}`}
           >
             {/* Image */}
             <div className="relative h-52 overflow-hidden">
@@ -326,6 +379,21 @@ export default function Menu() {
               <div className="text-[10px] uppercase tracking-[0.12em] text-clinical-zinc/60 font-semibold">
                 {CATEGORY_LABELS[item.category]} · {item.kitchen}
               </div>
+
+              {match.warnings.length > 0 && (
+                <div className="flex items-start gap-1.5 text-[11px] text-orange-400">
+                  <ShieldAlert className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+                  <span className="leading-tight">{match.warnings[0]}</span>
+                </div>
+              )}
+              {match.warnings.length === 0 && match.reasons.length > 0 && (
+                <div className="flex items-start gap-1.5 text-[11px] text-clinical-sage">
+                  <SparklesIcon className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+                  <span className="leading-tight">
+                    Why this for you: {match.reasons[0]}
+                  </span>
+                </div>
+              )}
 
               {/* Action buttons */}
               <div className="mt-auto pt-2 flex gap-2">

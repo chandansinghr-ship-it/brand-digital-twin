@@ -9,6 +9,7 @@ import {
   ShoppingCart,
   CalendarClock,
   Sparkles,
+  SlidersHorizontal,
   Menu as MenuIcon,
   X,
 } from "lucide-react";
@@ -29,6 +30,7 @@ export default function Header() {
     { path: "/orders", label: "Orders", icon: Package },
     { path: "/subscriptions", label: "Plans", icon: CalendarClock },
     { path: "/rewards", label: "Rewards", icon: Sparkles },
+    { path: "/preferences", label: "Preferences", icon: SlidersHorizontal },
     { path: "/track", label: "Track", icon: MapPin },
   ];
 

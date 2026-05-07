@@ -4,6 +4,8 @@ import { Toaster } from "sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { CartProvider } from "@/lib/cartContext";
 import { OrdersProvider } from "@/lib/ordersContext";
+import { PreferencesProvider } from "@/lib/preferencesContext";
+import OnboardingQuizGate from "@/components/preferences/OnboardingQuizGate";
 import Header from "@/components/layout/Header";
 import Footer from "@/components/layout/Footer";
 import SupportAgentWidget from "@/components/ai/SupportAgent";
@@ -23,6 +25,7 @@ import Orders from "@/pages/Orders";
 import Subscribe from "@/pages/Subscribe";
 import Subscriptions from "@/pages/Subscriptions";
 import Rewards from "@/pages/Rewards";
+import Preferences from "@/pages/Preferences";
 import Wellness from "@/pages/Wellness";
 import Performance from "@/pages/Performance";
 import Clinical from "@/pages/Clinical";
@@ -52,9 +55,11 @@ export default function App() {
       <TooltipProvider>
         <CartProvider>
           <OrdersProvider>
+            <PreferencesProvider>
             <BrowserRouter basename={basename}>
               <div className="min-h-screen flex flex-col bg-clinical-dark">
                 <Header />
+                <OnboardingQuizGate />
                 <main className="flex-1">
                   <Routes>
                     <Route path="/" element={<Home />} />
@@ -67,6 +72,7 @@ export default function App() {
                     <Route path="/subscribe" element={<Subscribe />} />
                     <Route path="/subscriptions" element={<Subscriptions />} />
                     <Route path="/rewards" element={<Rewards />} />
+                    <Route path="/preferences" element={<Preferences />} />
                     <Route path="/wellness" element={<Wellness />} />
                     <Route path="/performance" element={<Performance />} />
                     <Route path="/clinical" element={<Clinical />} />
@@ -87,6 +93,7 @@ export default function App() {
               </div>
               <Toaster theme="dark" position="top-right" richColors />
             </BrowserRouter>
+            </PreferencesProvider>
           </OrdersProvider>
         </CartProvider>
       </TooltipProvider>
