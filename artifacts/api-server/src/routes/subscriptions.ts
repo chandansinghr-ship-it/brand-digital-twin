@@ -92,6 +92,20 @@ function requireAuth(req: Request, res: Response): string | null {
   return req.user.id;
 }
 
+function parseIdParam(
+  raw: unknown,
+  res: Response,
+  name = "id",
+): number | null {
+  const value = typeof raw === "string" ? raw : Array.isArray(raw) ? raw[0] : "";
+  const n = Number(value);
+  if (!Number.isFinite(n) || n <= 0 || !Number.isInteger(n)) {
+    res.status(400).json({ error: `invalid ${name}` });
+    return null;
+  }
+  return n;
+}
+
 async function loadSubscriptionForUser(
   subId: number,
   userId: string,
@@ -266,11 +280,8 @@ router.get("/subscriptions", async (req: Request, res: Response) => {
 router.get("/subscriptions/:id", async (req: Request, res: Response) => {
   const userId = requireAuth(req, res);
   if (!userId) return;
-  const subId = Number(req.params.id);
-  if (!Number.isFinite(subId)) {
-    res.status(400).json({ error: "invalid id" });
-    return;
-  }
+  const subId = parseIdParam(req.params.id, res);
+  if (subId === null) return;
   const sub = await loadSubscriptionForUser(subId, userId);
   if (!sub) {
     res.status(404).json({ error: "not found" });
@@ -294,7 +305,8 @@ router.get("/subscriptions/:id", async (req: Request, res: Response) => {
 router.post("/subscriptions/:id/pause", async (req: Request, res: Response) => {
   const userId = requireAuth(req, res);
   if (!userId) return;
-  const subId = Number(req.params.id);
+  const subId = parseIdParam(req.params.id, res);
+  if (subId === null) return;
   const sub = await loadSubscriptionForUser(subId, userId);
   if (!sub) {
     res.status(404).json({ error: "not found" });
@@ -313,7 +325,8 @@ router.post(
   async (req: Request, res: Response) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
-    const subId = Number(req.params.id);
+    const subId = parseIdParam(req.params.id, res);
+    if (subId === null) return;
     const sub = await loadSubscriptionForUser(subId, userId);
     if (!sub) {
       res.status(404).json({ error: "not found" });
@@ -333,7 +346,8 @@ router.post(
   async (req: Request, res: Response) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
-    const subId = Number(req.params.id);
+    const subId = parseIdParam(req.params.id, res);
+    if (subId === null) return;
     const sub = await loadSubscriptionForUser(subId, userId);
     if (!sub) {
       res.status(404).json({ error: "not found" });
@@ -363,7 +377,8 @@ router.post(
   async (req: Request, res: Response) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
-    const subId = Number(req.params.id);
+    const subId = parseIdParam(req.params.id, res);
+    if (subId === null) return;
     const sub = await loadSubscriptionForUser(subId, userId);
     if (!sub) {
       res.status(404).json({ error: "not found" });
@@ -387,8 +402,10 @@ router.delete(
   async (req: Request, res: Response) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
-    const subId = Number(req.params.id);
-    const memberId = Number(req.params.memberId);
+    const subId = parseIdParam(req.params.id, res);
+    if (subId === null) return;
+    const memberId = parseIdParam(req.params.memberId, res, "memberId");
+    if (memberId === null) return;
     const sub = await loadSubscriptionForUser(subId, userId);
     if (!sub) {
       res.status(404).json({ error: "not found" });
@@ -411,7 +428,8 @@ router.post(
   async (req: Request, res: Response) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
-    const deliveryId = Number(req.params.id);
+    const deliveryId = parseIdParam(req.params.id, res, "deliveryId");
+    if (deliveryId === null) return;
     const found = await loadDeliveryForUser(deliveryId, userId);
     if (!found) {
       res.status(404).json({ error: "not found" });
@@ -451,7 +469,8 @@ router.post(
   async (req: Request, res: Response) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
-    const deliveryId = Number(req.params.id);
+    const deliveryId = parseIdParam(req.params.id, res, "deliveryId");
+    if (deliveryId === null) return;
     const found = await loadDeliveryForUser(deliveryId, userId);
     if (!found) {
       res.status(404).json({ error: "not found" });
@@ -480,7 +499,8 @@ router.post(
   async (req: Request, res: Response) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
-    const deliveryId = Number(req.params.id);
+    const deliveryId = parseIdParam(req.params.id, res, "deliveryId");
+    if (deliveryId === null) return;
     const found = await loadDeliveryForUser(deliveryId, userId);
     if (!found) {
       res.status(404).json({ error: "not found" });
@@ -540,17 +560,58 @@ router.get("/meal-credits", async (req: Request, res: Response) => {
       and(
         eq(mealCreditsTable.userId, userId),
         sql`${mealCreditsTable.consumedAt} is null`,
+        sql`(${mealCreditsTable.expiresAt} is null or ${mealCreditsTable.expiresAt} > now())`,
       ),
     );
   res.json({ credits, balance: Number(totalRows[0]?.total ?? 0) });
 });
+
+const updateWindowSchema = z.object({
+  deliveryWindow: z.string().min(3).max(32),
+});
+
+router.post(
+  "/subscriptions/:id/delivery-window",
+  async (req: Request, res: Response) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    const subId = parseIdParam(req.params.id, res);
+    if (subId === null) return;
+    const sub = await loadSubscriptionForUser(subId, userId);
+    if (!sub) {
+      res.status(404).json({ error: "not found" });
+      return;
+    }
+    const parsed = updateWindowSchema.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: "invalid payload" });
+      return;
+    }
+    const [updated] = await db
+      .update(subscriptionsTable)
+      .set({ deliveryWindow: parsed.data.deliveryWindow })
+      .where(eq(subscriptionsTable.id, subId))
+      .returning();
+    await db
+      .update(subscriptionDeliveriesTable)
+      .set({ deliveryWindow: parsed.data.deliveryWindow })
+      .where(
+        and(
+          eq(subscriptionDeliveriesTable.subscriptionId, subId),
+          eq(subscriptionDeliveriesTable.status, "upcoming"),
+        ),
+      );
+    res.json({ subscription: updated });
+  },
+);
 
 router.post(
   "/subscriptions/:id/generate-next",
   async (req: Request, res: Response) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
-    const subId = Number(req.params.id);
+    const subId = parseIdParam(req.params.id, res);
+    if (subId === null) return;
     const sub = await loadSubscriptionForUser(subId, userId);
     if (!sub) {
       res.status(404).json({ error: "not found" });

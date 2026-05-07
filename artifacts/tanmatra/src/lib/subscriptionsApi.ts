@@ -143,6 +143,11 @@ export const subscriptionsApi = {
     request<{ subscription: Subscription }>(`/subscriptions/${id}/cancel`, {
       method: "POST",
     }),
+  updateDeliveryWindow: (id: number, deliveryWindow: string) =>
+    request<{ subscription: Subscription }>(
+      `/subscriptions/${id}/delivery-window`,
+      { method: "POST", body: JSON.stringify({ deliveryWindow }) },
+    ),
   generateNext: (id: number) =>
     request<{ deliveries: SubscriptionDelivery[] }>(
       `/subscriptions/${id}/generate-next`,
