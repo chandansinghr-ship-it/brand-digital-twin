@@ -158,6 +158,9 @@ export const orderClaimsTable = pgTable(
       .notNull()
       .references(() => usersTable.id, { onDelete: "cascade" }),
     orderId: varchar("order_id", { length: 64 }).notNull(),
+    grossPaise: integer("gross_paise").notNull().default(0),
+    redeemedPaise: integer("redeemed_paise").notNull().default(0),
+    finalPaise: integer("final_paise").notNull().default(0),
     claimedAt: timestamp("claimed_at", { withTimezone: true })
       .notNull()
       .defaultNow(),

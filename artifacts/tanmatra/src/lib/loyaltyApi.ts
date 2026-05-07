@@ -110,14 +110,32 @@ export const loyaltyApi = {
         body: JSON.stringify({ paise, refId, note }),
       },
     ),
-  refundCredit: (paise: number, refId?: string, note?: string) =>
-    request<{ refundedPaise: number; balancePaise: number }>(
-      "/credit-ledger/refund",
-      {
-        method: "POST",
-        body: JSON.stringify({ paise, refId, note }),
-      },
-    ),
+  finalizeOrder: (args: {
+    orderId: string;
+    grossPaise: number;
+    applyCreditsPaise?: number;
+  }) =>
+    request<{
+      orderId: string;
+      grossPaise: number;
+      redeemedPaise: number;
+      finalPaise: number;
+      balancePaise: number;
+      duplicate: boolean;
+      referral:
+        | { awarded: true; redemptionId: number }
+        | {
+            awarded: false;
+            reason:
+              | "no_pending_referral"
+              | "order_already_claimed"
+              | "no_qualifying_activity"
+              | "already_awarded";
+          };
+    }>("/orders/finalize", {
+      method: "POST",
+      body: JSON.stringify(args),
+    }),
   getNotifications: () =>
     request<{ notifications: NotificationItem[] }>("/notifications"),
   dismissNotification: (id: number) =>

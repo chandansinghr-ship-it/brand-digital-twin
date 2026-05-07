@@ -119,78 +119,49 @@ export default function Checkout() {
     const placedAt = new Date().toISOString();
     const etaAt = new Date(Date.now() + 25 * 60 * 1000).toISOString();
 
-    // Atomically settle the credit ledger BEFORE committing the order.
-    // The discounted total is only used if the redemption succeeds; on
-    // any failure we fall back to the full gross total so the order
-    // amount and ledger never diverge.
-    let appliedDiscount = 0;
+    // Server-owned atomic finalize: records the order, redeems credits,
+    // and awards any pending referral inside one transaction. If this
+    // call fails for any reason, no order is committed and no credits
+    // are debited.
     let finalTotal = grossTotal;
-    if (creditApplied > 0) {
-      try {
-        const out = await loyaltyApi.redeemCredit(
-          creditApplied,
-          orderId,
-          `Order ${orderId}`,
-        );
-        appliedDiscount = out.redeemedPaise;
-        finalTotal = Math.max(0, grossTotal - appliedDiscount);
-        setCreditBalance(out.balancePaise);
-      } catch {
-        toast.warning(
-          "Credits could not be applied — placing order at full price",
-        );
-        appliedDiscount = 0;
-        finalTotal = grossTotal;
-      }
-    }
-
+    let referralAwarded = false;
     try {
-      addOrder({
+      const out = await loyaltyApi.finalizeOrder({
         orderId,
-        placedAt,
-        etaAt,
-        status: "placed",
-        items: [...items],
-        subtotal,
-        deliveryFee,
-        tip: effectiveTip,
-        total: finalTotal,
-        address: {
-          label: activeAddr.label,
-          line1: activeAddr.line1,
-          line2: activeAddr.line2,
-          city: activeAddr.city,
-          pincode: activeAddr.pincode,
-          phone: activeAddr.phone,
-        },
+        grossPaise: grossTotal,
+        applyCreditsPaise: creditApplied > 0 ? creditApplied : undefined,
       });
-    } catch (e) {
-      // Order placement failed AFTER we redeemed credits → refund them
-      // so the ledger stays consistent with what the user actually owes.
-      if (appliedDiscount > 0) {
-        try {
-          await loyaltyApi.refundCredit(
-            appliedDiscount,
-            orderId,
-            `Refund for failed order ${orderId}`,
-          );
-        } catch {
-          toast.error(
-            "Order failed and credits could not be auto-refunded — contact support",
-          );
-        }
-      }
-      toast.error("Could not place order");
+      finalTotal = out.finalPaise;
+      setCreditBalance(out.balancePaise);
+      referralAwarded = out.referral.awarded;
+    } catch {
+      toast.error("Could not finalize order — please try again");
       setIsProcessing(false);
       return;
     }
-    try {
-      const r = await loyaltyApi.notifyOrderCompleted(orderId);
-      if (r.awarded) {
-        toast.success("Referral reward unlocked for your friend");
-      }
-    } catch {
-      // Non-fatal: engine can be re-run later from /rewards.
+
+    addOrder({
+      orderId,
+      placedAt,
+      etaAt,
+      status: "placed",
+      items: [...items],
+      subtotal,
+      deliveryFee,
+      tip: effectiveTip,
+      total: finalTotal,
+      address: {
+        label: activeAddr.label,
+        line1: activeAddr.line1,
+        line2: activeAddr.line2,
+        city: activeAddr.city,
+        pincode: activeAddr.pincode,
+        phone: activeAddr.phone,
+      },
+    });
+
+    if (referralAwarded) {
+      toast.success("Referral reward unlocked for your friend");
     }
 
     clear();

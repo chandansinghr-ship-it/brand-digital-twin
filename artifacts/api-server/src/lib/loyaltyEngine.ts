@@ -225,108 +225,228 @@ export type AwardReferralResult =
         | "already_awarded";
     };
 
-export async function awardPendingReferral(args: {
-  refereeUserId: string;
-  orderId: string;
-}): Promise<AwardReferralResult> {
+async function awardPendingReferralInTx(
+  tx: DbOrTx,
+  args: { refereeUserId: string; orderId: string },
+): Promise<AwardReferralResult> {
   const config = await getLoyaltyConfig();
+  // Find the pending redemption for this user (if any).
+  const [pending] = await tx
+    .select()
+    .from(referralRedemptionsTable)
+    .where(
+      and(
+        eq(referralRedemptionsTable.refereeUserId, args.refereeUserId),
+        isNull(referralRedemptionsTable.awardedAt),
+      ),
+    );
+  if (!pending) {
+    return { awarded: false, reason: "no_pending_referral" } as const;
+  }
+
+  await tx.execute(
+    sql`select pg_advisory_xact_lock(hashtextextended(${"referral:" + pending.id}, 0))`,
+  );
+  const [stillPending] = await tx
+    .select()
+    .from(referralRedemptionsTable)
+    .where(
+      and(
+        eq(referralRedemptionsTable.id, pending.id),
+        isNull(referralRedemptionsTable.awardedAt),
+      ),
+    );
+  if (!stillPending) {
+    return { awarded: false, reason: "already_awarded" } as const;
+  }
+  const expiresAt = addDays(new Date(), config.referralExpiryDays);
+  await issueCredit(
+    {
+      userId: pending.referrerUserId,
+      deltaPaise: pending.referrerAwardPaise,
+      reason: "referral_referrer_award",
+      refType: "referral_redemption",
+      refId: String(pending.id),
+      note: "Friend completed their first order",
+      expiresAt,
+    },
+    tx,
+  );
+  await issueCredit(
+    {
+      userId: pending.refereeUserId,
+      deltaPaise: pending.refereeAwardPaise,
+      reason: "referral_referee_signup",
+      refType: "referral_redemption",
+      refId: String(pending.id),
+      note: "Welcome bonus",
+      expiresAt,
+    },
+    tx,
+  );
+  await tx
+    .update(referralRedemptionsTable)
+    .set({ awardedAt: new Date(), firstOrderId: args.orderId })
+    .where(eq(referralRedemptionsTable.id, pending.id));
+  await ensureNotification(
+    {
+      userId: pending.referrerUserId,
+      kind: "referral_redeemed",
+      title: "A friend just placed their first order",
+      body: `You earned Rs.${(pending.referrerAwardPaise / 100).toFixed(0)} in credits.`,
+      dedupeKey: `referral_award:${pending.id}`,
+      payload: { redemptionId: pending.id },
+    },
+    tx,
+  );
+  return { awarded: true, redemptionId: pending.id };
+}
+
+/**
+ * Server-owned checkout finalization. Inside one transaction:
+ *  1. Idempotently records the order via loyalty_order_claims (unique
+ *     on userId+orderId — duplicate calls return the existing claim).
+ *  2. Optionally redeems credits up to `applyCreditsPaise` against the
+ *     ledger with an advisory lock + balance recheck (no overspend).
+ *  3. Updates the claim with redeemed/final amounts so refunds and
+ *     audits are server-side facts, not client claims.
+ *  4. Awards the pending referral (if any) — first-order completion
+ *     gating is satisfied because we now have a real server record
+ *     of this order regardless of subscription state.
+ *
+ * Either everything commits or nothing does — no partial state where
+ * an order is discounted but the ledger is unchanged.
+ */
+export async function finalizeOrder(args: {
+  userId: string;
+  orderId: string;
+  grossPaise: number;
+  applyCreditsPaise?: number;
+}): Promise<{
+  orderId: string;
+  grossPaise: number;
+  redeemedPaise: number;
+  finalPaise: number;
+  balancePaise: number;
+  duplicate: boolean;
+  referral: AwardReferralResult;
+}> {
+  const requested = Math.max(0, Math.floor(args.applyCreditsPaise ?? 0));
   return db.transaction(async (tx) => {
-    // 1. Idempotency + replay guard: each (user, orderId) can only ever
-    //    be presented once. Concurrent duplicates lose to unique index.
-    const [claim] = await tx
+    // 1. Claim insertion — wins or returns nothing on conflict.
+    const [created] = await tx
       .insert(orderClaimsTable)
-      .values({ userId: args.refereeUserId, orderId: args.orderId })
+      .values({
+        userId: args.userId,
+        orderId: args.orderId,
+        grossPaise: args.grossPaise,
+        redeemedPaise: 0,
+        finalPaise: args.grossPaise,
+      })
       .onConflictDoNothing({
         target: [orderClaimsTable.userId, orderClaimsTable.orderId],
       })
       .returning();
-    if (!claim) {
-      return { awarded: false, reason: "order_already_claimed" } as const;
+
+    if (!created) {
+      // Duplicate finalize call — return the existing claim verbatim.
+      const [existing] = await tx
+        .select()
+        .from(orderClaimsTable)
+        .where(
+          and(
+            eq(orderClaimsTable.userId, args.userId),
+            eq(orderClaimsTable.orderId, args.orderId),
+          ),
+        );
+      const balance = await getCreditBalancePaise(args.userId, tx);
+      return {
+        orderId: args.orderId,
+        grossPaise: existing?.grossPaise ?? args.grossPaise,
+        redeemedPaise: existing?.redeemedPaise ?? 0,
+        finalPaise: existing?.finalPaise ?? args.grossPaise,
+        balancePaise: balance,
+        duplicate: true,
+        referral: {
+          awarded: false,
+          reason: "order_already_claimed",
+        } as const,
+      };
     }
 
-    // 2. Find the pending redemption for this user (if any).
-    const [pending] = await tx
-      .select()
-      .from(referralRedemptionsTable)
-      .where(
-        and(
-          eq(referralRedemptionsTable.refereeUserId, args.refereeUserId),
-          isNull(referralRedemptionsTable.awardedAt),
-        ),
+    // 2. Optional credit redemption, atomic with the claim.
+    let redeemed = 0;
+    if (requested > 0) {
+      await tx.execute(
+        sql`select pg_advisory_xact_lock(hashtextextended(${"credit:" + args.userId}, 0))`,
       );
-    if (!pending) {
-      return { awarded: false, reason: "no_pending_referral" } as const;
+      const balance = await getCreditBalancePaise(args.userId, tx);
+      redeemed = Math.min(requested, balance, args.grossPaise);
+      if (redeemed > 0) {
+        await issueCredit(
+          {
+            userId: args.userId,
+            deltaPaise: -redeemed,
+            reason: "checkout_redemption",
+            refType: "checkout",
+            refId: args.orderId,
+            note: `Applied at checkout for order ${args.orderId}`,
+          },
+          tx,
+        );
+      }
     }
+    const finalPaise = args.grossPaise - redeemed;
 
-    // 3. Server-side gate: require some real engagement. Since order
-    //    persistence is mocked client-side in this artifact, the
-    //    strongest server-validated signal is having at least one
-    //    subscription created (which goes through /subscriptions).
-    const [activity] = await tx
-      .select({ n: count() })
-      .from(subscriptionsTable)
-      .where(eq(subscriptionsTable.userId, args.refereeUserId));
-    if (Number(activity?.n ?? 0) === 0) {
-      return { awarded: false, reason: "no_qualifying_activity" } as const;
-    }
-
-    await tx.execute(
-      sql`select pg_advisory_xact_lock(hashtextextended(${"referral:" + pending.id}, 0))`,
-    );
-    const [stillPending] = await tx
-      .select()
-      .from(referralRedemptionsTable)
-      .where(
-        and(
-          eq(referralRedemptionsTable.id, pending.id),
-          isNull(referralRedemptionsTable.awardedAt),
-        ),
-      );
-    if (!stillPending) {
-      return { awarded: false, reason: "already_awarded" } as const;
-    }
-    const expiresAt = addDays(new Date(), config.referralExpiryDays);
-    await issueCredit(
-      {
-        userId: pending.referrerUserId,
-        deltaPaise: pending.referrerAwardPaise,
-        reason: "referral_referrer_award",
-        refType: "referral_redemption",
-        refId: String(pending.id),
-        note: "Friend completed their first order",
-        expiresAt,
-      },
-      tx,
-    );
-    await issueCredit(
-      {
-        userId: pending.refereeUserId,
-        deltaPaise: pending.refereeAwardPaise,
-        reason: "referral_referee_signup",
-        refType: "referral_redemption",
-        refId: String(pending.id),
-        note: "Welcome bonus",
-        expiresAt,
-      },
-      tx,
-    );
+    // 3. Persist actual amounts on the claim.
     await tx
-      .update(referralRedemptionsTable)
-      .set({ awardedAt: new Date(), firstOrderId: args.orderId })
-      .where(eq(referralRedemptionsTable.id, pending.id));
-    await ensureNotification(
-      {
-        userId: pending.referrerUserId,
-        kind: "referral_redeemed",
-        title: "A friend just placed their first order",
-        body: `You earned Rs.${(pending.referrerAwardPaise / 100).toFixed(0)} in credits.`,
-        dedupeKey: `referral_award:${pending.id}`,
-        payload: { redemptionId: pending.id },
-      },
-      tx,
-    );
-    return { awarded: true, redemptionId: pending.id };
+      .update(orderClaimsTable)
+      .set({ redeemedPaise: redeemed, finalPaise })
+      .where(eq(orderClaimsTable.id, created.id));
+
+    // 4. Award referral now that we have a real first-order record.
+    const referral = await awardPendingReferralInTx(tx, {
+      refereeUserId: args.userId,
+      orderId: args.orderId,
+    });
+
+    const balancePaise = await getCreditBalancePaise(args.userId, tx);
+    return {
+      orderId: args.orderId,
+      grossPaise: args.grossPaise,
+      redeemedPaise: redeemed,
+      finalPaise,
+      balancePaise,
+      duplicate: false,
+      referral,
+    };
   });
+}
+
+/**
+ * Back-compat thin wrapper. Should only be used after a successful
+ * finalizeOrder; it will return `order_already_claimed` once the order
+ * has been finalized (which is the desired idempotent behavior).
+ */
+export async function awardPendingReferral(args: {
+  refereeUserId: string;
+  orderId: string;
+}): Promise<AwardReferralResult> {
+  // If no claim exists yet for this order, refuse — referral awards
+  // must be tied to a real server-recorded order.
+  const [claim] = await db
+    .select({ id: orderClaimsTable.id })
+    .from(orderClaimsTable)
+    .where(
+      and(
+        eq(orderClaimsTable.userId, args.refereeUserId),
+        eq(orderClaimsTable.orderId, args.orderId),
+      ),
+    );
+  if (!claim) {
+    return { awarded: false, reason: "no_qualifying_activity" } as const;
+  }
+  return db.transaction((tx) => awardPendingReferralInTx(tx, args));
 }
 
 async function checkBirthdayOrAnniversary(

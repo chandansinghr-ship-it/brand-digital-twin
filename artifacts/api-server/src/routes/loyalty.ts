@@ -12,6 +12,7 @@ import {
 } from "@workspace/db";
 import {
   awardPendingReferral,
+  finalizeOrder,
   getCreditBalancePaise,
   getLoyaltyConstantsSnapshot,
   getSubscriptionLoyaltyProgress,
@@ -216,37 +217,28 @@ router.post(
   },
 );
 
-const refundCreditSchema = z.object({
-  paise: z.number().int().positive().max(10_000_000),
-  note: z.string().max(128).optional(),
-  refId: z.string().max(64).optional(),
+const finalizeOrderSchema = z.object({
+  orderId: z.string().min(1).max(64),
+  grossPaise: z.number().int().nonnegative().max(10_000_000),
+  applyCreditsPaise: z.number().int().nonnegative().max(10_000_000).optional(),
 });
 
-router.post(
-  "/credit-ledger/refund",
-  async (req: Request, res: Response) => {
-    const userId = requireAuth(req, res);
-    if (!userId) return;
-    const parsed = refundCreditSchema.safeParse(req.body);
-    if (!parsed.success) {
-      res.status(400).json({ error: "invalid payload" });
-      return;
-    }
-    // Refunds are non-expiring positive credits — we re-issue as
-    // manual_grant scoped to the failed order's refId so it shows up
-    // clearly in the ledger.
-    await db.insert(creditLedgerTable).values({
-      userId,
-      deltaPaise: parsed.data.paise,
-      reason: "manual_grant",
-      refType: "order_refund",
-      refId: parsed.data.refId ?? null,
-      note: parsed.data.note ?? "Order failed — credits returned",
-    });
-    const balancePaise = await getCreditBalancePaise(userId);
-    res.json({ refundedPaise: parsed.data.paise, balancePaise });
-  },
-);
+router.post("/orders/finalize", async (req: Request, res: Response) => {
+  const userId = requireAuth(req, res);
+  if (!userId) return;
+  const parsed = finalizeOrderSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: "invalid payload" });
+    return;
+  }
+  try {
+    const out = await finalizeOrder({ userId, ...parsed.data });
+    res.json(out);
+  } catch (err) {
+    req.log.error({ err }, "finalize order failed");
+    res.status(500).json({ error: "finalize failed" });
+  }
+});
 
 const orderCompletedSchema = z.object({
   orderId: z.string().min(1).max(64),
