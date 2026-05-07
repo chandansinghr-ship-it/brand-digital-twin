@@ -27,7 +27,13 @@ function isAdminRequest(req: Request): boolean {
   return false;
 }
 
-router.get("/ai/agents", (_req: Request, res: Response) => {
+router.get("/ai/agents", (req: Request, res: Response) => {
+  // Internal telemetry endpoint: exposes agent + tool metadata. Gated to
+  // authenticated users or admin to reduce reconnaissance surface.
+  if (!isAdminRequest(req) && !req.isAuthenticated()) {
+    res.status(401).json({ error: "unauthorized" });
+    return;
+  }
   res.json({
     agents: listAgents().map((a) => ({
       name: a.name,

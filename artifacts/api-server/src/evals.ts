@@ -2,8 +2,9 @@
  * Tanmatra agent eval harness.
  *
  * Usage:
- *   pnpm --filter @workspace/scripts run evals             # all agents
- *   pnpm --filter @workspace/scripts run evals support     # one agent
+ *   pnpm run evals                                          # all agents (root)
+ *   pnpm --filter @workspace/api-server run evals           # all agents
+ *   pnpm --filter @workspace/api-server run evals support   # one agent
  *
  * Loads golden cases from artifacts/api-server/src/lib/ai/agents/<name>.evals.ts,
  * runs them through the gateway in non-streaming mode, and reports pass/fail.
