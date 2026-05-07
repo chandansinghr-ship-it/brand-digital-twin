@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { Link } from "react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent } from "@/components/ui/card";
@@ -159,9 +159,36 @@ function WeekBars({
 
 const WATER_PRESETS = [200, 250, 500];
 
+type NumericField =
+  | "calories"
+  | "proteinGrams"
+  | "fiberGrams"
+  | "carbsGrams"
+  | "fatGrams"
+  | "vegServings";
+
+interface ManualLogForm {
+  label: string;
+  calories: number;
+  proteinGrams: number;
+  carbsGrams: number;
+  fatGrams: number;
+  fiberGrams: number;
+  vegServings: number;
+}
+
+const NUMERIC_FIELDS: Array<{ key: NumericField; label: string }> = [
+  { key: "calories", label: "kcal" },
+  { key: "proteinGrams", label: "Protein g" },
+  { key: "fiberGrams", label: "Fiber g" },
+  { key: "carbsGrams", label: "Carbs g" },
+  { key: "fatGrams", label: "Fat g" },
+  { key: "vegServings", label: "Veg servings" },
+];
+
 function ManualLogDialog({ onSaved }: { onSaved: () => void }) {
   const [open, setOpen] = useState(false);
-  const [form, setForm] = useState({
+  const [form, setForm] = useState<ManualLogForm>({
     label: "",
     calories: 0,
     proteinGrams: 0,
@@ -226,29 +253,20 @@ function ManualLogDialog({ onSaved }: { onSaved: () => void }) {
             />
           </div>
           <div className="grid grid-cols-3 gap-3">
-            {[
-              ["calories", "kcal"],
-              ["proteinGrams", "Protein g"],
-              ["fiberGrams", "Fiber g"],
-              ["carbsGrams", "Carbs g"],
-              ["fatGrams", "Fat g"],
-              ["vegServings", "Veg servings"],
-            ].map(([k, lbl]) => (
-              <div key={k}>
+            {NUMERIC_FIELDS.map(({ key, label }) => (
+              <div key={key}>
                 <Label className="text-clinical-slate text-[10px] uppercase tracking-widest">
-                  {lbl}
+                  {label}
                 </Label>
                 <Input
                   type="number"
                   min={0}
-                  value={
-                    (form as unknown as Record<string, number>)[k as string]
-                  }
+                  value={form[key]}
                   onChange={(e) =>
-                    setForm({
-                      ...form,
-                      [k as string]: Math.max(0, Number(e.target.value) || 0),
-                    })
+                    setForm((prev) => ({
+                      ...prev,
+                      [key]: Math.max(0, Number(e.target.value) || 0),
+                    }))
                   }
                   className="bg-clinical-slate/10 border-clinical-slate/30 text-white"
                 />
@@ -761,8 +779,6 @@ export function WeeklySummaryCard() {
     return { totals, proteinHits, days: week.days.length };
   }, [week]);
 
-  // Hide silently when not signed in or no data
-  useEffect(() => {}, []);
   if (!week || !summary) return null;
 
   return (
