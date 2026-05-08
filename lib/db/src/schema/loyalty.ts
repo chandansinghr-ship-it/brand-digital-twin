@@ -142,6 +142,9 @@ export const userProfileTable = pgTable("user_profile", {
   proteinShortfallStreak: integer("protein_shortfall_streak")
     .notNull()
     .default(0),
+  emailOptOut: jsonb("email_opt_out").$type<
+    Partial<Record<NotificationKind, boolean>>
+  >(),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
     .defaultNow(),

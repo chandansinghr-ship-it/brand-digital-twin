@@ -21,6 +21,10 @@ import {
   redeemCreditAtomic,
   runLoyaltyEngineForUser,
 } from "../lib/loyaltyEngine";
+import {
+  defaultChannelForKind,
+  dispatchNotificationEmail,
+} from "../lib/notificationMail";
 
 const router: IRouter = Router();
 
@@ -158,21 +162,30 @@ router.post("/referral/redeem", async (req: Request, res: Response) => {
   // Credits are released only inside finalizeOrder once the referee
   // places a first server-recorded order. Notify the referrer that
   // a pending redemption exists.
-  await db
+  const channel = defaultChannelForKind("referral_redeemed");
+  const isEmail = channel === "email";
+  const [createdNotification] = await db
     .insert(notificationsTable)
     .values({
       userId: code.userId,
       kind: "referral_redeemed",
       title: "A friend joined with your code",
       body: `Credits land when they place their first order.`,
-      status: "sent",
-      sentAt: new Date(),
+      channel,
+      status: isEmail ? "pending" : "sent",
+      sentAt: isEmail ? null : new Date(),
       dedupeKey: `referral_pending:${redemption.id}`,
       payload: { redemptionId: redemption.id, status: "pending" },
     })
     .onConflictDoNothing({
       target: [notificationsTable.userId, notificationsTable.dedupeKey],
+    })
+    .returning();
+  if (createdNotification && isEmail) {
+    setImmediate(() => {
+      void dispatchNotificationEmail(createdNotification);
     });
+  }
   res.json({ redemption, awardedPaise: 0, status: "pending_first_order" });
 });
 
@@ -370,6 +383,16 @@ router.post("/loyalty/run", async (req: Request, res: Response) => {
   });
 });
 
+const NOTIFICATION_KINDS = [
+  "winback",
+  "birthday",
+  "anniversary",
+  "loyalty_free_week",
+  "loyalty_premium_unlock",
+  "protein_streak",
+  "referral_redeemed",
+] as const;
+
 const profileSchema = z.object({
   birthDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
   anniversaryDate: z
@@ -378,6 +401,9 @@ const profileSchema = z.object({
     .optional(),
   proteinGoalGrams: z.number().int().positive().max(500).optional(),
   proteinShortfallStreak: z.number().int().min(0).max(60).optional(),
+  emailOptOut: z
+    .record(z.enum(NOTIFICATION_KINDS), z.boolean())
+    .optional(),
 });
 
 router.get("/profile", async (req: Request, res: Response) => {
@@ -402,6 +428,7 @@ async function upsertProfilePartial(
     anniversaryDate: patch.anniversaryDate ?? null,
     proteinGoalGrams: patch.proteinGoalGrams ?? null,
     proteinShortfallStreak: patch.proteinShortfallStreak ?? 0,
+    emailOptOut: patch.emailOptOut ?? null,
   };
   const updateSet: Record<string, unknown> = {};
   if (patch.birthDate !== undefined) updateSet["birthDate"] = patch.birthDate;
@@ -411,6 +438,8 @@ async function upsertProfilePartial(
     updateSet["proteinGoalGrams"] = patch.proteinGoalGrams;
   if (patch.proteinShortfallStreak !== undefined)
     updateSet["proteinShortfallStreak"] = patch.proteinShortfallStreak;
+  if (patch.emailOptOut !== undefined)
+    updateSet["emailOptOut"] = patch.emailOptOut;
 
   if (Object.keys(updateSet).length === 0) {
     const [existing] = await db

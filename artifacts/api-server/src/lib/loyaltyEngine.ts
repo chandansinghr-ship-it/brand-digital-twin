@@ -23,6 +23,10 @@ import {
 import { inArray } from "drizzle-orm";
 import { makeBatchDishResolver } from "./menuResolver";
 import type { PgTransaction } from "drizzle-orm/pg-core";
+import {
+  defaultChannelForKind,
+  dispatchNotificationEmail,
+} from "./notificationMail";
 
 type DbOrTx = typeof db | PgTransaction<any, any, any>;
 
@@ -242,9 +246,15 @@ async function ensureNotification(
     body: string;
     dedupeKey: string;
     payload?: Record<string, unknown>;
+    channel?: "email" | "in_app";
   },
   tx: DbOrTx = db,
+  pendingDispatches?: Notification[],
 ): Promise<Notification | null> {
+  const channel = args.channel ?? defaultChannelForKind(args.kind);
+  // For email-channel rows we leave status="pending" + sentAt=null until the
+  // mail dispatcher actually delivers (or downgrades) the notification.
+  const isEmail = channel === "email";
   const [created] = await tx
     .insert(notificationsTable)
     .values({
@@ -252,15 +262,29 @@ async function ensureNotification(
       kind: args.kind,
       title: args.title,
       body: args.body,
+      channel,
       dedupeKey: args.dedupeKey,
       payload: args.payload ?? null,
-      status: "sent",
-      sentAt: new Date(),
+      status: isEmail ? "pending" : "sent",
+      sentAt: isEmail ? null : new Date(),
     })
     .onConflictDoNothing({
       target: [notificationsTable.userId, notificationsTable.dedupeKey],
     })
     .returning();
+  if (created && isEmail) {
+    if (pendingDispatches) {
+      // Caller is inside a transaction and will dispatch after commit so
+      // the dispatcher's row update can't race the insert.
+      pendingDispatches.push(created);
+    } else {
+      // No transaction in play — dispatch off the hot path. The dispatcher
+      // owns its own error handling and final row state.
+      setImmediate(() => {
+        void dispatchNotificationEmail(created);
+      });
+    }
+  }
   return created ?? null;
 }
 
@@ -280,6 +304,7 @@ export type AwardReferralResult =
 async function awardPendingReferralInTx(
   tx: DbOrTx,
   args: { refereeUserId: string; orderId: string },
+  pendingDispatches?: Notification[],
 ): Promise<AwardReferralResult> {
   const config = await getLoyaltyConfig();
   // Find the pending redemption for this user (if any).
@@ -350,6 +375,7 @@ async function awardPendingReferralInTx(
       payload: { redemptionId: pending.id },
     },
     tx,
+    pendingDispatches,
   );
   return { awarded: true, redemptionId: pending.id };
 }
@@ -534,7 +560,8 @@ export async function finalizeOrder(args: {
     : 0;
   const discountedGross = grossAfterBundles - preorderDiscountPaise;
   const requested = Math.max(0, Math.floor(args.applyCreditsPaise ?? 0));
-  return db.transaction(async (tx) => {
+  const pendingDispatches: Notification[] = [];
+  const result = await db.transaction(async (tx) => {
     // 1. Persist a real server-side order row, idempotent on
     //    (userId, externalOrderId). This is the source of truth
     //    that referral awards are tied to — no order row, no award.
@@ -711,10 +738,14 @@ export async function finalizeOrder(args: {
       reason: "no_qualifying_activity",
     };
     if (Number(orderCount?.n ?? 0) === 1) {
-      referral = await awardPendingReferralInTx(tx, {
-        refereeUserId: args.userId,
-        orderId: args.orderId,
-      });
+      referral = await awardPendingReferralInTx(
+        tx,
+        {
+          refereeUserId: args.userId,
+          orderId: args.orderId,
+        },
+        pendingDispatches,
+      );
     }
 
     const balancePaise = await getCreditBalancePaise(args.userId, tx);
@@ -732,6 +763,16 @@ export async function finalizeOrder(args: {
       referral,
     };
   });
+  // Dispatch any email notifications now that the transaction has committed.
+  // Doing this after commit avoids a race where the dispatcher's row update
+  // beats the insert visibility, which would leave email rows stuck in
+  // "pending".
+  for (const n of pendingDispatches) {
+    setImmediate(() => {
+      void dispatchNotificationEmail(n);
+    });
+  }
+  return result;
 }
 
 async function checkBirthdayOrAnniversary(
