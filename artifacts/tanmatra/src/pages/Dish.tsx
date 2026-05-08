@@ -253,6 +253,12 @@ export default function Dish() {
                   RD Verified
                 </Badge>
               )}
+              {isPremiumOnly && (
+                <Badge className="bg-clinical-gold/15 text-clinical-gold border border-clinical-gold/50 gap-1 backdrop-blur-sm font-bold uppercase tracking-wider">
+                  <Crown className="w-3 h-3" />
+                  Premium
+                </Badge>
+              )}
             </div>
 
             <div className="absolute top-4 right-4">
