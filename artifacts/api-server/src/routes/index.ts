@@ -15,6 +15,7 @@ import aiRunsRouter from "./aiRuns";
 import opsAgentRouter from "./opsAgent";
 import forecastingRouter from "./forecasting";
 import menuRouter from "./menu";
+import menuAssetsRouter from "./menuAssets";
 import cmsAgentRouter from "./cmsAgent";
 
 const router: IRouter = Router();
@@ -35,6 +36,7 @@ router.use(aiRunsRouter);
 router.use(opsAgentRouter);
 router.use(forecastingRouter);
 router.use(menuRouter);
+router.use(menuAssetsRouter);
 router.use(cmsAgentRouter);
 
 export default router;

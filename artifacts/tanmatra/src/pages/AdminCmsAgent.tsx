@@ -4,6 +4,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { MenuPhotosPanel } from "@/components/cms/MenuPhotosPanel";
 
 const ADMIN_TOKEN_KEY = "tanmatra:admin-token:v1";
 
@@ -46,6 +47,7 @@ interface MenuItemRow {
   isVeg: boolean;
   isAvailable: boolean;
   availabilityWindow: string[] | null;
+  imageUrl?: string | null;
 }
 
 type CopyField =
@@ -700,6 +702,12 @@ export default function AdminCmsAgent() {
             )}
           </CardContent>
         </Card>
+
+        <MenuPhotosPanel
+          items={items}
+          adminToken={adminToken}
+          onPrimaryChanged={() => void loadItems()}
+        />
 
         <Card>
           <CardHeader>

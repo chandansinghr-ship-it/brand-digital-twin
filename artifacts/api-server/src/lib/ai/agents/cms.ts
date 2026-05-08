@@ -15,6 +15,10 @@ import {
   updatePrice,
 } from "../../menu";
 import {
+  generateHeroAsset,
+  setAssetAsPrimary,
+} from "../../menuAssets";
+import {
   ALL_COPY_FIELDS,
   applyCopyToItem,
   detectMissingFields,
@@ -33,6 +37,10 @@ YOUR SCOPE — you MAY help with:
 - Updating prices (update_price)
 - Toggling availability of one item (toggle_availability)
 - Setting an item's image URL (upload_image)
+- Generating an AI hero photo for an item (generate_hero_image) — uses
+  Gemini image. Two-step flow: first call without apply for a preview,
+  then again with apply: true to set the AI image as the item's primary
+  photo. Always disclose the photo is AI-generated when describing it.
 - Listing items / inspecting state (list_menu_items)
 - Bulk-toggling availability across a filtered set (bulk_toggle_availability)
 - Generating menu copy + tags + macro estimates (generate_menu_copy)
@@ -40,8 +48,9 @@ YOUR SCOPE — you MAY help with:
 
 OUT OF SCOPE — refuse politely:
 - Anything customer-facing or order/operations work
-- Photo enhancement (a separate agent will handle that)
 - Permanent deletion of items
+- Editing photos that customers uploaded (UGC) — only editor-supplied
+  or AI-generated assets are in scope.
 
 COPYWRITING RULES:
 - Copy generation is a TWO-STEP flow: first call generate_menu_copy
@@ -404,6 +413,97 @@ const uploadImage = defineTool({
         error: (err as Error).message,
         reasoning: input.reasoning,
       });
+      return { success: false as const, error: (err as Error).message };
+    }
+  },
+});
+
+const generateHeroImage = defineTool({
+  name: "generate_hero_image",
+  description:
+    "Generate an AI hero photo for a menu item using Gemini image, optionally setting it as the item's primary image. TWO-STEP: call without apply:true to generate the asset and return its URL for editor preview; call again with apply:true and assetId from the preview to set it as the item's primary photo. ALWAYS provide `reasoning`. Photos generated this way are flagged is_ai_generated=true.",
+  inputSchema: z.object({
+    slug: z.string().min(1).max(128),
+    extraInstructions: z.string().max(500).optional(),
+    apply: z.boolean().default(false),
+    assetId: z.number().int().positive().optional(),
+    reasoning: REASONING,
+  }),
+  authScope: "catalog",
+  handler: async (input, ctx) => {
+    const item = await findBySlug(input.slug);
+    if (!item)
+      return { success: false as const, error: `no item with slug ${input.slug}` };
+
+    if (input.apply) {
+      if (!input.assetId)
+        return {
+          success: false as const,
+          error: "apply:true requires assetId from a previous preview call",
+        };
+      try {
+        // setAssetAsPrimary validates slug match BEFORE writing — so a
+        // wrong assetId from a confused chain-of-thought can't mutate
+        // some other item's primary photo.
+        const r = await setAssetAsPrimary({
+          assetId: input.assetId,
+          expectedSlug: input.slug,
+        });
+        await recordOpsAction({
+          operatorId: ctx.userId,
+          agent: ctx.agent,
+          action: "cms_set_primary_asset",
+          params: { slug: input.slug, assetId: input.assetId },
+          beforeState: { imageUrl: item.imageUrl },
+          afterState: { imageUrl: r.item?.imageUrl ?? null },
+          status: "success",
+          reasoning: input.reasoning,
+        });
+        return {
+          success: true as const,
+          slug: input.slug,
+          imageUrl: r.item?.imageUrl ?? null,
+          assetId: r.asset.id,
+          isAiGenerated: r.asset.isAiGenerated === 1,
+        };
+      } catch (err) {
+        return { success: false as const, error: (err as Error).message };
+      }
+    }
+
+    try {
+      const asset = await generateHeroAsset({
+        item,
+        extraInstructions: input.extraInstructions,
+        createdBy: ctx.userId,
+      });
+      await recordOpsAction({
+        operatorId: ctx.userId,
+        agent: ctx.agent,
+        action: "cms_generate_hero",
+        params: {
+          slug: input.slug,
+          extra: input.extraInstructions ?? null,
+        },
+        beforeState: null,
+        afterState: { assetId: asset.id, isAiGenerated: true },
+        status: "success",
+        reasoning: input.reasoning,
+      });
+      return {
+        success: true as const,
+        preview: {
+          assetId: asset.id,
+          slug: asset.slug,
+          previewUrl: asset.publicUrl,
+          width: asset.width,
+          height: asset.height,
+          isAiGenerated: true,
+          model: asset.provenance?.model ?? "gemini-2.5-flash-image",
+        },
+        confirmRequired: true as const,
+      };
+    } catch (err) {
       return { success: false as const, error: (err as Error).message };
     }
   },
@@ -777,6 +877,7 @@ registerAgent({
     updatePriceTool,
     toggleAvailability,
     uploadImage,
+    generateHeroImage,
     bulkToggle,
     generateCopy,
     bulkRegenerateCopy,

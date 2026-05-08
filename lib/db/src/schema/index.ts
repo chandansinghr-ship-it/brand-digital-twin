@@ -19,3 +19,4 @@ export * from "./eta";
 export * from "./dispatch";
 export * from "./anomalies";
 export * from "./menuItems";
+export * from "./menuItemAssets";
