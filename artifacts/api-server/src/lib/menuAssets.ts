@@ -1,10 +1,11 @@
-import { and, desc, eq, isNull } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNull } from "drizzle-orm";
 import {
   db,
   type AssetKind,
   type AssetProvenance,
   type MenuItemAsset,
   menuItemAssetsTable,
+  menuItemsTable,
 } from "@workspace/db";
 import {
   generateImage,
@@ -231,6 +232,103 @@ export async function generateHeroAsset(input: {
     isAiGenerated: true,
     createdBy: input.createdBy,
   });
+}
+
+// === Bulk: items missing primary photo ====================================
+
+// Cap any single bulk hero run. Image generation is slow + spendy; this also
+// keeps the request well under the upstream timeout.
+export const BULK_HERO_CAP = 25;
+
+export interface MissingHeroItem {
+  slug: string;
+  name: string;
+  category: string;
+  kitchenLocation: string;
+}
+
+export async function listItemsMissingPrimary(filter: {
+  category?: string;
+  kitchenLocation?: string;
+  slugs?: string[];
+}): Promise<MissingHeroItem[]> {
+  const conds = [isNull(menuItemsTable.imageUrl)];
+  if (filter.category) conds.push(eq(menuItemsTable.category, filter.category));
+  if (filter.kitchenLocation)
+    conds.push(eq(menuItemsTable.kitchenLocation, filter.kitchenLocation));
+  if (filter.slugs && filter.slugs.length > 0)
+    conds.push(inArray(menuItemsTable.slug, filter.slugs));
+  const rows = await db
+    .select({
+      slug: menuItemsTable.slug,
+      name: menuItemsTable.name,
+      category: menuItemsTable.category,
+      kitchenLocation: menuItemsTable.kitchenLocation,
+    })
+    .from(menuItemsTable)
+    .where(and(...conds))
+    .orderBy(asc(menuItemsTable.name))
+    .limit(500);
+  return rows;
+}
+
+export interface BulkHeroResult {
+  slug: string;
+  ok: boolean;
+  assetId?: number;
+  imageUrl?: string;
+  error?: string;
+}
+
+export async function bulkGenerateMissingHeroes(input: {
+  slugs: string[];
+  createdBy: string | null;
+}): Promise<BulkHeroResult[]> {
+  // Re-fetch authoritative MenuItem rows from the slugs we were handed,
+  // and skip any that have since had a primary set (race-safe). Cap defends
+  // against a runaway client.
+  const capped = input.slugs.slice(0, BULK_HERO_CAP);
+  if (capped.length === 0) return [];
+  const items = await db
+    .select()
+    .from(menuItemsTable)
+    .where(
+      and(inArray(menuItemsTable.slug, capped), isNull(menuItemsTable.imageUrl)),
+    );
+  const out: BulkHeroResult[] = [];
+  for (const it of items) {
+    try {
+      const asset = await generateHeroAsset({
+        item: it,
+        createdBy: input.createdBy,
+      });
+      const r = await setAssetAsPrimary({
+        assetId: asset.id,
+        expectedSlug: it.slug,
+      });
+      out.push({
+        slug: it.slug,
+        ok: true,
+        assetId: asset.id,
+        imageUrl: r.item?.imageUrl ?? asset.publicUrl,
+      });
+    } catch (err) {
+      out.push({
+        slug: it.slug,
+        ok: false,
+        error: (err as Error).message,
+      });
+    }
+  }
+  // Surface any slugs that were filtered out (already had a primary by the
+  // time we ran) so the caller can show "skipped" in the audit trail.
+  const seen = new Set(items.map((i) => i.slug));
+  for (const slug of capped) {
+    if (!seen.has(slug)) {
+      out.push({ slug, ok: false, error: "already has primary image" });
+    }
+  }
+  return out;
 }
 
 // === Background removal ===================================================

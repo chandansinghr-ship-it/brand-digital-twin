@@ -3,10 +3,13 @@ import { z } from "zod/v4";
 import { recordOpsAction } from "../lib/opsAudit";
 import { findBySlug } from "../lib/menu";
 import {
+  BULK_HERO_CAP,
+  bulkGenerateMissingHeroes,
   findAssetById,
   generateHeroAsset,
   ingestUpload,
   listAssetsForSlug,
+  listItemsMissingPrimary,
   reEnhanceAsset,
   removeBackgroundAsset,
   setAssetAsPrimary,
@@ -340,6 +343,88 @@ router.delete(
       reasoning: "soft-deleted asset derivative",
     });
     res.json({ asset: row });
+  },
+);
+
+// === Bulk: hero photos for items missing imagery =========================
+
+router.get(
+  "/menu/items/missing-images",
+  async (req: Request, res: Response) => {
+    if (!requireCatalog(req, res)) return;
+    const filter = z
+      .object({
+        category: z.string().min(1).max(64).optional(),
+        kitchenLocation: z.string().min(1).max(128).optional(),
+      })
+      .safeParse({
+        category:
+          typeof req.query.category === "string" && req.query.category
+            ? req.query.category
+            : undefined,
+        kitchenLocation:
+          typeof req.query.kitchenLocation === "string" &&
+          req.query.kitchenLocation
+            ? req.query.kitchenLocation
+            : undefined,
+      });
+    if (!filter.success) {
+      res.status(400).json({ error: "invalid filter" });
+      return;
+    }
+    const items = await listItemsMissingPrimary(filter.data);
+    res.json({
+      items,
+      total: items.length,
+      cap: BULK_HERO_CAP,
+      cappedAtCap: items.length > BULK_HERO_CAP,
+    });
+  },
+);
+
+const bulkHeroBody = z.object({
+  slugs: z.array(z.string().min(1).max(128)).min(1).max(BULK_HERO_CAP),
+  confirm: z.literal(true),
+});
+
+router.post(
+  "/menu/items/assets/bulk-hero",
+  async (req: Request, res: Response) => {
+    if (!requireCatalog(req, res)) return;
+    const bp = bulkHeroBody.safeParse(req.body);
+    if (!bp.success) {
+      res.status(400).json({ error: "invalid payload; need slugs + confirm:true" });
+      return;
+    }
+    try {
+      const results = await bulkGenerateMissingHeroes({
+        slugs: bp.data.slugs,
+        createdBy: userId(req),
+      });
+      const succeeded = results.filter((r) => r.ok).length;
+      const failed = results.length - succeeded;
+      await recordOpsAction({
+        operatorId: userId(req),
+        agent: "cms-rest",
+        action: "cms_bulk_generate_missing_heroes",
+        params: { slugs: bp.data.slugs },
+        beforeState: { requested: bp.data.slugs.length },
+        afterState: {
+          succeeded,
+          failed,
+          slugs: results.map((r) => ({
+            slug: r.slug,
+            ok: r.ok,
+            ...(r.error ? { error: r.error } : {}),
+          })),
+        },
+        status: "success",
+        reasoning: `bulk AI hero generation; ${succeeded} ok / ${failed} failed`,
+      });
+      res.json({ attempted: results.length, succeeded, failed, results });
+    } catch (err) {
+      sendAssetError(res, err);
+    }
   },
 );
 

@@ -70,6 +70,21 @@ function fileToBase64(file: File): Promise<string> {
   });
 }
 
+interface MissingItem {
+  slug: string;
+  name: string;
+  category: string;
+  kitchenLocation: string;
+}
+
+interface BulkHeroResult {
+  slug: string;
+  ok: boolean;
+  assetId?: number;
+  imageUrl?: string;
+  error?: string;
+}
+
 export function MenuPhotosPanel({
   items,
   adminToken,
@@ -85,6 +100,14 @@ export function MenuPhotosPanel({
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [extra, setExtra] = useState("");
+  const [bulkPreview, setBulkPreview] = useState<{
+    items: MissingItem[];
+    total: number;
+    cap: number;
+    cappedAtCap: boolean;
+  } | null>(null);
+  const [bulkResults, setBulkResults] = useState<BulkHeroResult[] | null>(null);
+  const [bulkError, setBulkError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!slug && items[0]) setSlug(items[0].slug);
@@ -229,6 +252,74 @@ export function MenuPhotosPanel({
     }
   };
 
+  const loadBulkPreview = async () => {
+    setBusy("bulk-preview");
+    setBulkError(null);
+    setBulkResults(null);
+    try {
+      const res = await authedFetch(
+        `/api/menu/items/missing-images`,
+        { method: "GET" },
+        adminToken,
+      );
+      if (!res.ok) throw new Error(await res.text());
+      const json = (await res.json()) as {
+        items: MissingItem[];
+        total: number;
+        cap: number;
+        cappedAtCap: boolean;
+      };
+      setBulkPreview(json);
+    } catch (err) {
+      setBulkError((err as Error).message);
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const runBulkHero = async () => {
+    if (!bulkPreview || bulkPreview.items.length === 0) return;
+    const slugs = bulkPreview.items
+      .slice(0, bulkPreview.cap)
+      .map((it) => it.slug);
+    if (
+      !window.confirm(
+        `Generate AI hero photos for ${slugs.length} item${
+          slugs.length === 1 ? "" : "s"
+        }? Each will be set as that item's primary photo and flagged AI-generated.`,
+      )
+    )
+      return;
+    setBusy("bulk-run");
+    setBulkError(null);
+    setBulkResults(null);
+    try {
+      const res = await authedFetch(
+        `/api/menu/items/assets/bulk-hero`,
+        { method: "POST", body: JSON.stringify({ slugs, confirm: true }) },
+        adminToken,
+      );
+      if (!res.ok) throw new Error(await res.text());
+      const json = (await res.json()) as {
+        attempted: number;
+        succeeded: number;
+        failed: number;
+        results: BulkHeroResult[];
+      };
+      onPrimaryChanged?.();
+      // Refresh the preview FIRST (it clears bulkResults as part of its
+      // reset) so we can then surface the run results without losing them.
+      await loadBulkPreview();
+      setBulkResults(json.results);
+      // If the currently-selected slug was in the run, refresh its assets.
+      if (slugs.includes(slug)) await load(slug);
+    } catch (err) {
+      setBulkError((err as Error).message);
+    } finally {
+      setBusy(null);
+    }
+  };
+
   const removeAsset = async (id: number) => {
     if (!window.confirm("Delete this derivative? Originals can't be deleted."))
       return;
@@ -311,6 +402,109 @@ export function MenuPhotosPanel({
           >
             {busy === "hero" ? "Generating…" : "Generate AI hero"}
           </Button>
+        </div>
+
+        <div className="border rounded-md p-2 space-y-2 bg-muted/30">
+          <div className="flex items-center justify-between gap-2 flex-wrap">
+            <div>
+              <div className="text-xs font-medium">
+                Generate missing hero photos
+              </div>
+              <div className="text-[11px] text-muted-foreground">
+                Find every item with no primary photo and AI-generate one. Two
+                steps: preview, then confirm. Capped at 25 per run. Each photo
+                is flagged AI-generated.
+              </div>
+            </div>
+            <div className="flex gap-2">
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={!!busy}
+                onClick={() => void loadBulkPreview()}
+              >
+                {busy === "bulk-preview" ? "…" : "Preview"}
+              </Button>
+              <Button
+                size="sm"
+                disabled={
+                  !!busy || !bulkPreview || bulkPreview.items.length === 0
+                }
+                onClick={() => void runBulkHero()}
+              >
+                {busy === "bulk-run"
+                  ? "Generating…"
+                  : `Generate ${
+                      bulkPreview
+                        ? Math.min(bulkPreview.items.length, bulkPreview.cap)
+                        : ""
+                    }`}
+              </Button>
+            </div>
+          </div>
+          {bulkError && (
+            <div className="text-xs text-destructive">{bulkError}</div>
+          )}
+          {bulkPreview && (
+            <div className="text-[11px] space-y-1 max-h-40 overflow-auto border rounded p-2 bg-background">
+              {bulkPreview.items.length === 0 ? (
+                <div className="text-muted-foreground">
+                  Every item already has a primary photo — nothing to generate.
+                </div>
+              ) : (
+                <>
+                  <div className="text-muted-foreground">
+                    {bulkPreview.total} item
+                    {bulkPreview.total === 1 ? "" : "s"} missing a primary
+                    photo
+                    {bulkPreview.cappedAtCap
+                      ? `; will run on the first ${bulkPreview.cap} this batch`
+                      : ""}
+                    .
+                  </div>
+                  {bulkPreview.items.slice(0, bulkPreview.cap).map((it) => (
+                    <div
+                      key={it.slug}
+                      className="flex items-center justify-between gap-2"
+                    >
+                      <span className="font-medium truncate">{it.name}</span>
+                      <span className="text-muted-foreground truncate">
+                        {it.category} · {it.kitchenLocation}
+                      </span>
+                    </div>
+                  ))}
+                </>
+              )}
+            </div>
+          )}
+          {bulkResults && (
+            <div className="text-[11px] space-y-1 max-h-40 overflow-auto border rounded p-2 bg-background">
+              <div className="text-muted-foreground">
+                {bulkResults.filter((r) => r.ok).length} ok ·{" "}
+                {bulkResults.filter((r) => !r.ok).length} failed
+              </div>
+              {bulkResults.map((r) => (
+                <div
+                  key={r.slug}
+                  className="flex items-center justify-between gap-2"
+                >
+                  <span className="truncate">{r.slug}</span>
+                  {r.ok ? (
+                    <Badge variant="secondary" className="text-[10px]">
+                      ok
+                    </Badge>
+                  ) : (
+                    <span
+                      className="text-destructive truncate"
+                      title={r.error ?? ""}
+                    >
+                      {r.error ?? "failed"}
+                    </span>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
         </div>
 
         {error && <div className="text-sm text-destructive">{error}</div>}
