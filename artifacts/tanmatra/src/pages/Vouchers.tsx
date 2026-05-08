@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Link, useNavigate } from "react-router";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -14,6 +15,7 @@ import { formatPrice } from "@/lib/api/adapter";
 const PRESET_AMOUNTS = [50000, 100000, 250000, 500000];
 
 export default function VouchersPage() {
+  const navigate = useNavigate();
   const [purchased, setPurchased] = useState<Voucher[]>([]);
   const [redeemed, setRedeemed] = useState<Voucher[]>([]);
   const [amountPaise, setAmountPaise] = useState(100000);
@@ -51,13 +53,37 @@ export default function VouchersPage() {
         recipientName: recipientName || undefined,
         message: message || undefined,
       });
-      toast.success(`Voucher ${r.voucher.code} purchased`);
+      toast.success(`Voucher ${r.voucher.code} purchased`, {
+        description: "Code copied to clipboard — share it with the recipient.",
+        action: {
+          label: "Copy code",
+          onClick: () => {
+            navigator.clipboard?.writeText(r.voucher.code);
+            toast.success("Code copied");
+          },
+        },
+      });
+      try {
+        await navigator.clipboard?.writeText(r.voucher.code);
+      } catch {
+        // best-effort; toast action above remains
+      }
       setRecipientEmail("");
       setRecipientName("");
       setMessage("");
       refresh();
-    } catch {
-      toast.error("Could not purchase voucher");
+    } catch (e) {
+      const msg = String((e as Error)?.message ?? e);
+      if (msg.includes("401")) {
+        toast.error("Sign in to purchase a voucher", {
+          action: {
+            label: "Sign in",
+            onClick: () => navigate("/login?next=/vouchers"),
+          },
+        });
+      } else {
+        toast.error("Could not purchase voucher — please try again");
+      }
     } finally {
       setBusy(false);
     }
@@ -71,12 +97,29 @@ export default function VouchersPage() {
     setBusy(true);
     try {
       const r = await corporateApi.redeemVoucher(redeemCode.trim());
-      toast.success(`Redeemed ${formatPrice(r.creditedPaise)} to your wallet`);
+      toast.success(`Redeemed ${formatPrice(r.creditedPaise)} to your wallet`, {
+        action: { label: "View wallet", onClick: () => navigate("/rewards") },
+      });
       setRedeemCode("");
       refresh();
     } catch (e) {
       const msg = String((e as Error).message);
-      toast.error(msg.includes("404") ? "Code not found" : msg.includes("409") ? "Already redeemed" : "Could not redeem");
+      if (msg.includes("401")) {
+        toast.error("Sign in to redeem a code", {
+          action: {
+            label: "Sign in",
+            onClick: () => navigate("/login?next=/vouchers"),
+          },
+        });
+      } else {
+        toast.error(
+          msg.includes("404")
+            ? "Code not found"
+            : msg.includes("409")
+              ? "Already redeemed"
+              : "Could not redeem — please try again",
+        );
+      }
     } finally {
       setBusy(false);
     }
@@ -84,10 +127,17 @@ export default function VouchersPage() {
 
   if (unauthorized) {
     return (
-      <div className="max-w-xl mx-auto p-8 text-center space-y-3">
+      <div className="max-w-xl mx-auto p-8 text-center space-y-4">
         <Gift className="w-10 h-10 mx-auto text-clinical-gold" />
         <h1 className="text-2xl font-bold text-white">Wellness vouchers</h1>
-        <p className="text-sm text-clinical-zinc">Sign in to buy or redeem vouchers.</p>
+        <p className="text-sm text-clinical-zinc">
+          Sign in to buy a voucher for a friend or redeem a code into your wallet.
+        </p>
+        <Link to="/login?next=/vouchers">
+          <Button className="bg-clinical-gold text-[#050505] hover:bg-clinical-gold/90 font-semibold h-11 px-6">
+            Sign in
+          </Button>
+        </Link>
       </div>
     );
   }

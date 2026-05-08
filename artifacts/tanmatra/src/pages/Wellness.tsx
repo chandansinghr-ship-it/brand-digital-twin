@@ -695,6 +695,10 @@ export default function Wellness() {
   const unauth =
     (todayQ.error && String(todayQ.error).includes("401")) ||
     (weekQ.error && String(weekQ.error).includes("401"));
+  const loadError =
+    !unauth &&
+    ((todayQ.error && !String(todayQ.error).includes("401")) ||
+      (weekQ.error && !String(weekQ.error).includes("401")));
 
   function refreshAll() {
     qc.invalidateQueries({ queryKey: ["wellness"] });
@@ -762,8 +766,29 @@ export default function Wellness() {
 
           {unauth ? (
             <Card className="mt-6 bg-clinical-slate/5 border border-clinical-slate/20">
-              <CardContent className="p-6 text-clinical-slate text-sm">
-                Sign in to track your daily nutrition, water, and streaks.
+              <CardContent className="p-6 text-center space-y-3">
+                <p className="text-clinical-slate text-sm">
+                  Sign in to track your daily nutrition, water, and streaks.
+                </p>
+                <Link to="/login?next=/wellness">
+                  <Button className="bg-clinical-gold text-[#050505] hover:bg-clinical-gold/90 font-semibold h-10 px-5">
+                    Sign in
+                  </Button>
+                </Link>
+              </CardContent>
+            </Card>
+          ) : loadError ? (
+            <Card className="mt-6 bg-clinical-slate/5 border border-clinical-slate/20">
+              <CardContent className="p-6 text-center space-y-3">
+                <p className="text-clinical-slate text-sm">
+                  Couldn't load your wellness dashboard.
+                </p>
+                <Button
+                  onClick={refreshAll}
+                  className="bg-clinical-gold text-[#050505] hover:bg-clinical-gold/90 font-semibold h-10 px-5"
+                >
+                  Retry
+                </Button>
               </CardContent>
             </Card>
           ) : !data ? (

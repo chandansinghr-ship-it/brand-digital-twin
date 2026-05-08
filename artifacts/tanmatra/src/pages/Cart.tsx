@@ -381,8 +381,18 @@ function StartGroupOrderButton() {
         description: "Share the code with friends",
       });
       navigate(`/group/${code}`);
-    } catch {
-      toast.error("Sign in to start a group order");
+    } catch (e) {
+      const msg = String((e as Error)?.message ?? e);
+      if (msg.includes("401")) {
+        toast.error("Sign in to start a group order", {
+          action: {
+            label: "Sign in",
+            onClick: () => navigate("/login?next=/cart"),
+          },
+        });
+      } else {
+        toast.error("Could not start a group order — please try again");
+      }
       setBusy(false);
     }
   };

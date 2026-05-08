@@ -1,5 +1,5 @@
 import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
-import { Link } from "react-router";
+import { Link, useNavigate } from "react-router";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -40,6 +40,7 @@ const BENEFITS = [
 ];
 
 export default function Premium() {
+  const navigate = useNavigate();
   const qc = useQueryClient();
   const status = useQuery({
     queryKey: ["premium", "me"],
@@ -49,13 +50,24 @@ export default function Premium() {
   const subscribe = useMutation({
     mutationFn: premiumApi.subscribe,
     onSuccess: () => {
-      toast.success("Welcome to Tanmatra Premium");
+      toast.success("Welcome to Tanmatra Premium", {
+        description: "Premium-only dishes are now unlocked across the menu.",
+        action: {
+          label: "Browse menu",
+          onClick: () => navigate("/menu"),
+        },
+      });
       qc.invalidateQueries({ queryKey: ["premium", "me"] });
     },
     onError: (err) => {
       const msg = String((err as Error).message);
       if (msg.includes("401")) {
-        toast.error("Sign in to subscribe");
+        toast.error("Sign in to subscribe", {
+          action: {
+            label: "Sign in",
+            onClick: () => navigate("/login?next=/premium"),
+          },
+        });
       } else if (msg.includes("already")) {
         toast.message("You're already a premium member");
       } else {

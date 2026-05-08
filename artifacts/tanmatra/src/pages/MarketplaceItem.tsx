@@ -77,12 +77,23 @@ export default function MarketplaceItemPage() {
         deliveryMode === "ship"
           ? "Order placed — ships in 24h"
           : "Bundled with your next meal delivery",
+        {
+          action: { label: "View Orders", onClick: () => navigate("/orders") },
+        },
       );
       navigate(`/marketplace?ordered=${r.order.id}`);
     } catch (e) {
       const msg = String((e as Error).message);
       if (msg.includes("401")) {
-        toast.error("Sign in to place a marketplace order");
+        toast.error("Sign in to place a marketplace order", {
+          action: {
+            label: "Sign in",
+            onClick: () =>
+              navigate(
+                `/login?next=${encodeURIComponent(window.location.pathname)}`,
+              ),
+          },
+        });
       } else if (msg.includes("out of stock")) {
         toast.error("This item is now out of stock");
       } else {

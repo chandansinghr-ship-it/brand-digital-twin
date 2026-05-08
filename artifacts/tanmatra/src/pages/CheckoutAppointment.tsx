@@ -105,6 +105,15 @@ export default function CheckoutAppointment() {
       } else if (msg.includes("401")) {
         toast.error("Sign in to confirm", {
           description: "Please sign in to complete your booking.",
+          action: {
+            label: "Sign in",
+            onClick: () =>
+              navigate(
+                `/login?next=${encodeURIComponent(
+                  window.location.pathname + window.location.search,
+                )}`,
+              ),
+          },
         });
         setLastError("Sign-in required to complete this booking.");
       } else {

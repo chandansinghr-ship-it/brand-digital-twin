@@ -128,6 +128,13 @@ export default function RdProfile() {
       if (msg.includes("401")) {
         toast.error("Sign in to book", {
           description: "Please sign in to confirm your appointment.",
+          action: {
+            label: "Sign in",
+            onClick: () =>
+              navigate(
+                `/login?next=${encodeURIComponent(window.location.pathname)}`,
+              ),
+          },
         });
       } else if (msg.includes("409")) {
         toast.error("Slot just taken", {

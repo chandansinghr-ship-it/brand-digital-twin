@@ -8,8 +8,9 @@ import { toast } from "sonner";
 export default function Login() {
   const navigate = useNavigate();
   const [params] = useSearchParams();
-  const next = params.get("next") ?? "/";
-  const loginUrl = `${import.meta.env.BASE_URL}api/login`;
+  const rawNext = params.get("next") ?? "/";
+  const next = rawNext.startsWith("/") && !rawNext.startsWith("//") ? rawNext : "/";
+  const loginUrl = `${import.meta.env.BASE_URL}api/login?returnTo=${encodeURIComponent(next)}`;
 
   const enterAdminMode = () => {
     try {
