@@ -1,0 +1,278 @@
+import { useState } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { Card, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Textarea } from "@/components/ui/textarea";
+import { Separator } from "@/components/ui/separator";
+import { useOrders } from "@/lib/ordersContext";
+import { toast } from "sonner";
+import { Star, MessageSquare, Sparkles, TrendingUp, TrendingDown, Minus } from "lucide-react";
+
+const API_BASE = `${import.meta.env.BASE_URL}api`;
+
+interface PublicReview {
+  id: number;
+  slug: string;
+  rating: number;
+  body: string;
+  createdAt: string;
+}
+
+interface ReviewSummary {
+  slug: string;
+  mostLoved: string;
+  commonGripe: string;
+  trend: "improving" | "declining" | "stable";
+  sampleSize: number;
+  averageRating: number;
+  generatedAt: string;
+}
+
+interface ReviewsResponse {
+  reviews: PublicReview[];
+  summary: ReviewSummary | null;
+}
+
+interface AuthResponse {
+  user: { id: string } | null;
+}
+
+async function fetchJson<T>(path: string, init?: RequestInit): Promise<T> {
+  const res = await fetch(`${API_BASE}${path}`, {
+    credentials: "include",
+    ...init,
+    headers: { "Content-Type": "application/json", ...(init?.headers ?? {}) },
+  });
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(`${res.status}: ${text || res.statusText}`);
+  }
+  return res.json() as Promise<T>;
+}
+
+function formatRelative(iso: string): string {
+  const diffMs = Date.now() - new Date(iso).getTime();
+  const day = Math.floor(diffMs / 86_400_000);
+  if (day < 1) {
+    const hr = Math.floor(diffMs / 3_600_000);
+    if (hr < 1) return "just now";
+    return `${hr}h ago`;
+  }
+  if (day < 30) return `${day}d ago`;
+  const mo = Math.floor(day / 30);
+  if (mo < 12) return `${mo}mo ago`;
+  return `${Math.floor(mo / 12)}y ago`;
+}
+
+function StarRow({
+  value,
+  onChange,
+  size = 16,
+}: {
+  value: number;
+  onChange?: (v: number) => void;
+  size?: number;
+}) {
+  const interactive = Boolean(onChange);
+  return (
+    <div className="flex items-center gap-0.5">
+      {[1, 2, 3, 4, 5].map((n) => (
+        <button
+          key={n}
+          type="button"
+          disabled={!interactive}
+          onClick={() => onChange?.(n)}
+          className={interactive ? "hover:scale-110 transition-transform" : "cursor-default"}
+          aria-label={`${n} star${n === 1 ? "" : "s"}`}
+        >
+          <Star
+            style={{ width: size, height: size }}
+            className={
+              n <= value
+                ? "fill-clinical-gold text-clinical-gold"
+                : "text-clinical-slate/40"
+            }
+          />
+        </button>
+      ))}
+    </div>
+  );
+}
+
+interface DishReviewsProps {
+  slug: string;
+  dishId: number;
+}
+
+export default function DishReviews({ slug, dishId }: DishReviewsProps) {
+  const qc = useQueryClient();
+  const { orders } = useOrders();
+
+  const auth = useQuery<AuthResponse>({
+    queryKey: ["auth", "user"],
+    queryFn: () => fetchJson<AuthResponse>(`/auth/user`),
+    staleTime: 1000 * 60 * 5,
+  });
+  const isLoggedIn = Boolean(auth.data?.user?.id);
+
+  const data = useQuery<ReviewsResponse>({
+    queryKey: ["dish-reviews", slug],
+    queryFn: () => fetchJson<ReviewsResponse>(`/dish-reviews/${encodeURIComponent(slug)}`),
+    staleTime: 1000 * 30,
+  });
+
+  const hasOrdered = orders.some((o) =>
+    o.items.some((it) => it.dishId === dishId || it.slug === slug),
+  );
+
+  const [rating, setRating] = useState(0);
+  const [body, setBody] = useState("");
+
+  const submit = useMutation({
+    mutationFn: async () => {
+      return fetchJson<{ review: PublicReview }>(`/dish-reviews`, {
+        method: "POST",
+        body: JSON.stringify({ slug, rating, body: body.trim() }),
+      });
+    },
+    onSuccess: () => {
+      toast.success("Thanks for your review");
+      setRating(0);
+      setBody("");
+      qc.invalidateQueries({ queryKey: ["dish-reviews", slug] });
+    },
+    onError: (err: unknown) => {
+      const msg = err instanceof Error ? err.message : "Could not submit review";
+      toast.error(msg);
+    },
+  });
+
+  const reviews = data.data?.reviews ?? [];
+  const summary = data.data?.summary ?? null;
+  const canReview = isLoggedIn && hasOrdered;
+
+  const trendIcon =
+    summary?.trend === "improving" ? (
+      <TrendingUp className="w-3 h-3" />
+    ) : summary?.trend === "declining" ? (
+      <TrendingDown className="w-3 h-3" />
+    ) : (
+      <Minus className="w-3 h-3" />
+    );
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center gap-2">
+        <MessageSquare className="w-4 h-4 text-clinical-gold" />
+        <p className="text-clinical-label">Customer reviews</p>
+        {summary && (
+          <Badge
+            variant="outline"
+            className="border-clinical-slate/30 text-clinical-zinc text-[10px] gap-1 ml-auto tabular-nums"
+          >
+            <Star className="w-3 h-3 fill-clinical-gold text-clinical-gold" />
+            {(summary.averageRating / 10).toFixed(1)} · {summary.sampleSize}
+          </Badge>
+        )}
+      </div>
+
+      {summary && (summary.mostLoved || summary.commonGripe) && (
+        <Card className="bg-clinical-surface border-clinical-slate/20">
+          <CardContent className="p-4 space-y-2">
+            <div className="flex items-center gap-2">
+              <Sparkles className="w-3.5 h-3.5 text-clinical-gold" />
+              <p className="text-[10px] uppercase tracking-[0.12em] text-clinical-zinc/70 font-semibold">
+                What customers say
+              </p>
+              <Badge
+                variant="outline"
+                className="border-clinical-slate/30 text-clinical-zinc text-[10px] ml-auto gap-1 capitalize"
+              >
+                {trendIcon}
+                {summary.trend}
+              </Badge>
+            </div>
+            {summary.mostLoved && (
+              <div className="flex items-start gap-2">
+                <span className="text-[11px] text-clinical-sage font-medium shrink-0">Loved:</span>
+                <p className="text-xs text-clinical-zinc">{summary.mostLoved}</p>
+              </div>
+            )}
+            {summary.commonGripe && (
+              <div className="flex items-start gap-2">
+                <span className="text-[11px] text-clinical-gold font-medium shrink-0">Gripe:</span>
+                <p className="text-xs text-clinical-zinc">{summary.commonGripe}</p>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {canReview && (
+        <Card className="bg-clinical-surface border-clinical-slate/20">
+          <CardContent className="p-4 space-y-3">
+            <p className="text-xs font-medium text-white">Leave a review</p>
+            <div className="flex items-center gap-3">
+              <span className="text-[11px] text-clinical-zinc">Your rating</span>
+              <StarRow value={rating} onChange={setRating} size={20} />
+            </div>
+            <Textarea
+              placeholder="Tell other customers what you thought (optional)"
+              value={body}
+              onChange={(e) => setBody(e.target.value.slice(0, 2000))}
+              rows={3}
+              className="bg-clinical-dark border-clinical-slate/30 text-xs"
+            />
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] text-clinical-zinc/70">
+                {body.length}/2000
+              </span>
+              <Button
+                size="sm"
+                disabled={rating < 1 || submit.isPending}
+                onClick={() => submit.mutate()}
+                className="bg-clinical-gold text-[#050505] hover:bg-clinical-gold/90"
+              >
+                {submit.isPending ? "Posting…" : "Post review"}
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {!canReview && (
+        <p className="text-[11px] text-clinical-zinc/70">
+          {isLoggedIn
+            ? "Order this dish once to leave a review."
+            : "Log in and order this dish to leave a review."}
+        </p>
+      )}
+
+      {reviews.length > 0 ? (
+        <div className="space-y-3">
+          {reviews.slice(0, 5).map((r, idx) => (
+            <div key={r.id}>
+              {idx > 0 && <Separator className="bg-clinical-slate/10 mb-3" />}
+              <div className="flex items-center justify-between">
+                <StarRow value={r.rating} />
+                <span className="text-[10px] text-clinical-zinc/70 tabular-nums">
+                  {formatRelative(r.createdAt)}
+                </span>
+              </div>
+              {r.body && (
+                <p className="text-xs text-clinical-zinc leading-relaxed mt-1.5">
+                  {r.body}
+                </p>
+              )}
+            </div>
+          ))}
+        </div>
+      ) : (
+        <p className="text-[11px] text-clinical-zinc/70">
+          No reviews yet — be the first to share your experience.
+        </p>
+      )}
+    </div>
+  );
+}

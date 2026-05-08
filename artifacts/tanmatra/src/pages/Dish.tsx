@@ -10,6 +10,7 @@ import { Label } from "@/components/ui/label";
 import MacroOverlay from "@/components/dish/MacroOverlay";
 import NutritionLabelModal from "@/components/dish/NutritionLabelModal";
 import WhyThisMealPanel from "@/components/dish/WhyThisMealPanel";
+import DishReviews from "@/components/dish/DishReviews";
 import { getChefForDish, getRdForDish, ACCENT_CLASSES } from "@/lib/teamData";
 import { toast } from "sonner";
 import { getDishBySlug, useMenuCatalog } from "@/lib/menuData";
@@ -595,6 +596,10 @@ export default function Dish() {
               ))}
             </div>
           )}
+
+          <Separator className="bg-clinical-slate/20" />
+
+          <DishReviews slug={meal.slug} dishId={meal.id} />
 
           <Separator className="bg-clinical-slate/20" />
 
