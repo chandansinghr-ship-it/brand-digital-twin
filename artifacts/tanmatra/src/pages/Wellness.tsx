@@ -31,6 +31,10 @@ import {
   Copy,
   Check,
   EyeOff,
+  ArrowRight,
+  Utensils,
+  Stethoscope,
+  CalendarDays,
 } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -39,6 +43,12 @@ import {
   type WellnessTodayResponse,
   type WellnessWeekResponse,
 } from "@/lib/wellnessApi";
+import { useMenuCatalog } from "@/lib/menuData";
+import { dishesForProtocol, plansForProtocol, rdsForProtocol } from "@/lib/protocols";
+import { RD_PLANS } from "@/lib/rdPlans";
+import { RD_BOOKING } from "@/lib/rdBookingData";
+import { TEAM } from "@/lib/teamData";
+import { formatPrice } from "@/lib/api/adapter";
 
 function clampPct(value: number, target: number): number {
   if (target <= 0) return 0;
@@ -678,6 +688,131 @@ function StreakBadge({
   );
 }
 
+function ProtocolActions() {
+  const { dishes } = useMenuCatalog();
+  const dishCount = useMemo(
+    () => dishesForProtocol(dishes, "wellness").length,
+    [dishes],
+  );
+  const planCount = useMemo(
+    () => plansForProtocol(RD_PLANS, "wellness").length,
+    [],
+  );
+  const rds = useMemo(() => rdsForProtocol(RD_BOOKING, "wellness"), []);
+  const teamBySlug = useMemo(
+    () => new Map(TEAM.map((m) => [m.slug, m])),
+    [],
+  );
+  const samplePlan = useMemo(
+    () => plansForProtocol(RD_PLANS, "wellness")[0],
+    [],
+  );
+
+  return (
+    <section className="border-b border-clinical-slate/20 bg-clinical-sage/5 py-10">
+      <div className="max-w-7xl mx-auto px-4 space-y-6">
+        <div className="flex items-center gap-2">
+          <Leaf className="w-4 h-4 text-clinical-sage" />
+          <Badge className="bg-clinical-sage/15 text-clinical-sage border-clinical-sage/30 text-[10px] tracking-widest uppercase">
+            Wellness Protocol
+          </Badge>
+        </div>
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+          <Card className="bg-clinical-surface border-clinical-sage/30 hover:border-clinical-sage/60 transition-colors">
+            <CardContent className="p-5 space-y-3 flex flex-col h-full">
+              <div className="flex items-center gap-2">
+                <Utensils className="w-4 h-4 text-clinical-sage" />
+                <p className="text-[10px] uppercase tracking-widest text-clinical-sage">
+                  Eat
+                </p>
+              </div>
+              <h3 className="text-white text-lg font-semibold">
+                {dishCount} wellness-aligned dishes
+              </h3>
+              <p className="text-xs text-clinical-zinc leading-relaxed flex-1">
+                High-fibre, low-glycaemic plates with restrained sugar — the
+                everyday building blocks of preventive nutrition.
+              </p>
+              <Link to="/menu?protocol=wellness">
+                <Button className="w-full bg-clinical-sage text-clinical-dark hover:bg-clinical-sage/90 gap-2 h-10">
+                  See wellness-aligned dishes
+                  <ArrowRight className="w-4 h-4" />
+                </Button>
+              </Link>
+            </CardContent>
+          </Card>
+
+          <Card className="bg-clinical-surface border-clinical-sage/30 hover:border-clinical-sage/60 transition-colors">
+            <CardContent className="p-5 space-y-3 flex flex-col h-full">
+              <div className="flex items-center gap-2">
+                <CalendarDays className="w-4 h-4 text-clinical-sage" />
+                <p className="text-[10px] uppercase tracking-widest text-clinical-sage">
+                  Plan
+                </p>
+              </div>
+              <h3 className="text-white text-lg font-semibold">
+                {planCount} curated weekly plans
+              </h3>
+              {samplePlan && (
+                <p className="text-xs text-clinical-zinc leading-relaxed flex-1">
+                  Featuring{" "}
+                  <span className="text-white font-medium">
+                    {samplePlan.name}
+                  </span>{" "}
+                  — {samplePlan.calorieTargetPerDay} kcal · {samplePlan.proteinTargetGrams}g protein per day, from{" "}
+                  {formatPrice(samplePlan.pricePerWeekPaise)}/wk.
+                </p>
+              )}
+              <Link to="/plans?protocol=wellness">
+                <Button
+                  variant="outline"
+                  className="w-full border-clinical-sage/40 text-clinical-sage hover:bg-clinical-sage/10 gap-2 h-10"
+                >
+                  Browse wellness plans
+                  <ArrowRight className="w-4 h-4" />
+                </Button>
+              </Link>
+            </CardContent>
+          </Card>
+
+          <Card className="bg-clinical-surface border-clinical-sage/30 hover:border-clinical-sage/60 transition-colors">
+            <CardContent className="p-5 space-y-3 flex flex-col h-full">
+              <div className="flex items-center gap-2">
+                <Stethoscope className="w-4 h-4 text-clinical-sage" />
+                <p className="text-[10px] uppercase tracking-widest text-clinical-sage">
+                  Talk
+                </p>
+              </div>
+              <h3 className="text-white text-lg font-semibold">
+                {rds.length} RDs for wellness coaching
+              </h3>
+              {rds.length > 0 && (
+                <p className="text-xs text-clinical-zinc leading-relaxed flex-1">
+                  {rds
+                    .slice(0, 2)
+                    .map((rd) => teamBySlug.get(rd.slug)?.name ?? rd.slug)
+                    .filter(Boolean)
+                    .join(" · ")}{" "}
+                  — first 15-min consult is free.
+                </p>
+              )}
+              <Link to="/rd?protocol=wellness">
+                <Button
+                  variant="outline"
+                  className="w-full border-clinical-sage/40 text-clinical-sage hover:bg-clinical-sage/10 gap-2 h-10"
+                >
+                  Book a wellness RD
+                  <ArrowRight className="w-4 h-4" />
+                </Button>
+              </Link>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    </section>
+  );
+}
+
 export default function Wellness() {
   const qc = useQueryClient();
 
@@ -730,6 +865,8 @@ export default function Wellness() {
   return (
     <div className="min-h-screen bg-clinical-dark">
       <SegmentToggle />
+
+      <ProtocolActions />
 
       <section className="border-b border-clinical-slate/20 py-10">
         <div className="max-w-7xl mx-auto px-4">

@@ -30,6 +30,13 @@ import {
   matchesLifestyle,
   type Lifestyle,
 } from "@/lib/dishEnrichment";
+import {
+  PROTOCOL_LABELS,
+  PROTOCOL_TAGLINES,
+  isProtocol,
+  matchesProtocol,
+  type Protocol,
+} from "@/lib/protocols";
 import { useCart } from "@/lib/cartContext";
 import { usePreferences } from "@/lib/preferencesContext";
 import { usePremiumStatus, usePremiumSlugs } from "@/lib/usePremium";
@@ -101,8 +108,12 @@ export default function Menu() {
   const [hideBlocked, setHideBlocked] = useState(true);
   const { addItem, addBundleSlug } = useCart();
   const { preferences } = usePreferences();
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const groupCode = searchParams.get("group");
+  const protocolParam = searchParams.get("protocol");
+  const activeProtocol: Protocol | null = isProtocol(protocolParam)
+    ? protocolParam
+    : null;
   const { data: bundles } = useBundles();
   const { dishes: catalogDishes } = useMenuCatalog();
 
@@ -203,13 +214,14 @@ export default function Menu() {
       if (diet === "veg" && !d.isVeg) return false;
       if (diet === "nonveg" && d.isVeg) return false;
       if (!matchesLifestyle(d, lifestyle)) return false;
+      if (activeProtocol && !matchesProtocol(d, activeProtocol)) return false;
       if (q && !d.name.toLowerCase().includes(q) && !d.description.toLowerCase().includes(q))
         return false;
       return true;
     });
     const ranked = rankDishesForPreferences(baseList, preferences);
     return hideBlocked ? ranked.filter((r) => !r.match.blocked) : ranked;
-  }, [kitchen, category, diet, lifestyle, query, preferences, hideBlocked, catalogDishes]);
+  }, [kitchen, category, diet, lifestyle, query, preferences, hideBlocked, catalogDishes, activeProtocol]);
 
   const blockedCount = useMemo(() => {
     if (!preferences) return 0;
@@ -249,12 +261,36 @@ export default function Menu() {
     <div className="max-w-7xl mx-auto px-4 py-6 space-y-8">
       <div className="space-y-1">
         <h1 className="font-serif text-3xl sm:text-4xl font-semibold tracking-tight text-white">
-          Curated Selections
+          {activeProtocol
+            ? `${PROTOCOL_LABELS[activeProtocol]} Protocol — qualifying dishes`
+            : "Curated Selections"}
         </h1>
         <p className="text-xs uppercase tracking-[0.18em] text-clinical-zinc/70 font-medium">
-          Kitchen-synced · Inventory-aware · RD-verified
+          {activeProtocol
+            ? `Filtered by ${PROTOCOL_LABELS[activeProtocol]} criteria · ${filtered.length} ${filtered.length === 1 ? "dish" : "dishes"}`
+            : "Kitchen-synced · Inventory-aware · RD-verified"}
         </p>
       </div>
+
+      {activeProtocol && (
+        <div className="flex flex-wrap items-center gap-3 rounded-xl border border-clinical-gold/30 bg-clinical-gold/5 px-4 py-3">
+          <SparklesIcon className="w-4 h-4 text-clinical-gold shrink-0" />
+          <p className="text-xs text-clinical-zinc flex-1 min-w-[12rem] leading-relaxed">
+            {PROTOCOL_TAGLINES[activeProtocol]}
+          </p>
+          <button
+            type="button"
+            onClick={() => {
+              const next = new URLSearchParams(searchParams);
+              next.delete("protocol");
+              setSearchParams(next, { replace: true });
+            }}
+            className="text-[11px] uppercase tracking-[0.12em] text-clinical-gold hover:underline font-semibold"
+          >
+            Clear protocol filter
+          </button>
+        </div>
+      )}
 
       {groupCode && (
         <Card className="bg-clinical-gold/5 border-clinical-gold/30">
@@ -625,6 +661,11 @@ export default function Menu() {
               setDiet("all");
               setLifestyle("all");
               setQuery("");
+              if (activeProtocol) {
+                const next = new URLSearchParams(searchParams);
+                next.delete("protocol");
+                setSearchParams(next, { replace: true });
+              }
             }}
             className="text-xs text-clinical-gold hover:underline"
           >

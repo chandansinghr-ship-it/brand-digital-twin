@@ -1,12 +1,42 @@
-import { Link } from "react-router";
+import { useMemo } from "react";
+import { Link, useSearchParams } from "react-router";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { listRds, formatRupees } from "@/lib/rdBookingData";
+import {
+  PROTOCOL_LABELS,
+  PROTOCOL_TAGLINES,
+  isProtocol,
+  rdsForProtocol,
+  type Protocol,
+} from "@/lib/protocols";
 import { ChevronRight, Globe, Stethoscope, CalendarDays } from "lucide-react";
 
 export default function RdDirectory() {
-  const rds = listRds();
+  const allRds = listRds();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const protocolParam = searchParams.get("protocol");
+  const activeProtocol: Protocol | null = isProtocol(protocolParam)
+    ? protocolParam
+    : null;
+
+  const rds = useMemo(() => {
+    if (!activeProtocol) return allRds;
+    const matching = new Set(
+      rdsForProtocol(
+        allRds.map(({ profile }) => profile),
+        activeProtocol,
+      ).map((p) => p.slug),
+    );
+    return allRds.filter(({ profile }) => matching.has(profile.slug));
+  }, [allRds, activeProtocol]);
+
+  function clearProtocol() {
+    const next = new URLSearchParams(searchParams);
+    next.delete("protocol");
+    setSearchParams(next, { replace: true });
+  }
 
   return (
     <div className="max-w-7xl mx-auto px-4 py-8 space-y-8">
@@ -15,14 +45,44 @@ export default function RdDirectory() {
           1:1 Advisory
         </Badge>
         <h1 className="font-serif text-3xl sm:text-4xl text-white">
-          Book a registered dietitian
+          {activeProtocol
+            ? `${PROTOCOL_LABELS[activeProtocol]} Protocol — RD specialists`
+            : "Book a registered dietitian"}
         </h1>
         <p className="text-sm text-clinical-zinc max-w-2xl">
-          Start with a free 15-minute intro to align goals, then move into paid
-          follow-ups for plan adjustments, lab review, and ongoing support.
-          Every RD on this page is on staff and signs off our menu.
+          {activeProtocol
+            ? PROTOCOL_TAGLINES[activeProtocol]
+            : "Start with a free 15-minute intro to align goals, then move into paid follow-ups for plan adjustments, lab review, and ongoing support. Every RD on this page is on staff and signs off our menu."}
         </p>
+        {activeProtocol && (
+          <div className="flex flex-wrap items-center gap-3 text-xs text-clinical-zinc">
+            <span>
+              Showing {rds.length} of {allRds.length} RDs matching this protocol.
+            </span>
+            <button
+              type="button"
+              onClick={clearProtocol}
+              className="text-[11px] uppercase tracking-[0.12em] text-clinical-gold hover:underline font-semibold"
+            >
+              Clear filter — see all RDs
+            </button>
+          </div>
+        )}
       </header>
+
+      {activeProtocol && rds.length === 0 && (
+        <div className="rounded-xl border border-clinical-slate/30 bg-clinical-surface p-5 text-sm text-clinical-zinc">
+          No RDs currently match this protocol —{" "}
+          <button
+            type="button"
+            onClick={clearProtocol}
+            className="text-clinical-gold hover:underline"
+          >
+            see the full directory
+          </button>
+          .
+        </div>
+      )}
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
         {rds.map(({ profile, member }) => (

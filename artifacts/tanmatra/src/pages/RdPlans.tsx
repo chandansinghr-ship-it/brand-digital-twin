@@ -1,5 +1,5 @@
-import { useMemo, useState } from "react";
-import { Link } from "react-router";
+import { useEffect, useMemo, useState } from "react";
+import { Link, useSearchParams } from "react-router";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -13,6 +13,13 @@ import {
 } from "@/lib/rdPlans";
 import { usePreferences } from "@/lib/preferencesContext";
 import { ACCENT_CLASSES } from "@/lib/teamData";
+import {
+  PROTOCOL_LABELS,
+  PROTOCOL_PLAN_GOALS,
+  PROTOCOL_TAGLINES,
+  isProtocol,
+  type Protocol,
+} from "@/lib/protocols";
 import { ShieldCheck, Sparkles, ChevronRight, Filter } from "lucide-react";
 
 const GOAL_FILTERS: Array<{ value: "all" | PlanGoal; label: string }> = [
@@ -34,6 +41,12 @@ const CALORIE_BUCKETS: Array<{ value: "all" | "low" | "mid" | "high"; label: str
 
 export default function RdPlans() {
   const { preferences } = usePreferences();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const protocolParam = searchParams.get("protocol");
+  const activeProtocol: Protocol | null = isProtocol(protocolParam)
+    ? protocolParam
+    : null;
+
   const [goalFilter, setGoalFilter] = useState<"all" | PlanGoal>("all");
   const [calBucket, setCalBucket] = useState<"all" | "low" | "mid" | "high">("all");
   const [styleFilter, setStyleFilter] = useState<string>("all");
@@ -43,8 +56,21 @@ export default function RdPlans() {
     [preferences],
   );
 
+  // When a protocol single-goal mapping is exact (e.g. performance →
+  // lean_muscle), reflect it in the goal pill so the user sees the chip
+  // active. Otherwise leave goalFilter alone — the protocol filter applies
+  // on top via PROTOCOL_PLAN_GOALS.
+  useEffect(() => {
+    if (activeProtocol) {
+      const goals = PROTOCOL_PLAN_GOALS[activeProtocol];
+      if (goals.length === 1) setGoalFilter(goals[0]);
+    }
+  }, [activeProtocol]);
+
   const filtered = useMemo(() => {
+    const protocolGoals = activeProtocol ? PROTOCOL_PLAN_GOALS[activeProtocol] : null;
     return RD_PLANS.filter((p) => {
+      if (protocolGoals && !protocolGoals.includes(p.goal)) return false;
       if (goalFilter !== "all" && p.goal !== goalFilter) return false;
       if (styleFilter !== "all" && !p.dietaryStyles.includes(styleFilter as never))
         return false;
@@ -57,7 +83,14 @@ export default function RdPlans() {
       if (calBucket === "high" && p.calorieTargetPerDay <= 2100) return false;
       return true;
     });
-  }, [goalFilter, calBucket, styleFilter]);
+  }, [goalFilter, calBucket, styleFilter, activeProtocol]);
+
+  function clearProtocol() {
+    const next = new URLSearchParams(searchParams);
+    next.delete("protocol");
+    setSearchParams(next, { replace: true });
+    setGoalFilter("all");
+  }
 
   return (
     <div className="max-w-7xl mx-auto px-4 py-8 space-y-10">
@@ -67,14 +100,24 @@ export default function RdPlans() {
           RD-Designed
         </Badge>
         <h1 className="font-serif text-3xl sm:text-4xl text-white">
-          Plans curated by registered dietitians
+          {activeProtocol
+            ? `${PROTOCOL_LABELS[activeProtocol]} Protocol — RD plans`
+            : "Plans curated by registered dietitians"}
         </h1>
         <p className="text-sm text-clinical-zinc max-w-2xl">
-          Six- to twelve-week protocols built around a specific goal — weight
-          loss, lean muscle, PCOS, diabetes management, and more. Each plan is
-          authored by an in-house RD, signed off for sodium and macros, and
-          adapts to your allergens at delivery.
+          {activeProtocol
+            ? PROTOCOL_TAGLINES[activeProtocol]
+            : "Six- to twelve-week protocols built around a specific goal — weight loss, lean muscle, PCOS, diabetes management, and more. Each plan is authored by an in-house RD, signed off for sodium and macros, and adapts to your allergens at delivery."}
         </p>
+        {activeProtocol && (
+          <button
+            type="button"
+            onClick={clearProtocol}
+            className="text-[11px] uppercase tracking-[0.12em] text-clinical-gold hover:underline font-semibold"
+          >
+            Clear protocol filter — see all plans
+          </button>
+        )}
       </header>
 
       {preferences && recommendations.length > 0 && (
