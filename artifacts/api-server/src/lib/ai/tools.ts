@@ -1,12 +1,13 @@
 import { tool, type Tool } from "ai";
 import type { z } from "zod/v4";
 
-export type AuthScope = "public" | "user" | "ops";
+export type AuthScope = "public" | "user" | "ops" | "catalog";
 
 export interface ToolContext {
   userId: string | null;
   agent: string;
   isOps: boolean;
+  isCatalog: boolean;
 }
 
 export interface ToolDefinition<TInput = unknown, TOutput = unknown> {
@@ -40,6 +41,7 @@ function authorizes(scope: AuthScope, ctx: ToolContext): boolean {
   if (scope === "public") return true;
   if (scope === "user") return ctx.userId != null;
   if (scope === "ops") return ctx.isOps;
+  if (scope === "catalog") return ctx.isCatalog;
   return false;
 }
 

@@ -11,6 +11,7 @@ export interface RunAgentOptions {
   agent: string;
   userId: string | null;
   isOps?: boolean;
+  isCatalog?: boolean;
   messages: ModelMessage[];
   promptContext?: unknown;
   onEvent?: (event: GatewayEvent) => void;
@@ -141,6 +142,7 @@ export async function runAgent(
     userId: opts.userId,
     agent: agent.name,
     isOps: opts.isOps === true,
+    isCatalog: opts.isCatalog === true,
   };
 
   const refusal = applyPreflight(agent, opts.messages);
