@@ -170,6 +170,22 @@ export interface UpdateInput {
   isVeg?: boolean;
   availabilityWindow?: AvailabilitySlot[] | null;
   tags?: string[] | null;
+  rdVerified?: boolean;
+  rdNote?: string | null;
+  prepTime?: string | null;
+  glycaemicIndex?: "low" | "medium" | "high" | null;
+  sugarPerServing?: string | null;
+  ingredients?: string[] | null;
+  customizations?: Array<{
+    groupName: string;
+    type: "single" | "multiple";
+    options: Array<{
+      name: string;
+      priceModifier: number;
+      default?: boolean;
+    }>;
+  }> | null;
+  pairingSlug?: string | null;
 }
 
 export async function updateItem(
@@ -190,6 +206,24 @@ export async function updateItem(
         : null;
   if (patch.tags !== undefined)
     set["tags"] = patch.tags && patch.tags.length > 0 ? patch.tags : null;
+  if (patch.rdVerified !== undefined) set["rdVerified"] = patch.rdVerified;
+  if (patch.rdNote !== undefined) set["rdNote"] = patch.rdNote;
+  if (patch.prepTime !== undefined) set["prepTime"] = patch.prepTime;
+  if (patch.glycaemicIndex !== undefined)
+    set["glycaemicIndex"] = patch.glycaemicIndex;
+  if (patch.sugarPerServing !== undefined)
+    set["sugarPerServing"] = patch.sugarPerServing;
+  if (patch.ingredients !== undefined)
+    set["ingredients"] =
+      patch.ingredients && patch.ingredients.length > 0
+        ? patch.ingredients
+        : null;
+  if (patch.customizations !== undefined)
+    set["customizations"] =
+      patch.customizations && patch.customizations.length > 0
+        ? patch.customizations
+        : null;
+  if (patch.pairingSlug !== undefined) set["pairingSlug"] = patch.pairingSlug;
   if (Object.keys(set).length === 0) return findBySlug(slug);
   const [row] = await db
     .update(menuItemsTable)

@@ -126,6 +126,20 @@ const slugParam = z.object({ slug: z.string().min(1).max(128) });
 router.patch("/menu/items/:slug", async (req: Request, res: Response) => {
   if (!requireCatalog(req, res)) return;
   const sp = slugParam.safeParse(req.params);
+  const customizationSchema = z.object({
+    groupName: z.string().min(1).max(120),
+    type: z.enum(["single", "multiple"]),
+    options: z
+      .array(
+        z.object({
+          name: z.string().min(1).max(120),
+          priceModifier: z.number().int().min(-1_000_000).max(1_000_000),
+          default: z.boolean().optional(),
+        }),
+      )
+      .min(1)
+      .max(20),
+  });
   const patchSchema = z.object({
     name: z.string().min(1).max(200).optional(),
     description: z.string().max(2000).optional(),
@@ -137,6 +151,14 @@ router.patch("/menu/items/:slug", async (req: Request, res: Response) => {
       .nullable()
       .optional(),
     tags: z.array(z.string().max(64)).nullable().optional(),
+    rdVerified: z.boolean().optional(),
+    rdNote: z.string().max(1000).nullable().optional(),
+    prepTime: z.string().max(64).nullable().optional(),
+    glycaemicIndex: z.enum(["low", "medium", "high"]).nullable().optional(),
+    sugarPerServing: z.string().max(64).nullable().optional(),
+    ingredients: z.array(z.string().max(200)).max(50).nullable().optional(),
+    customizations: z.array(customizationSchema).max(20).nullable().optional(),
+    pairingSlug: z.string().max(128).nullable().optional(),
   });
   const bp = patchSchema.safeParse(req.body);
   if (!sp.success || !bp.success) {
@@ -444,6 +466,7 @@ const acceptCopySchema = z.object({
       proteinG: z.number().int().min(0).max(200),
       carbsG: z.number().int().min(0).max(400),
       fatG: z.number().int().min(0).max(200),
+      fiberG: z.number().int().min(0).max(100).optional(),
     })
     .optional(),
 });

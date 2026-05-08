@@ -32,6 +32,7 @@ export interface MacrosEstimate {
   proteinG: number;
   carbsG: number;
   fatG: number;
+  fiberG?: number;
 }
 
 export interface GeneratedCopy {
@@ -207,13 +208,18 @@ function safeMacros(v: unknown): MacrosEstimate | undefined {
   const carbsG =
     typeof o["carbsG"] === "number" ? Math.round(o["carbsG"]) : null;
   const fatG = typeof o["fatG"] === "number" ? Math.round(o["fatG"]) : null;
+  const fiberG =
+    typeof o["fiberG"] === "number" ? Math.round(o["fiberG"]) : null;
   if (kcal == null || proteinG == null || carbsG == null || fatG == null)
     return undefined;
   if (kcal < 0 || kcal > 3000) return undefined;
   if (proteinG < 0 || proteinG > 200) return undefined;
   if (carbsG < 0 || carbsG > 400) return undefined;
   if (fatG < 0 || fatG > 200) return undefined;
-  return { kcal, proteinG, carbsG, fatG };
+  if (fiberG != null && (fiberG < 0 || fiberG > 100)) return undefined;
+  return fiberG != null
+    ? { kcal, proteinG, carbsG, fatG, fiberG }
+    : { kcal, proteinG, carbsG, fatG };
 }
 
 // Strict allergen sanitiser: drop anything not in the allowed list, and drop

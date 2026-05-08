@@ -3,6 +3,7 @@ import {
   type DishData,
   type DishCategory,
   type DishKitchen,
+  type DishCustomGroup,
 } from "@workspace/menu-catalog";
 import { listMenuItems } from "./menu";
 import { getSummariesForSlugs } from "./dishReviews";
@@ -24,6 +25,13 @@ const VALID_KITCHENS = new Set<DishKitchen>([
   "asian",
   "mediterranean",
 ]);
+const VALID_GI = new Set<DishData["glycaemicIndex"]>(["low", "medium", "high"]);
+
+function coerceGi(v: string | null): DishData["glycaemicIndex"] | null {
+  return v && VALID_GI.has(v as DishData["glycaemicIndex"])
+    ? (v as DishData["glycaemicIndex"])
+    : null;
+}
 
 const SYNTHETIC_ID_OFFSET = 100000;
 
@@ -61,6 +69,7 @@ export async function getMergedCatalog(): Promise<DishData[]> {
       merged.push(stat);
       continue;
     }
+    const gi = coerceGi(row.glycaemicIndex);
     merged.push({
       ...stat,
       name: row.name || stat.name,
@@ -83,9 +92,18 @@ export async function getMergedCatalog(): Promise<DishData[]> {
             protein: row.macros.proteinG,
             carbs: row.macros.carbsG,
             fat: row.macros.fatG,
-            fiber: stat.macros.fiber,
+            fiber: row.macros.fiberG ?? stat.macros.fiber,
           }
         : stat.macros,
+      rdVerified: row.rdVerified,
+      ...(row.rdNote ? { rdNote: row.rdNote } : {}),
+      prepTime: row.prepTime ?? "",
+      glycaemicIndex: gi ?? "medium",
+      sugarPerServing: row.sugarPerServing ?? "",
+      ingredients: row.ingredients ?? [],
+      customizations:
+        (row.customizations as DishCustomGroup[] | null) ?? [],
+      ...(row.pairingSlug ? { pairingSlug: row.pairingSlug } : {}),
     });
   }
 
@@ -97,6 +115,7 @@ export async function getMergedCatalog(): Promise<DishData[]> {
     const kit = VALID_KITCHENS.has(row.kitchenLocation as DishKitchen)
       ? (row.kitchenLocation as DishKitchen)
       : "continental";
+    const gi = coerceGi(row.glycaemicIndex);
     merged.push({
       id: syntheticIdFor(row.id),
       slug: row.slug,
@@ -110,22 +129,25 @@ export async function getMergedCatalog(): Promise<DishData[]> {
       kitchen: kit,
       category: cat,
       isVeg: row.isVeg,
-      rdVerified: false,
-      prepTime: "—",
+      rdVerified: row.rdVerified,
+      ...(row.rdNote ? { rdNote: row.rdNote } : {}),
+      prepTime: row.prepTime ?? "—",
       macros: row.macros
         ? {
             calories: row.macros.kcal,
             protein: row.macros.proteinG,
             carbs: row.macros.carbsG,
             fat: row.macros.fatG,
-            fiber: 0,
+            fiber: row.macros.fiberG ?? 0,
           }
         : { calories: 0, protein: 0, carbs: 0, fat: 0, fiber: 0 },
-      ingredients: [],
+      ingredients: row.ingredients ?? [],
       allergens: row.allergens ?? [],
-      glycaemicIndex: "medium",
-      sugarPerServing: "—",
-      customizations: [],
+      glycaemicIndex: gi ?? "medium",
+      sugarPerServing: row.sugarPerServing ?? "—",
+      customizations:
+        (row.customizations as DishCustomGroup[] | null) ?? [],
+      ...(row.pairingSlug ? { pairingSlug: row.pairingSlug } : {}),
       isAvailable: row.isAvailable,
     });
   }

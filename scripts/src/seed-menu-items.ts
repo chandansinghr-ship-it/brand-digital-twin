@@ -26,8 +26,18 @@ async function main() {
         proteinG: d.macros.protein,
         carbsG: d.macros.carbs,
         fatG: d.macros.fat,
+        fiberG: d.macros.fiber,
       },
       macrosAreEstimate: false,
+      rdVerified: d.rdVerified,
+      rdNote: d.rdNote ?? null,
+      prepTime: d.prepTime,
+      glycaemicIndex: d.glycaemicIndex,
+      sugarPerServing: d.sugarPerServing,
+      ingredients: d.ingredients.length > 0 ? d.ingredients : null,
+      customizations:
+        d.customizations.length > 0 ? d.customizations : null,
+      pairingSlug: d.pairingSlug ?? null,
     } as const;
 
     const result = await db
@@ -46,6 +56,15 @@ async function main() {
           longDescription: sql`coalesce(${menuItemsTable.longDescription}, excluded.long_description)`,
           allergens: sql`coalesce(${menuItemsTable.allergens}, excluded.allergens)`,
           imageUrl: sql`coalesce(${menuItemsTable.imageUrl}, excluded.image_url)`,
+          rdVerified: sql`excluded.rd_verified`,
+          rdNote: sql`coalesce(${menuItemsTable.rdNote}, excluded.rd_note)`,
+          prepTime: sql`coalesce(${menuItemsTable.prepTime}, excluded.prep_time)`,
+          glycaemicIndex: sql`coalesce(${menuItemsTable.glycaemicIndex}, excluded.glycaemic_index)`,
+          sugarPerServing: sql`coalesce(${menuItemsTable.sugarPerServing}, excluded.sugar_per_serving)`,
+          ingredients: sql`coalesce(${menuItemsTable.ingredients}, excluded.ingredients)`,
+          customizations: sql`coalesce(${menuItemsTable.customizations}, excluded.customizations)`,
+          pairingSlug: sql`coalesce(${menuItemsTable.pairingSlug}, excluded.pairing_slug)`,
+          macros: sql`case when ${menuItemsTable.macros} is null then excluded.macros when (${menuItemsTable.macros} ? 'fiberG') then ${menuItemsTable.macros} else ${menuItemsTable.macros} || jsonb_build_object('fiberG', excluded.macros->'fiberG') end`,
         },
       })
       .returning({ id: menuItemsTable.id, createdAt: menuItemsTable.createdAt });

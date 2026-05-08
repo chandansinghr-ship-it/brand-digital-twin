@@ -45,8 +45,27 @@ export const menuItemsTable = pgTable(
       proteinG: number;
       carbsG: number;
       fatG: number;
+      fiberG?: number;
     } | null>(),
     macrosAreEstimate: boolean("macros_are_estimate").notNull().default(true),
+    rdVerified: boolean("rd_verified").notNull().default(false),
+    rdNote: text("rd_note"),
+    prepTime: varchar("prep_time", { length: 64 }),
+    glycaemicIndex: varchar("glycaemic_index", { length: 16 }),
+    sugarPerServing: varchar("sugar_per_serving", { length: 64 }),
+    ingredients: jsonb("ingredients").$type<string[]>(),
+    customizations: jsonb("customizations").$type<
+      Array<{
+        groupName: string;
+        type: "single" | "multiple";
+        options: Array<{
+          name: string;
+          priceModifier: number;
+          default?: boolean;
+        }>;
+      }>
+    >(),
+    pairingSlug: varchar("pairing_slug", { length: 128 }),
     copyGeneratedAt: timestamp("copy_generated_at", { withTimezone: true }),
     copyGeneratedBy: varchar("copy_generated_by", { length: 64 }),
     unavailableReason: text("unavailable_reason"),
