@@ -18,6 +18,7 @@ import { toast } from "sonner";
 import { formatCurrency } from "@/lib/utils";
 import DecisionsTable from "@/components/ops/DecisionsTable";
 import EtaAccuracyPanel from "@/components/ops/EtaAccuracyPanel";
+import DispatchPanel from "@/components/ops/DispatchPanel";
 import {
   Send,
   Bot,
@@ -418,6 +419,8 @@ export default function AdminOpsDashboard() {
         </Card>
 
         <EtaAccuracyPanel />
+
+        <DispatchPanel />
 
         <Card>
           <CardHeader className="pb-2">

@@ -48,6 +48,26 @@ const orderPipelineProcessor: Processor<OrderPipelineJob> = async (job) => {
   await db.insert(deliveryEventsTable).values({ orderId, event: eventName });
   await db.update(ordersTable).set({ status: step }).where(eq(ordersTable.id, orderId));
   logger.info({ orderId, step }, "order pipeline step advanced");
+  // Auto-run smart dispatch when an order becomes ready and has no rider yet.
+  if (step === "ready") {
+    try {
+      const [order] = await db
+        .select({ riderId: ordersTable.riderId })
+        .from(ordersTable)
+        .where(eq(ordersTable.id, orderId))
+        .limit(1);
+      if (order && order.riderId == null) {
+        const { dispatchOrder } = await import("./dispatch");
+        const result = await dispatchOrder(orderId, { allowBatch: true });
+        logger.info(
+          { orderId, riderId: result.riderId, batched: result.batched },
+          "auto-dispatch on ready",
+        );
+      }
+    } catch (err) {
+      logger.error({ err, orderId }, "auto-dispatch failed");
+    }
+  }
   // Auto-log nutrition for the user's wellness dashboard on delivery.
   if (step === "delivered") {
     try {

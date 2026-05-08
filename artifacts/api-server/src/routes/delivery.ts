@@ -11,6 +11,13 @@ import {
   etaAccuracyByZone,
   maybeRecordDeliveredFromEvent,
 } from "../lib/etaModel";
+import {
+  dispatchOrder,
+  dispatchReadyOrders,
+  overrideAssignment,
+  dispatchComparison,
+  recentDispatchDecisions,
+} from "../lib/dispatch";
 
 const router: IRouter = Router();
 
@@ -225,6 +232,106 @@ function resolveOps(req: Request): boolean {
   if (req.isAuthenticated() && allowlist.includes(req.user.id)) return true;
   return false;
 }
+
+// ─── Smart dispatch & batching ─────────────────────────────────────────────
+
+const dispatchBody = z.object({
+  orderId: z.number().int().positive(),
+  allowBatch: z.boolean().optional(),
+  notes: z.string().max(256).optional(),
+});
+
+router.post("/delivery/dispatch", async (req: Request, res: Response) => {
+  if (!resolveOps(req)) {
+    res.status(403).json({ error: "ops scope required" });
+    return;
+  }
+  const parsed = dispatchBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: "invalid payload" });
+    return;
+  }
+  const result = await dispatchOrder(parsed.data.orderId, {
+    operatorId: req.user?.id ?? "ops_token",
+    allowBatch: parsed.data.allowBatch ?? true,
+    notes: parsed.data.notes ?? null,
+  });
+  if (!result.ok) {
+    res.status(409).json(result);
+    return;
+  }
+  res.json(result);
+});
+
+router.post("/delivery/dispatch/run", async (req: Request, res: Response) => {
+  if (!resolveOps(req)) {
+    res.status(403).json({ error: "ops scope required" });
+    return;
+  }
+  const out = await dispatchReadyOrders({
+    operatorId: req.user?.id ?? null,
+  });
+  res.json(out);
+});
+
+const overrideBody = z.object({
+  orderId: z.number().int().positive(),
+  riderId: z.number().int().positive(),
+  notes: z.string().max(256).optional(),
+});
+
+router.post(
+  "/delivery/dispatch/override",
+  async (req: Request, res: Response) => {
+    if (!resolveOps(req)) {
+      res.status(403).json({ error: "ops scope required" });
+      return;
+    }
+    const parsed = overrideBody.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: "invalid payload" });
+      return;
+    }
+    const operatorId = req.user?.id ?? "ops_token";
+    const out = await overrideAssignment({
+      orderId: parsed.data.orderId,
+      riderId: parsed.data.riderId,
+      operatorId,
+      notes: parsed.data.notes,
+    });
+    if (!out.ok) {
+      res.status(409).json(out);
+      return;
+    }
+    res.json(out);
+  },
+);
+
+router.get(
+  "/delivery/dispatch/decisions",
+  async (req: Request, res: Response) => {
+    if (!resolveOps(req)) {
+      res.status(403).json({ error: "ops scope required" });
+      return;
+    }
+    const limit = parseInt(String(req.query.limit ?? "20"), 10) || 20;
+    const rows = await recentDispatchDecisions(limit);
+    res.json({ rows });
+  },
+);
+
+router.get(
+  "/delivery/dispatch/comparison",
+  async (req: Request, res: Response) => {
+    if (!resolveOps(req)) {
+      res.status(403).json({ error: "ops scope required" });
+      return;
+    }
+    const sinceDays = parseInt(String(req.query.sinceDays ?? "14"), 10) || 14;
+    const rows = await dispatchComparison({ sinceDays });
+    res.json({ rows, sinceDays });
+  },
+);
 
 router.get("/delivery/eta/accuracy/by-zone", async (req: Request, res: Response) => {
   if (!resolveOps(req)) {

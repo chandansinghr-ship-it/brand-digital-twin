@@ -12,6 +12,7 @@ import { defineTool } from "../tools";
 import { registerAgent } from "../agentRegistry";
 import { recordOpsAction } from "../../opsAudit";
 import { emitDeliveryEvent } from "../../realtime";
+import { dispatchOrder, overrideAssignment } from "../../dispatch";
 
 const REFUND_CONFIRM_THRESHOLD_PAISE = 50_000;
 const ALLOWED_ORDER_STATUSES = [
@@ -419,16 +420,80 @@ const getLiveQueue = defineTool({
   },
 });
 
+const smartDispatchOrder = defineTool({
+  name: "smart_dispatch_order",
+  description:
+    "Run smart dispatch on a single order: scores online riders by distance, load, and rating, batches with a nearby drop when eligible, and persists a decision row alongside a naive nearest-rider baseline. ALWAYS provide `reasoning`.",
+  inputSchema: z.object({
+    orderId: z.number().int().positive(),
+    allowBatch: z.boolean().default(true),
+    reasoning: z.string().min(3).describe("Agent's rationale."),
+  }),
+  authScope: "ops",
+  handler: async ({ orderId, allowBatch, reasoning }, ctx) => {
+    const result = await dispatchOrder(orderId, {
+      operatorId: ctx.userId,
+      allowBatch,
+      notes: reasoning,
+    });
+    if (!result.ok) {
+      return { success: false as const, error: result.reason ?? "dispatch failed" };
+    }
+    return {
+      success: true as const,
+      orderId: result.orderId,
+      riderId: result.riderId,
+      batched: result.batched,
+      breakdown: result.breakdown,
+      baseline: result.baseline,
+    };
+  },
+});
+
+const overrideDispatch = defineTool({
+  name: "override_dispatch",
+  description:
+    "Manually override a smart dispatch decision and force-assign an order to a specific rider. Destructive — requires confirm: true. ALWAYS provide `reasoning`.",
+  inputSchema: z.object({
+    orderId: z.number().int().positive(),
+    riderId: z.number().int().positive(),
+    confirm: z.boolean().default(false),
+    reasoning: z.string().min(3),
+  }),
+  authScope: "ops",
+  handler: async ({ orderId, riderId, confirm, reasoning }, ctx) => {
+    if (!confirm) {
+      return {
+        success: false as const,
+        requiresConfirmation: true,
+        error: "Set confirm: true to override the dispatch.",
+      };
+    }
+    const out = await overrideAssignment({
+      orderId,
+      riderId,
+      operatorId: ctx.userId ?? "ops_agent",
+      notes: reasoning,
+    });
+    if (!out.ok) {
+      return { success: false as const, error: out.reason ?? "override failed" };
+    }
+    return { success: true as const, orderId, riderId };
+  },
+});
+
 registerAgent({
   name: "ops",
   description:
-    "Operator-facing agent for kitchen + dispatch (inventory 86s, rider assignment, order status, refunds, live queue).",
+    "Operator-facing agent for kitchen + dispatch (inventory 86s, rider assignment, smart dispatch & override, order status, refunds, live queue).",
   defaultModel: "gemini-2.5-flash",
   maxSteps: 6,
   systemPrompt: OPS_PROMPT,
   tools: [
     updateAvailability,
     assignRider,
+    smartDispatchOrder,
+    overrideDispatch,
     updateOrderStatus,
     refundOrder,
     getLiveQueue,
