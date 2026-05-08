@@ -224,7 +224,14 @@ export function computeTotals(days: MealPlanDay[]): MealPlanTotals {
 }
 
 export interface ConstraintViolation {
-  kind: "allergen" | "diet" | "repetition" | "budget" | "missing-dish";
+  kind:
+    | "allergen"
+    | "diet"
+    | "repetition"
+    | "budget"
+    | "missing-dish"
+    | "calories"
+    | "protein";
   message: string;
   dishId?: number;
 }
@@ -240,7 +247,12 @@ export function validatePlan(
   const violations: ConstraintViolation[] = [];
   const counts = new Map<number, number>();
   let total = 0;
+  // Per-day macro tolerance: allow ±15% drift around the target so a
+  // realistic catalog can still satisfy a precise calorie/protein goal.
+  const MACRO_TOLERANCE = 0.15;
   for (const day of days) {
+    let dayCalories = 0;
+    let dayProtein = 0;
     for (const slot of MEAL_SLOTS) {
       const entry = day[slot];
       if (!entry) {
@@ -272,6 +284,34 @@ export function validatePlan(
       }
       counts.set(dish.id, (counts.get(dish.id) ?? 0) + 1);
       total += entry.pricePaise;
+      dayCalories += entry.calories;
+      dayProtein += entry.protein;
+    }
+    if (constraints.dailyCalorieTarget !== null && constraints.dailyCalorieTarget > 0) {
+      const target = constraints.dailyCalorieTarget;
+      const lo = target * (1 - MACRO_TOLERANCE);
+      const hi = target * (1 + MACRO_TOLERANCE);
+      if (dayCalories < lo || dayCalories > hi) {
+        violations.push({
+          kind: "calories",
+          message: `${day.date} calories ${dayCalories} outside target ${target} (±${Math.round(MACRO_TOLERANCE * 100)}%)`,
+        });
+      }
+    }
+    if (
+      constraints.dailyProteinTargetGrams !== null &&
+      constraints.dailyProteinTargetGrams > 0
+    ) {
+      const target = constraints.dailyProteinTargetGrams;
+      // Protein has a one-sided floor: hitting more than the target is
+      // generally fine for the goals we support, but falling significantly
+      // short is a real plan failure.
+      if (dayProtein < target * (1 - MACRO_TOLERANCE)) {
+        violations.push({
+          kind: "protein",
+          message: `${day.date} protein ${dayProtein}g below target ${target}g`,
+        });
+      }
     }
   }
   for (const [dishId, c] of counts) {
@@ -619,6 +659,23 @@ export async function generateWeeklyPlan(
         notes.push("model_violation_patched");
       }
     }
+  }
+
+  // Final guarantee: never persist a partial or constraint-violating plan.
+  // Greedy can leave a slot empty when its candidate pool is exhausted —
+  // surface that as an explicit failure rather than saving a half-built
+  // week the UI would have to render around.
+  const finalViolations = validatePlan(days, constraints);
+  const allSlotsFilled =
+    days.length === 7 &&
+    days.every((d) => d.breakfast != null && d.lunch != null && d.dinner != null);
+  if (!allSlotsFilled || finalViolations.length > 0) {
+    const err = new Error(
+      "could not produce a complete, constraint-satisfying weekly plan",
+    ) as Error & { violations: ConstraintViolation[]; status: number };
+    err.violations = finalViolations;
+    err.status = 422;
+    throw err;
   }
 
   const totals = computeTotals(days);

@@ -606,12 +606,20 @@ function DayCard({
                   <div className="text-xs text-clinical-zinc">
                     {SLOT_LABEL[slot]}
                   </div>
-                  <div className="text-clinical-cream text-sm font-medium truncate">
-                    {entry.name}
-                  </div>
-                  <div className="text-xs text-clinical-zinc">
-                    {entry.calories} kcal · {entry.protein}g · {formatPaise(entry.pricePaise)}
-                  </div>
+                  {entry ? (
+                    <>
+                      <div className="text-clinical-cream text-sm font-medium truncate">
+                        {entry.name}
+                      </div>
+                      <div className="text-xs text-clinical-zinc">
+                        {entry.calories} kcal · {entry.protein}g · {formatPaise(entry.pricePaise)}
+                      </div>
+                    </>
+                  ) : (
+                    <div className="text-xs text-clinical-amber italic">
+                      No dish picked — try Swap or Regen
+                    </div>
+                  )}
                 </div>
                 {editable ? (
                   <Button

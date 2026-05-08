@@ -286,6 +286,14 @@ router.post("/meal-plans/generate", async (req: Request, res: Response) => {
       .returning();
     res.status(201).json({ plan, usedFallback: result.usedFallback });
   } catch (err) {
+    const e = err as Error & { status?: number; violations?: unknown };
+    if (e.status === 422) {
+      req.log.warn({ err }, "meal-plan generate produced no valid plan");
+      res
+        .status(422)
+        .json({ error: "could not produce a valid plan", violations: e.violations ?? [] });
+      return;
+    }
     req.log.error({ err }, "meal-plan generate failed");
     res.status(500).json({ error: "generation failed" });
   }
