@@ -4,8 +4,9 @@ import { extractWeeklyVoc } from "./voc";
 import { publishWbr } from "./wbrPublisher";
 
 // Day-of-week to publish the WBR (0=Sun, 1=Mon ...). Default Monday.
+// Idempotency is enforced in the DB via wbr_reports.published_at, so a
+// process restart on Monday will not republish.
 const PUBLISH_DOW = Number(process.env["WBR_PUBLISH_DOW"] ?? 1);
-let lastPublishedWeek: string | null = null;
 
 // Runs WBR + VoC once per day; the WBR/VoC code itself is idempotent
 // (upsert by week_start), so multiple ticks in the same week are safe.
@@ -24,14 +25,12 @@ async function tick(): Promise<void> {
     const week = lastFullWeek();
     const wbr = await generateWbr(week);
     const themes = await extractWeeklyVoc(week.weekStart, week.weekEnd);
-    // Publish at most once per ISO week, on the configured DOW. Idempotent
-    // via lastPublishedWeek so multiple ticks the same Monday don't spam.
-    let published: { delivered: boolean; channel: string } | null = null;
-    const now = new Date();
-    const weekKey = week.weekStart.toISOString().slice(0, 10);
-    if (now.getUTCDay() === PUBLISH_DOW && lastPublishedWeek !== weekKey) {
+    // Publish at most once per ISO week, on the configured DOW. publishWbr
+    // is idempotent via wbr_reports.published_at so multiple ticks the same
+    // Monday — or a process restart on Monday — never duplicate the post.
+    let published: { delivered: boolean; channel: string; alreadyPublished: boolean } | null = null;
+    if (new Date().getUTCDay() === PUBLISH_DOW) {
       published = await publishWbr(wbr);
-      lastPublishedWeek = weekKey;
     }
     logger.info(
       {

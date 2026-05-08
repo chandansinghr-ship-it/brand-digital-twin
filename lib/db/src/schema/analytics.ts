@@ -64,6 +64,8 @@ export const wbrReportsTable = pgTable(
     }>(),
     commentary: text("commentary").notNull(),
     modelId: varchar("model_id", { length: 64 }),
+    publishedAt: timestamp("published_at", { withTimezone: true }),
+    publishChannel: varchar("publish_channel", { length: 32 }),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),

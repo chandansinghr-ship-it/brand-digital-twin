@@ -82,7 +82,10 @@ interface ModelTheme {
   theme: string;
   sentiment: "positive" | "negative" | "mixed";
   summary: string;
-  exampleIndices: number[];
+  // All document indices assigned to this theme. The first few are used as
+  // example quotes; the length is the true mention count for ranking and
+  // week-over-week trends.
+  memberIndices: number[];
 }
 
 function extractJson(s: string): unknown {
@@ -115,9 +118,9 @@ function templateClusters(docs: SourceDoc[]): ModelTheme[] {
     .filter(([, ix]) => ix.length > 0)
     .map(([theme, ix]) => ({
       theme,
-      sentiment: theme === "Delivery & timing" || theme === "Pricing & value" ? "mixed" : "mixed",
+      sentiment: "mixed" as const,
       summary: `${ix.length} mentions in this theme.`,
-      exampleIndices: ix.slice(0, 2),
+      memberIndices: ix,
     }));
 }
 
@@ -125,7 +128,7 @@ async function clusterWithAI(docs: SourceDoc[]): Promise<ModelTheme[]> {
   const numbered = docs
     .map((d, i) => `[${i}] (${d.source}${d.rating ? ` ${d.rating}★` : ""}) ${d.body.replace(/\s+/g, " ").slice(0, 240)}`)
     .join("\n");
-  const prompt = `You are mining voice-of-customer signal for a wellness food brand. Below are ${docs.length} customer messages from this past week. Cluster them into 3-7 actionable themes.\n\nFor each theme return:\n- theme: short title\n- sentiment: "positive" | "negative" | "mixed"\n- summary: one sentence with concrete insight\n- exampleIndices: array of 1-3 message indices that best illustrate the theme\n\nReturn STRICT JSON array only, no prose.\n\nMessages:\n${numbered}`;
+  const prompt = `You are mining voice-of-customer signal for a wellness food brand. Below are ${docs.length} customer messages from this past week. Cluster them into 3-7 actionable themes.\n\nEvery message MUST be assigned to exactly one theme. For each theme return:\n- theme: short title\n- sentiment: "positive" | "negative" | "mixed"\n- summary: one sentence with concrete insight\n- memberIndices: array of ALL message indices belonging to this theme (this is used to count mentions and trend the theme week over week, so be exhaustive — do not just list a couple of examples)\n\nReturn STRICT JSON array only, no prose.\n\nMessages:\n${numbered}`;
   try {
     const { text } = await generateText({
       model: getModel(DEFAULT_MODEL_ID),
@@ -136,8 +139,24 @@ async function clusterWithAI(docs: SourceDoc[]): Promise<ModelTheme[]> {
     const parsed = extractJson(text);
     if (!Array.isArray(parsed)) throw new Error("not array");
     const out: ModelTheme[] = [];
-    for (const t of parsed as Array<Partial<ModelTheme>>) {
+    const seen = new Set<number>();
+    for (const t of parsed as Array<Partial<ModelTheme> & { exampleIndices?: number[] }>) {
       if (!t.theme || typeof t.theme !== "string") continue;
+      // Accept both `memberIndices` (preferred) and the older
+      // `exampleIndices` shape so we don't undercount on schema drift.
+      const raw = Array.isArray(t.memberIndices)
+        ? t.memberIndices
+        : Array.isArray(t.exampleIndices)
+          ? t.exampleIndices
+          : [];
+      const members = raw
+        .filter((n): n is number => typeof n === "number" && Number.isInteger(n))
+        .filter((n) => n >= 0 && n < docs.length)
+        .filter((n) => {
+          if (seen.has(n)) return false;
+          seen.add(n);
+          return true;
+        });
       out.push({
         theme: t.theme.slice(0, 120),
         sentiment:
@@ -145,12 +164,14 @@ async function clusterWithAI(docs: SourceDoc[]): Promise<ModelTheme[]> {
             ? t.sentiment
             : "mixed",
         summary: typeof t.summary === "string" ? t.summary : "",
-        exampleIndices: Array.isArray(t.exampleIndices)
-          ? t.exampleIndices.filter((n) => typeof n === "number")
-          : [],
+        memberIndices: members,
       });
     }
-    if (out.length > 0) return out;
+    // If the model produced themes but every doc was unassigned, fall back
+    // to keyword clustering so mention counts are still meaningful.
+    if (out.length > 0 && out.some((t) => t.memberIndices.length > 0)) {
+      return out;
+    }
   } catch (err) {
     logger.warn({ err }, "voc clustering AI failed; using template");
   }
@@ -169,11 +190,13 @@ export async function extractWeeklyVoc(weekStart?: Date, weekEnd?: Date): Promis
   // Persist by upsert so re-running the same week refreshes.
   const inserted: VocTheme[] = [];
   for (const t of themes) {
-    const examples = t.exampleIndices
+    if (t.memberIndices.length === 0) continue;
+    const examples = t.memberIndices
+      .slice(0, 3)
       .map((i) => docs[i])
       .filter((d): d is SourceDoc => Boolean(d))
       .map((d) => ({ source: d.source, body: d.body.slice(0, 280) }));
-    const mentionCount = t.exampleIndices.length;
+    const mentionCount = t.memberIndices.length;
     const [row] = await db
       .insert(vocThemesTable)
       .values({

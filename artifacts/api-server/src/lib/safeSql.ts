@@ -114,11 +114,25 @@ export const SAFE_SCHEMA: SafeTable[] = [
 
 const ALLOWED_TABLE_NAMES = new Set(SAFE_SCHEMA.map((t) => t.name));
 
-const FORBIDDEN_TOKENS = [
-  "insert ", "update ", "delete ", "drop ", "alter ", "create ",
-  "truncate ", "grant ", "revoke ", "copy ", "vacuum ", "analyze ",
-  "comment ", " set ", "reset ", "do ", "call ", "merge ", "with recursive",
+// Substring tokens that are unambiguous DDL/DML markers regardless of
+// surrounding context. We deliberately do NOT include single English words
+// that are also legitimate column names (e.g. "comment") — those are
+// handled by the per-keyword regex list below which only matches when the
+// word starts a SQL statement form, not a column reference.
+const FORBIDDEN_SUBSTRINGS = [
   "pg_", "information_schema", ";--", "/*", "*/", "\\copy", "lo_",
+];
+const FORBIDDEN_LEADING_KEYWORDS = [
+  "insert", "update", "delete", "drop", "alter", "create", "truncate",
+  "grant", "revoke", "copy", "vacuum", "analyze", "reset", "do", "call",
+  "merge", "set",
+];
+// `comment on ...` is the SQL DDL we want to block; the bare word `comment`
+// is a valid column name in safe_nps_responses, so we only refuse the
+// statement form.
+const FORBIDDEN_PHRASES = [
+  /\bcomment\s+on\b/,
+  /\bwith\s+recursive\b/,
 ];
 
 const MAX_ROWS = 500;
@@ -149,9 +163,26 @@ export function validateSafeSql(sqlIn: string): string {
     throw new UnsafeSqlError("only SELECT queries are allowed");
   }
   const stripped = stripStringLiterals(sql).toLowerCase();
-  for (const tok of FORBIDDEN_TOKENS) {
+  for (const tok of FORBIDDEN_SUBSTRINGS) {
     if (stripped.includes(tok)) {
       throw new UnsafeSqlError(`forbidden token: ${tok.trim()}`);
+    }
+  }
+  for (const re of FORBIDDEN_PHRASES) {
+    if (re.test(stripped)) {
+      throw new UnsafeSqlError(`forbidden statement form: ${re.source}`);
+    }
+  }
+  // Tokenize once and check if any DDL/DML keyword starts a statement.
+  // Statement starts are: index 0, or the position right after `;` (already
+  // rejected), or right after `)` followed by a leading keyword. Since we
+  // already require the query to start with SELECT and disallow `;`, a
+  // forbidden leading keyword can only appear inside a subquery — which is
+  // also disallowed (e.g. `select * from safe_orders where exists (delete ...)`).
+  for (const kw of FORBIDDEN_LEADING_KEYWORDS) {
+    const re = new RegExp(`(^|[\\s(])${kw}\\b`);
+    if (re.test(stripped)) {
+      throw new UnsafeSqlError(`forbidden keyword: ${kw}`);
     }
   }
   // Column-level safety is enforced by the DB itself: queries are only

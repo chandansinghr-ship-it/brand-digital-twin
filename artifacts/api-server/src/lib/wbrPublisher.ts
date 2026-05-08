@@ -1,5 +1,6 @@
+import { eq } from "drizzle-orm";
+import { db, wbrReportsTable, type WbrReport } from "@workspace/db";
 import { logger } from "./logger";
-import type { WbrReport } from "@workspace/db";
 
 // Posts a weekly business review to the leadership channel. Slack incoming
 // webhook is the simplest sink; if no URL is configured we still log a
@@ -41,30 +42,54 @@ function buildSlackBlocks(report: WbrReport): unknown {
   };
 }
 
+export interface PublishResult {
+  delivered: boolean;
+  channel: "slack" | "log";
+  alreadyPublished: boolean;
+}
+
 export async function publishWbr(
   report: WbrReport,
-): Promise<{ delivered: boolean; channel: "slack" | "log" }> {
+  opts: { force?: boolean } = {},
+): Promise<PublishResult> {
+  // Persistent idempotency: if this report already has a publishedAt
+  // marker, do nothing unless the caller explicitly forces a re-send.
+  // Survives process restarts (the previous in-memory de-dupe did not).
+  if (report.publishedAt && !opts.force) {
+    return { delivered: false, channel: (report.publishChannel as "slack" | "log") ?? "log", alreadyPublished: true };
+  }
   const url = process.env["WBR_SLACK_WEBHOOK_URL"];
   const payload = buildSlackBlocks(report);
+  let delivered = false;
+  let channel: "slack" | "log" = "log";
   if (!url) {
-    logger.info({ wbrId: report.id, payload }, "wbr publish skipped (no webhook configured)");
-    return { delivered: false, channel: "log" };
-  }
-  try {
-    const resp = await fetch(url, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    });
-    if (!resp.ok) {
-      const body = await resp.text().catch(() => "");
-      logger.error({ status: resp.status, body }, "wbr slack publish failed");
-      return { delivered: false, channel: "slack" };
+    logger.info({ wbrId: report.id, payload }, "wbr publish: no webhook configured, recording log marker");
+    channel = "log";
+  } else {
+    channel = "slack";
+    try {
+      const resp = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      if (!resp.ok) {
+        const body = await resp.text().catch(() => "");
+        logger.error({ status: resp.status, body }, "wbr slack publish failed");
+        return { delivered: false, channel: "slack", alreadyPublished: false };
+      }
+      delivered = true;
+      logger.info({ wbrId: report.id }, "wbr published to slack");
+    } catch (err) {
+      logger.error({ err }, "wbr slack publish threw");
+      return { delivered: false, channel: "slack", alreadyPublished: false };
     }
-    logger.info({ wbrId: report.id }, "wbr published to slack");
-    return { delivered: true, channel: "slack" };
-  } catch (err) {
-    logger.error({ err }, "wbr slack publish threw");
-    return { delivered: false, channel: "slack" };
   }
+  // Record successful delivery (or the log-only fallback) so subsequent
+  // ticks in the same week skip this report.
+  await db
+    .update(wbrReportsTable)
+    .set({ publishedAt: new Date(), publishChannel: channel })
+    .where(eq(wbrReportsTable.id, report.id));
+  return { delivered, channel, alreadyPublished: false };
 }
