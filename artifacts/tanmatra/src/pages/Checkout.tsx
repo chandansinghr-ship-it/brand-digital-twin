@@ -334,7 +334,10 @@ export default function Checkout() {
           }
         }
       }
-      // Add delivery + tip on top of the server-validated meal total.
+      // Add delivery + tip on top of the server-validated meal total. The
+      // server's finalPaise already nets out bundle, pickup, preorder, and
+      // credit redemptions (see loyaltyEngine.finalizeOrder), so we must
+      // NOT subtract preorder/pickup again here — that would double-discount.
       finalTotal = out.finalPaise + deliveryFee + effectiveTip;
       setCreditBalance(out.balancePaise);
       referralAwarded = out.referral.awarded;
@@ -355,8 +358,17 @@ export default function Checkout() {
       }
     } catch (err) {
       const msg = String((err as Error).message);
+      // loyaltyApi.request() throws Error(`${status}: ${text}`); parse the
+      // status prefix exactly so a future error body containing the digits
+      // "401" or "403" can never get misclassified as auth/premium.
+      const statusMatch = /^(\d{3}):/.exec(msg);
+      const status = statusMatch ? Number(statusMatch[1]) : 0;
+      const scrollToFulfillment = () => {
+        document
+          .getElementById("checkout-fulfillment")
+          ?.scrollIntoView({ behavior: "smooth", block: "start" });
+      };
       if (msg.includes("delivery slot full")) {
-        toast.error("That delivery slot is full — please pick another window");
         try {
           const r = await fulfillmentApi.listSlots();
           setSlots(r.slots);
@@ -364,10 +376,44 @@ export default function Checkout() {
           /* noop */
         }
         setSelectedSlotId(null);
+        toast.error("That delivery slot is full", {
+          description: "Pick another delivery window to continue.",
+          action: { label: "Pick a slot", onClick: scrollToFulfillment },
+        });
       } else if (msg.includes("delivery slot required")) {
-        toast.error("Please pick a delivery window before placing the order");
-      } else if (msg.includes("pickup location required") || msg.includes("pickup location unavailable")) {
-        toast.error("Please choose a pickup partner to continue");
+        toast.error("Please pick a delivery window before placing the order", {
+          action: { label: "Pick a slot", onClick: scrollToFulfillment },
+        });
+      } else if (
+        msg.includes("pickup location required") ||
+        msg.includes("pickup location unavailable")
+      ) {
+        toast.error("Please choose a pickup partner to continue", {
+          action: { label: "Choose pickup", onClick: scrollToFulfillment },
+        });
+      } else if (status === 401) {
+        // Session expired mid-checkout. Cart is preserved in localStorage
+        // (Zustand persist key tanmatra:cart:v1), so /login?next=/checkout
+        // will drop the user back here ready to retry.
+        toast.error("Your session expired — sign in to finish your order", {
+          description: "We've kept your cart safe.",
+          action: {
+            label: "Sign in",
+            onClick: () => navigate("/login?next=/checkout"),
+          },
+        });
+      } else if (
+        status === 403 ||
+        msg.includes("premium membership required")
+      ) {
+        toast.error("This order includes a Premium-only dish", {
+          description:
+            "Join Tanmatra Premium to unlock chef-table dishes and finish checkout.",
+          action: {
+            label: "See Premium",
+            onClick: () => navigate("/premium"),
+          },
+        });
       } else {
         toast.error("Could not finalize order — please try again");
       }
@@ -560,7 +606,10 @@ export default function Checkout() {
           </CardContent>
         </Card>
 
-        <Card className="bg-clinical-surface border-clinical-slate/20">
+        <Card
+          id="checkout-fulfillment"
+          className="bg-clinical-surface border-clinical-slate/20 scroll-mt-24"
+        >
           <CardContent className="p-5 space-y-4">
             <div className="flex items-center gap-2">
               <Truck className="w-4 h-4 text-clinical-gold" />
