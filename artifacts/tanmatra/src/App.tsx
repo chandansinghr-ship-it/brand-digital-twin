@@ -54,6 +54,7 @@ import RdPartnersLanding from "@/pages/RdPartnersLanding";
 import RdPartnersWizard from "@/pages/RdPartnersWizard";
 import AdminRdApplications from "@/pages/AdminRdApplications";
 import AdminCommunityModeration from "@/pages/AdminCommunityModeration";
+import AdminModeration from "@/pages/AdminModeration";
 import GroupOrder from "@/pages/GroupOrder";
 import Recipes from "@/pages/Recipes";
 import RecipeDetail from "@/pages/RecipeDetail";
@@ -227,6 +228,14 @@ export default function App() {
                     <Route path="/group/:code" element={<GroupOrder />} />
                     <Route path="/recipes" element={<Recipes />} />
                     <Route path="/recipes/:slug" element={<RecipeDetail />} />
+                    <Route
+                      path="/admin/moderation"
+                      element={
+                        <AdminGate>
+                          <AdminModeration />
+                        </AdminGate>
+                      }
+                    />
                     <Route
                       path="/admin/community-moderation"
                       element={

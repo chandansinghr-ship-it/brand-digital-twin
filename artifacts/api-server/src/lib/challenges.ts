@@ -123,6 +123,57 @@ export async function listPosts(
   }));
 }
 
+export interface PostForModeration {
+  id: number;
+  challengeId: number;
+  challengeSlug: string;
+  challengeTitle: string;
+  authorName: string;
+  body: string;
+  hidden: number;
+  createdAt: Date;
+}
+
+export async function listPostsForModeration(
+  limit = 100,
+): Promise<PostForModeration[]> {
+  const rows = await db
+    .select({
+      post: challengePostsTable,
+      challengeSlug: challengesTable.slug,
+      challengeTitle: challengesTable.title,
+    })
+    .from(challengePostsTable)
+    .innerJoin(
+      challengesTable,
+      eq(challengesTable.id, challengePostsTable.challengeId),
+    )
+    .orderBy(desc(challengePostsTable.createdAt))
+    .limit(Math.max(1, Math.min(500, limit)));
+  return rows.map((r) => ({
+    id: r.post.id,
+    challengeId: r.post.challengeId,
+    challengeSlug: r.challengeSlug,
+    challengeTitle: r.challengeTitle,
+    authorName: r.post.authorName || "Member",
+    body: r.post.body,
+    hidden: r.post.hidden,
+    createdAt: r.post.createdAt,
+  }));
+}
+
+export async function setPostHidden(
+  id: number,
+  hidden: boolean,
+): Promise<ChallengePost | null> {
+  const [row] = await db
+    .update(challengePostsTable)
+    .set({ hidden: hidden ? 1 : 0 })
+    .where(eq(challengePostsTable.id, id))
+    .returning();
+  return row ?? null;
+}
+
 export async function createPost(
   challengeId: number,
   userId: string,

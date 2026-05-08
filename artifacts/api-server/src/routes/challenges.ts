@@ -9,6 +9,8 @@ import {
   leaveChallenge,
   listChallenges,
   listPosts,
+  listPostsForModeration,
+  setPostHidden,
 } from "../lib/challenges";
 
 const router: IRouter = Router();
@@ -115,5 +117,68 @@ router.post("/challenges/:slug/posts", async (req: Request, res: Response) => {
     res.status(400).json({ error: msg });
   }
 });
+
+// ---- Admin: post moderation ------------------------------------------------
+
+function isAdminRequest(req: Request): boolean {
+  const expected = process.env["RD_ADMIN_TOKEN"];
+  if (expected) {
+    const header = req.header("x-admin-token");
+    if (header && header === expected) return true;
+  }
+  const session = (req as Request & { session?: { isAdmin?: boolean } })
+    .session;
+  return session?.isAdmin === true;
+}
+
+function requireAdmin(req: Request, res: Response): boolean {
+  if (!isAdminRequest(req)) {
+    res.status(403).json({ error: "admin required" });
+    return false;
+  }
+  return true;
+}
+
+router.get("/challenge-posts-mod", async (req: Request, res: Response) => {
+  if (!requireAdmin(req, res)) return;
+  const posts = await listPostsForModeration(200);
+  res.json({ posts });
+});
+
+router.post(
+  "/challenge-posts/:id/hide",
+  async (req: Request, res: Response) => {
+    if (!requireAdmin(req, res)) return;
+    const id = Number(req.params["id"]);
+    if (!Number.isFinite(id) || id <= 0) {
+      res.status(400).json({ error: "invalid id" });
+      return;
+    }
+    const row = await setPostHidden(id, true);
+    if (!row) {
+      res.status(404).json({ error: "not found" });
+      return;
+    }
+    res.json({ post: row });
+  },
+);
+
+router.post(
+  "/challenge-posts/:id/unhide",
+  async (req: Request, res: Response) => {
+    if (!requireAdmin(req, res)) return;
+    const id = Number(req.params["id"]);
+    if (!Number.isFinite(id) || id <= 0) {
+      res.status(400).json({ error: "invalid id" });
+      return;
+    }
+    const row = await setPostHidden(id, false);
+    if (!row) {
+      res.status(404).json({ error: "not found" });
+      return;
+    }
+    res.json({ post: row });
+  },
+);
 
 export default router;
