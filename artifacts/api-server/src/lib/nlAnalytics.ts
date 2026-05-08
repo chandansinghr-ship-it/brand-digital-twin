@@ -17,7 +17,10 @@ import {
 import { z } from "zod/v4";
 
 export const chartSpecSchema = z.object({
-  kind: z.enum(["bar", "line", "area", "table", "pie"]),
+  // Only kinds the analytics UI actually renders. `area` falls back to a
+  // line chart in ResultChart; `pie` is intentionally not in the schema
+  // because no renderer exists for it.
+  kind: z.enum(["bar", "line", "area", "table"]),
   xKey: z.string().min(1).max(64).optional(),
   yKey: z.string().min(1).max(64).optional(),
   seriesKey: z.string().min(1).max(64).optional(),
@@ -41,7 +44,7 @@ Rules:
 - Prefer aggregations and date_trunc for time series. Always alias output columns to short snake_case names.
 - Cast paise to rupees only if it improves readability; otherwise keep paise.
 - Limit results when sensible (e.g. top 20).
-- Pick a chart kind: "line"/"area" for time series, "bar" for categories, "pie" for parts of a whole, "table" otherwise.
+- Pick a chart kind: "line"/"area" for time series, "bar" for categories, "table" otherwise.
 Return STRICT JSON of shape:
 { "sql": "<select ...>", "chartSpec": {"kind": "...", "xKey": "...", "yKey": "...", "title": "..."}, "rationale": "<one sentence>" }`;
 

@@ -20,8 +20,9 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 const ADMIN_TOKEN_KEY = "tanmatra:admin-token:v1";
 
+type ChartKind = "bar" | "line" | "area" | "table";
 interface ChartSpec {
-  kind: "bar" | "line" | "area" | "table" | "pie";
+  kind: ChartKind;
   xKey?: string;
   yKey?: string;
   title?: string;
