@@ -471,6 +471,15 @@ async function provisionRdSlug(
   userId: string,
   fullName: string,
 ): Promise<string> {
+  // If this user already has an rd_users row, reuse it instead of
+  // colliding on the unique (user_id) constraint.
+  const existing = await db
+    .select({ rdSlug: rdUsersTable.rdSlug })
+    .from(rdUsersTable)
+    .where(eq(rdUsersTable.userId, userId))
+    .limit(1);
+  if (existing[0]) return existing[0].rdSlug;
+
   const base = slugifyName(fullName);
   for (let i = 0; i < 25; i++) {
     const candidate = i === 0 ? base : `${base}-${i + 1}`;

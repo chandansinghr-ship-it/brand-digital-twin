@@ -885,7 +885,18 @@ function StepDone({
         const j = (await res.json().catch(() => ({}))) as { error?: string };
         throw new Error(j.error ?? `HTTP ${res.status}`);
       }
+      const j = (await res.json().catch(() => ({}))) as {
+        rdSlug?: string | null;
+        provisioned?: boolean;
+      };
       setLinked(true);
+      void trackRdPartnersEvent("rd_account_created", {
+        applicationId: id,
+        extra: {
+          rdSlug: j.rdSlug ?? null,
+          provisioned: Boolean(j.provisioned),
+        },
+      });
       toast.success("Account attached");
     } catch (err) {
       toast.error("Could not attach", { description: (err as Error).message });
