@@ -849,8 +849,8 @@ function StepReview({ draft }: { draft: DraftState }) {
       )}
       <p className="text-[11px] text-clinical-zinc inline-flex items-start gap-1.5">
         <ShieldCheck className="w-3.5 h-3.5 text-clinical-sage mt-0.5" />
-        We use these details only for partner review. Read our{" "}
-        <Link to="/privacy" className="underline">privacy policy</Link>.
+        We use these details only for partner review and never share them with
+        third parties.
       </p>
     </div>
   );

@@ -186,11 +186,7 @@ export default function Premium() {
             Premium is operated directly by Tanmatra Health Technologies. RD
             consults are conducted by registered dietitians on our care team.
             Priority delivery is a kitchen-queue benefit — not a delivery-time
-            guarantee. See{" "}
-            <Link to="/terms" className="text-clinical-gold hover:underline">
-              terms
-            </Link>{" "}
-            for full details.
+            guarantee. Cancel anytime from your account.
           </p>
         </CardContent>
       </Card>

@@ -360,6 +360,14 @@ export default function CoachAgentWidget({
           >
             Online
           </Badge>
+          <button
+            type="button"
+            onClick={() => setIsOpen(false)}
+            aria-label="Close nutrition coach"
+            className="text-clinical-zinc hover:text-white p-1 -mr-1 rounded transition-colors"
+          >
+            <X className="w-4 h-4" />
+          </button>
         </div>
       </CardHeader>
 

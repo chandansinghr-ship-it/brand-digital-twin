@@ -424,9 +424,23 @@ export default function WeeklyPlanner() {
           {swapDialog?.loading ? (
             <p className="text-clinical-zinc text-center py-8">Loading…</p>
           ) : swapDialog && swapDialog.suggestions.length === 0 ? (
-            <p className="text-clinical-zinc text-center py-8">
-              No safe alternatives match your constraints.
-            </p>
+            <div className="text-center py-8 space-y-3">
+              <p className="text-clinical-zinc">
+                No safe alternatives match your constraints.
+              </p>
+              <Button
+                variant="outline"
+                size="sm"
+                className="border-clinical-gold/40 text-clinical-gold hover:bg-clinical-gold/10"
+                onClick={() => {
+                  setSwapDialog(null);
+                  setSettingsOpen(true);
+                }}
+              >
+                <Settings className="w-3.5 h-3.5 mr-1.5" />
+                Adjust plan settings
+              </Button>
+            </div>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-h-[60vh] overflow-y-auto">
               {swapDialog?.suggestions.map((s) => (

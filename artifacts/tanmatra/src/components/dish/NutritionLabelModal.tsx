@@ -1,6 +1,8 @@
 import {
   Dialog,
+  DialogClose,
   DialogContent,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
   DialogDescription,
@@ -212,6 +214,17 @@ export default function NutritionLabelModal({ dish }: Props) {
             </ul>
           </div>
         </div>
+
+        <DialogFooter className="pt-2">
+          <DialogClose asChild>
+            <Button
+              variant="outline"
+              className="border-clinical-slate/30 text-clinical-zinc hover:text-white"
+            >
+              Close
+            </Button>
+          </DialogClose>
+        </DialogFooter>
       </DialogContent>
     </Dialog>
   );

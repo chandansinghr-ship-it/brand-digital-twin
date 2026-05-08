@@ -245,10 +245,21 @@ export default function RdProfile() {
                 Pick a slot (next 14 days · IST)
               </p>
               {Object.keys(grouped).length === 0 ? (
-                <p className="text-xs text-clinical-zinc">
-                  No open slots in the next two weeks. Try a different session
-                  length or check back tomorrow.
-                </p>
+                <div className="space-y-3">
+                  <p className="text-xs text-clinical-zinc">
+                    No open slots in the next two weeks. Try a shorter session
+                    length, or browse other dietitians with availability.
+                  </p>
+                  <Link to="/rd">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="border-clinical-gold/40 text-clinical-gold hover:bg-clinical-gold/10"
+                    >
+                      Browse other dietitians
+                    </Button>
+                  </Link>
+                </div>
               ) : (
                 <div className="space-y-3 max-h-[360px] overflow-y-auto pr-1">
                   {Object.entries(grouped).map(([day, daySlots]) => (

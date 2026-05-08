@@ -724,7 +724,7 @@ export default function Home() {
           <p className="text-sm text-clinical-zinc max-w-md mx-auto">
             Take our 60-second metabolic assessment to receive a personalized nutrition plan calibrated to your BMR, TDEE, and clinical goals.
           </p>
-          <Link to="/health-quiz">
+          <Link to="/preferences">
             <Button className="bg-clinical-gold text-[#050505] hover:bg-clinical-gold/90 font-semibold gap-2 h-11 px-6 shadow-clinical-lg">
               <Activity className="w-4 h-4" />
               Start Assessment

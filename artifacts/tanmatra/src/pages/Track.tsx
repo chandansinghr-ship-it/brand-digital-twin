@@ -27,6 +27,7 @@ import {
   NotebookPen,
   Store,
   CalendarClock,
+  ArrowLeft,
 } from "lucide-react";
 import { fulfillmentApi, type PackagingReturnRow } from "@/lib/fulfillmentApi";
 
@@ -321,14 +322,18 @@ export default function Track() {
     <div className="max-w-2xl mx-auto p-4 space-y-5 animate-in fade-in duration-500">
       {/* Order header — IDs and times */}
       <div className="space-y-2">
+        <Link
+          to="/orders"
+          className="inline-flex items-center gap-1.5 text-xs text-clinical-zinc hover:text-clinical-gold"
+        >
+          <ArrowLeft className="w-3.5 h-3.5" />
+          Back to orders
+        </Link>
         <div className="flex items-center justify-between gap-3 flex-wrap">
           <div>
             <h1 className="text-2xl font-bold tracking-tight text-white">Track Order</h1>
             <p className="font-mono text-xs text-clinical-gold mt-1">{order.orderId}</p>
           </div>
-          <Link to="/orders" className="text-xs text-clinical-zinc hover:text-clinical-gold">
-            View all orders →
-          </Link>
         </div>
 
         <Card className="bg-clinical-surface border-clinical-slate/20">

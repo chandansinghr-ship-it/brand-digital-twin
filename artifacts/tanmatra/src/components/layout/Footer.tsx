@@ -15,13 +15,12 @@ const FOOTER_LINKS = {
     { label: "Clinical Protocol", href: "/clinical" },
   ],
   clinical: [
+    { label: "Health Assessment", href: "/preferences" },
+    { label: "Book a Dietitian", href: "/rd" },
+    { label: "Therapeutic Plans", href: "/plans" },
+    { label: "Recipes", href: "/recipes" },
+    { label: "Cohort Challenges", href: "/challenges" },
     { label: "For Dietitians", href: "/rd-partners" },
-    { label: "Health Assessment", href: "/health-quiz" },
-    { label: "Ops Dashboard", href: "/admin/ops" },
-    { label: "Menu Engineering", href: "/admin/menu-engineering" },
-    { label: "Analytics", href: "/admin/analytics" },
-    { label: "Support Inbox", href: "/admin/support-tickets" },
-    { label: "RD Applications", href: "/admin/rd-applications" },
   ],
 };
 

@@ -89,6 +89,19 @@ function AdminGate({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
+const RD_KEY = "tanmatra:rd:v1";
+
+function RdGate({ children }: { children: React.ReactNode }) {
+  const location = useLocation();
+  if (typeof window === "undefined") return null;
+  const rdFlag = window.localStorage.getItem(RD_KEY);
+  const adminFlag = window.localStorage.getItem(ADMIN_KEY);
+  if (rdFlag !== "1" && adminFlag !== "1") {
+    return <Navigate to={`/login?next=${encodeURIComponent(location.pathname)}`} replace />;
+  }
+  return <>{children}</>;
+}
+
 export default function App() {
   return (
     <QueryClientProvider client={queryClient}>
@@ -125,7 +138,14 @@ export default function App() {
                     <Route path="/rd" element={<RdDirectory />} />
                     <Route path="/rd/:slug" element={<RdProfile />} />
                     <Route path="/appointments" element={<Appointments />} />
-                    <Route path="/rd-console" element={<RdConsole />} />
+                    <Route
+                      path="/rd-console"
+                      element={
+                        <RdGate>
+                          <RdConsole />
+                        </RdGate>
+                      }
+                    />
                     <Route
                       path="/checkout-appointment"
                       element={<CheckoutAppointment />}
