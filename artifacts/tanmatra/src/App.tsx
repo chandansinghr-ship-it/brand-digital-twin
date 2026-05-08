@@ -72,6 +72,7 @@ import Vouchers from "@/pages/Vouchers";
 import Premium from "@/pages/Premium";
 import Marketplace from "@/pages/Marketplace";
 import MarketplaceItemPage from "@/pages/MarketplaceItem";
+import Styleguide from "@/pages/Styleguide";
 import NotFound from "@/pages/not-found";
 
 const queryClient = new QueryClient();
@@ -275,6 +276,9 @@ export default function App() {
                     <Route path="/marketplace" element={<Marketplace />} />
                     <Route path="/marketplace/:slug" element={<MarketplaceItemPage />} />
                     <Route path="/login" element={<Login />} />
+                    {import.meta.env.DEV && (
+                      <Route path="/__styleguide" element={<Styleguide />} />
+                    )}
                     <Route path="*" element={<NotFound />} />
                   </Routes>
                 </main>
