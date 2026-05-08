@@ -136,6 +136,29 @@ export async function createPost(
     .values({ challengeId, userId, authorName: authorName.slice(0, 128), body: trimmed })
     .returning();
   if (!row) throw new Error("failed to insert post");
+
+  // Screen via moderation. We deliberately await so users see "hidden"
+  // immediately if it gets blocked. The moderation lib writes its own
+  // audit row regardless of decision; here we just toggle visibility.
+  // Imported lazily to avoid a cycle with the community lib.
+  const { screenContent } = await import("./community/moderation");
+  try {
+    const decision = await screenContent({
+      text: trimmed,
+      contentType: "challenge_post",
+      contentId: row.id,
+      userId,
+    });
+    if (decision.decision === "hidden") {
+      await db
+        .update(challengePostsTable)
+        .set({ hidden: 1 })
+        .where(eq(challengePostsTable.id, row.id));
+      return { ...row, hidden: 1 };
+    }
+  } catch {
+    // never block content creation on moderation failure
+  }
   return row;
 }
 

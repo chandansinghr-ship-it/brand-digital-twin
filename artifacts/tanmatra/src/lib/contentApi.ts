@@ -156,6 +156,67 @@ export function useLeaveChallenge(slug: string) {
   });
 }
 
+export interface CommunityChallengeCard {
+  cohort: { id: number; slug: string; name: string };
+  challenge: {
+    id: number;
+    title: string;
+    description: string;
+    metric: string;
+    targetCount: number;
+    rewardPoints: number;
+    weekStartDate: string;
+    status: string;
+  };
+  progress: {
+    count: number;
+    ratio: number;
+    completed: boolean;
+    recent: Array<{ key: string; reason: string }>;
+  };
+}
+
+export function useCommunityMe() {
+  return useQuery<CommunityChallengeCard[]>({
+    queryKey: ["community-me"],
+    queryFn: async () => {
+      const r = await api<{ cohorts: CommunityChallengeCard[] }>(
+        `/community/me`,
+      );
+      return r.cohorts;
+    },
+    staleTime: 1000 * 60,
+  });
+}
+
+export interface ModerationDecisionDTO {
+  id: number;
+  contentType: string;
+  contentId: number;
+  userId: string | null;
+  decision: "allowed" | "flagged" | "hidden";
+  severity: number;
+  categories: string[];
+  rationale: string;
+  actor: "ai" | "human";
+  reviewerId: string | null;
+  model: string | null;
+  snapshot: string;
+  createdAt: string;
+}
+
+export interface ModerationAppealDTO {
+  id: number;
+  decisionId: number;
+  userId: string;
+  reason: string;
+  status: "open" | "upheld" | "overturned";
+  reviewerId: string | null;
+  reviewerNote: string | null;
+  createdAt: string;
+  decidedAt: string | null;
+}
+
 export function usePostToChallenge(slug: string) {
   const qc = useQueryClient();
   return useMutation({

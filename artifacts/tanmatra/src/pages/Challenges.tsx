@@ -3,6 +3,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { useChallenges } from "@/lib/contentApi";
+import CommunityCohortPanel from "@/components/CommunityCohortPanel";
 import { CalendarDays, Flag, Sparkles, Users } from "lucide-react";
 
 function formatRange(startsAt: string, endsAt: string): string {
@@ -43,6 +44,8 @@ export default function Challenges() {
           where the cohort shares progress.
         </p>
       </div>
+
+      <CommunityCohortPanel />
 
       {isLoading && (
         <p className="text-sm text-clinical-zinc">Loading challenges…</p>

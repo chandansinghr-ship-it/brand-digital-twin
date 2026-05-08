@@ -41,3 +41,4 @@ export * from "./marketplace";
 export * from "./dishRationales";
 export * from "./mealPlans";
 export * from "./rdCopilot";
+export * from "./communityCohorts";

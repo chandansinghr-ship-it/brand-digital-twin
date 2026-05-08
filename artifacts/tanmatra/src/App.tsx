@@ -53,6 +53,7 @@ import AdminSupportTickets from "@/pages/AdminSupportTickets";
 import RdPartnersLanding from "@/pages/RdPartnersLanding";
 import RdPartnersWizard from "@/pages/RdPartnersWizard";
 import AdminRdApplications from "@/pages/AdminRdApplications";
+import AdminCommunityModeration from "@/pages/AdminCommunityModeration";
 import GroupOrder from "@/pages/GroupOrder";
 import Recipes from "@/pages/Recipes";
 import RecipeDetail from "@/pages/RecipeDetail";
@@ -203,6 +204,14 @@ export default function App() {
                     <Route path="/group/:code" element={<GroupOrder />} />
                     <Route path="/recipes" element={<Recipes />} />
                     <Route path="/recipes/:slug" element={<RecipeDetail />} />
+                    <Route
+                      path="/admin/community-moderation"
+                      element={
+                        <AdminGate>
+                          <AdminCommunityModeration />
+                        </AdminGate>
+                      }
+                    />
                     <Route path="/challenges" element={<Challenges />} />
                     <Route path="/challenges/:slug" element={<ChallengeDetail />} />
                     <Route path="/corporate" element={<Corporate />} />

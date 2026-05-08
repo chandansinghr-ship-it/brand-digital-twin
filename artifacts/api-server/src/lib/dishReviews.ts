@@ -39,6 +39,29 @@ export async function createReview(
     })
     .returning();
   if (!row) throw new Error("failed to insert review");
+
+  // Moderation hook — same pattern as challenge posts. Audit row is
+  // always written; visibility flips only on a 'hidden' verdict.
+  if (body) {
+    const { screenContent } = await import("./community/moderation");
+    try {
+      const decision = await screenContent({
+        text: body,
+        contentType: "dish_review",
+        contentId: row.id,
+        userId: input.userId,
+      });
+      if (decision.decision === "hidden") {
+        await db
+          .update(dishReviewsTable)
+          .set({ hidden: 1 })
+          .where(eq(dishReviewsTable.id, row.id));
+        return { ...row, hidden: 1 };
+      }
+    } catch {
+      // never block content creation on moderation failure
+    }
+  }
   return row;
 }
 

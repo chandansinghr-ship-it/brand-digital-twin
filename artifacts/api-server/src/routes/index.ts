@@ -33,6 +33,7 @@ import marketplaceRouter from "./marketplace";
 import dishRationalesRouter from "./dishRationales";
 import mealPlansRouter from "./mealPlans";
 import rdCopilotRouter from "./rdCopilot";
+import communityRouter from "./community";
 
 const router: IRouter = Router();
 
@@ -70,5 +71,6 @@ router.use(marketplaceRouter);
 router.use(dishRationalesRouter);
 router.use(mealPlansRouter);
 router.use(rdCopilotRouter);
+router.use(communityRouter);
 
 export default router;
