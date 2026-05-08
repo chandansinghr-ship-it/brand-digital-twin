@@ -353,8 +353,12 @@ export function MenuPhotosPanel({
                       {KIND_LABEL[a.kind]}
                     </Badge>
                     {a.isAiGenerated === 1 && (
-                      <Badge variant="outline" className="text-[10px]">
-                        AI
+                      <Badge
+                        variant="outline"
+                        className="text-[10px]"
+                        title="This photo was created by an AI image model, not a real photograph."
+                      >
+                        AI-generated
                       </Badge>
                     )}
                     {isPrimary && (

@@ -47,6 +47,26 @@ function userId(req: Request): string | null {
   return req.isAuthenticated() ? (req.user.id ?? null) : null;
 }
 
+// Map asset-pipeline errors to sensible HTTP status codes. The lib throws
+// plain Errors with conventional messages — we keep the mapping here so the
+// libs stay framework-agnostic.
+function sendAssetError(res: Response, err: unknown): void {
+  const msg = err instanceof Error ? err.message : String(err);
+  const lower = msg.toLowerCase();
+  let code = 500;
+  if (lower.includes("not found") || lower.includes("has been deleted"))
+    code = 404;
+  else if (
+    lower.includes("belongs to slug") ||
+    lower.includes("invalid") ||
+    lower.includes("not supported") ||
+    lower.includes("could not read") ||
+    lower.includes("dimensions")
+  )
+    code = 400;
+  res.status(code).json({ error: msg });
+}
+
 const slugParam = z.object({ slug: z.string().min(1).max(128) });
 const idParam = z.object({ id: z.coerce.number().int().positive() });
 
@@ -148,7 +168,7 @@ router.post(
       });
       res.json(out);
     } catch (err) {
-      res.status(500).json({ error: (err as Error).message });
+      sendAssetError(res, err);
     }
   },
 );
@@ -179,7 +199,7 @@ router.post(
       });
       res.json({ asset: enhanced });
     } catch (err) {
-      res.status(500).json({ error: (err as Error).message });
+      sendAssetError(res, err);
     }
   },
 );
@@ -224,7 +244,7 @@ router.post(
       });
       res.json({ asset });
     } catch (err) {
-      res.status(500).json({ error: (err as Error).message });
+      sendAssetError(res, err);
     }
   },
 );
@@ -255,7 +275,7 @@ router.post(
       });
       res.json({ asset });
     } catch (err) {
-      res.status(500).json({ error: (err as Error).message });
+      sendAssetError(res, err);
     }
   },
 );
@@ -283,7 +303,7 @@ router.post(
       });
       res.json(r);
     } catch (err) {
-      res.status(500).json({ error: (err as Error).message });
+      sendAssetError(res, err);
     }
   },
 );
