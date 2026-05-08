@@ -47,19 +47,22 @@ export default function Login() {
             Secured by Replit Auth
           </p>
 
-          <Separator className="bg-clinical-slate/20 my-2" />
-
-          <Button
-            variant="outline"
-            onClick={enterAdminMode}
-            className="w-full border-clinical-slate/30 text-clinical-zinc hover:text-clinical-gold hover:border-clinical-gold/40 gap-2 text-xs"
-          >
-            <Activity className="w-3.5 h-3.5" />
-            Continue as Operations (dev)
-          </Button>
-          <p className="text-[10px] text-clinical-zinc text-center">
-            Local dev shortcut for /admin/ops dashboards
-          </p>
+          {import.meta.env.DEV && (
+            <>
+              <Separator className="bg-clinical-slate/20 my-2" />
+              <Button
+                variant="outline"
+                onClick={enterAdminMode}
+                className="w-full border-clinical-slate/30 text-clinical-zinc hover:text-clinical-gold hover:border-clinical-gold/40 gap-2 text-xs"
+              >
+                <Activity className="w-3.5 h-3.5" />
+                Continue as Operations (dev)
+              </Button>
+              <p className="text-[10px] text-clinical-zinc text-center">
+                Local dev shortcut for /admin/ops dashboards
+              </p>
+            </>
+          )}
         </CardContent>
       </Card>
     </div>

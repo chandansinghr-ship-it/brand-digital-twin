@@ -238,8 +238,8 @@ export default function Checkout() {
     return (
       <div className="max-w-2xl mx-auto p-8 text-center space-y-4">
         <AlertTriangle className="w-10 h-10 text-clinical-gold mx-auto" />
-        <h1 className="text-2xl font-bold text-white">Your plan is empty</h1>
-        <p className="text-sm text-clinical-zinc">Add meals to your plan before checking out.</p>
+        <h1 className="text-2xl font-bold text-white">Your cart is empty</h1>
+        <p className="text-sm text-clinical-zinc">Add meals to your cart before checking out.</p>
         <Button onClick={() => navigate("/menu")} className="bg-clinical-gold text-[#050505]">
           Browse Menu
         </Button>

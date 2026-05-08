@@ -210,7 +210,7 @@ export default function Dish() {
   const rdAccent = rd ? ACCENT_CLASSES[rd.accent] : null;
 
   return (
-    <div className="min-h-screen bg-clinical-dark pb-32">
+    <div className="min-h-screen bg-clinical-dark pb-48 md:pb-32">
       <div className="max-w-6xl mx-auto px-4 pt-4">
         <Link
           to="/menu"
@@ -667,7 +667,7 @@ export default function Dish() {
         </div>
       </div>
 
-      <div className="fixed bottom-0 left-0 right-0 z-40 bg-[#050505]/95 backdrop-blur-xl border-t border-clinical-slate/30">
+      <div className="fixed left-0 right-0 z-50 bg-[#050505]/95 backdrop-blur-xl border-t border-clinical-slate/30 bottom-[calc(56px+env(safe-area-inset-bottom))] md:bottom-0">
         <div className="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between gap-4">
           <div className="flex items-center gap-3">
             <div className="flex items-center gap-2 bg-clinical-surface rounded-lg border border-clinical-slate/20 p-1">

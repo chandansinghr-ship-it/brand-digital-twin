@@ -345,7 +345,7 @@ export default function CoachAgentWidget({
       className={
         inline
           ? "w-full flex flex-col shadow-md border border-[#D4AF37]/30 max-h-[520px]"
-          : "fixed bottom-[152px] md:bottom-24 right-3 md:right-6 left-3 md:left-auto z-50 w-auto md:w-[380px] max-h-[65vh] md:max-h-[560px] flex flex-col shadow-2xl border-2 border-[#D4AF37]/30"
+          : "fixed bottom-[calc(132px+env(safe-area-inset-bottom))] md:bottom-24 right-3 md:right-6 left-3 md:left-auto z-50 w-auto md:w-[380px] max-h-[65vh] md:max-h-[560px] flex flex-col shadow-2xl border-2 border-[#D4AF37]/30"
       }
     >
       <CardHeader className="shrink-0 py-3 px-4 border-b bg-[#050505]">
@@ -489,7 +489,7 @@ export default function CoachAgentWidget({
       ) : (
         <Button
           onClick={() => setIsOpen(!isOpen)}
-          className="fixed bottom-40 md:bottom-24 right-4 md:right-6 z-50 h-12 w-12 md:h-14 md:w-14 rounded-full shadow-lg bg-[#D4AF37] text-[#050505] hover:bg-[#D4AF37]/90"
+          className="fixed bottom-[calc(72px+env(safe-area-inset-bottom))] left-4 md:left-auto md:bottom-24 md:right-6 z-50 h-12 w-12 md:h-14 md:w-14 rounded-full shadow-lg bg-[#D4AF37] text-[#050505] hover:bg-[#D4AF37]/90"
           aria-label={isOpen ? "Close nutrition coach" : "Open nutrition coach"}
         >
           {isOpen ? <X className="w-6 h-6" /> : <Apple className="w-6 h-6" />}

@@ -40,8 +40,11 @@ export default function Header() {
     <>
       <header className="sticky top-0 z-50 border-b border-clinical-slate/30 bg-[#050505]/80 backdrop-blur-xl">
         <div className="max-w-7xl mx-auto px-4 h-14 flex items-center justify-between gap-4">
-          <Link to="/" className="flex items-center shrink-0" aria-label="Tanmatra home">
+          <Link to="/" className="flex items-center gap-2 shrink-0" aria-label="Tanmatra home">
             <Logo className="h-7 w-auto text-clinical-gold" />
+            <span className="md:hidden font-serif text-base text-white tracking-tight leading-none">
+              Tanmatra
+            </span>
           </Link>
 
           <nav className="hidden md:flex items-center gap-1" aria-label="Primary">
@@ -105,15 +108,9 @@ export default function Header() {
               )}
             </Link>
 
-            <Link
-              to="/login"
-              aria-label="My account"
-              className="md:hidden inline-flex items-center justify-center h-10 w-10 rounded-md text-clinical-zinc hover:text-clinical-gold hover:bg-clinical-gold/10 transition-colors"
-            >
-              <UserCircle className="w-5 h-5" aria-hidden />
-            </Link>
-
-            {/* Mobile-only "more" hamburger to open the full Explore sheet */}
+            {/* Mobile-only "more" hamburger to open the full Explore sheet.
+                Account is reachable from the bottom nav, so we drop the
+                redundant /login icon to reduce header crowding on mobile. */}
             <span className="md:hidden">
               <MoreSheetTrigger />
             </span>

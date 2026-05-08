@@ -10,7 +10,6 @@ import Header from "@/components/layout/Header";
 import Footer from "@/components/layout/Footer";
 import BottomNav from "@/components/layout/BottomNav";
 import ScrollToTop from "@/components/layout/ScrollToTop";
-import CoachAgentWidget from "@/components/ai/CoachAgent";
 import StickyCheckoutBar from "@/components/cart/StickyCheckoutBar";
 import Home from "@/pages/Home";
 import Menu from "@/pages/Menu";
@@ -285,7 +284,6 @@ export default function App() {
                 <Footer />
                 <BottomNav />
                 <StickyCheckoutBar />
-                <CoachAgentWidget />
               </div>
               <Toaster theme="dark" position="top-center" richColors offset={72} />
             </BrowserRouter>

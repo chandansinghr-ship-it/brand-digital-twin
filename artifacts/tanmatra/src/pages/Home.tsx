@@ -43,13 +43,7 @@ import {
   CalendarDays,
   Utensils,
   CalendarClock,
-  BookOpen,
-  Building2,
-  Gift,
-  Stethoscope,
   HeartHandshake,
-  MapPin,
-  Sparkles,
 } from "lucide-react";
 
 /* ── Featured meals (each with unique image) ──────────────────────── */
@@ -301,11 +295,11 @@ export default function Home() {
       <SegmentToggle />
 
       {/* ═══════════════ HERO SECTION ═══════════════ */}
-      <section className="relative min-h-[420px] md:h-[70vh] md:min-h-[480px] overflow-hidden flex items-center">
+      <section className="relative min-h-[360px] md:h-[70vh] md:min-h-[480px] overflow-hidden flex items-center">
         <div className="absolute inset-0">
           <img src="/hero-bg.jpg" alt="Clinical-grade food preparation" className="w-full h-full object-cover" loading="eager" />
-          <div className="absolute inset-0 bg-gradient-to-r from-[#050505]/95 via-[#050505]/70 to-[#050505]/40" />
-          <div className="absolute inset-0 bg-gradient-to-t from-[#050505] via-transparent to-[#050505]/30" />
+          <div className="absolute inset-0 bg-gradient-to-r from-[#050505]/98 via-[#050505]/85 to-[#050505]/55 md:from-[#050505]/95 md:via-[#050505]/70 md:to-[#050505]/40" />
+          <div className="absolute inset-0 bg-gradient-to-t from-[#050505] via-[#050505]/40 to-[#050505]/30 md:via-transparent" />
         </div>
 
         <div className="relative z-10 max-w-7xl mx-auto px-4 w-full">
@@ -339,12 +333,12 @@ export default function Home() {
               </Link>
             </div>
 
-            <div className="flex gap-6 pt-4">
-              <div><p className="tabular-nums text-2xl font-bold text-white">4.9</p><p className="text-clinical-label mt-0.5 flex items-center gap-1"><Star className="w-3 h-3 text-clinical-gold" />Patient Rating</p></div>
-              <div className="w-px bg-clinical-slate/30" />
-              <div><p className="tabular-nums text-2xl font-bold text-white">12K+</p><p className="text-clinical-label mt-0.5">Meals Delivered</p></div>
-              <div className="w-px bg-clinical-slate/30" />
-              <div><p className="tabular-nums text-2xl font-bold text-white">24</p><p className="text-clinical-label mt-0.5">RD Advisors</p></div>
+            <div className="flex flex-wrap items-start gap-x-5 gap-y-3 pt-4">
+              <div className="min-w-0"><p className="tabular-nums text-2xl font-bold text-white">4.9</p><p className="text-clinical-label mt-0.5 flex items-center gap-1"><Star className="w-3 h-3 text-clinical-gold" />Patient Rating</p></div>
+              <div className="hidden sm:block w-px self-stretch bg-clinical-slate/30" />
+              <div className="min-w-0"><p className="tabular-nums text-2xl font-bold text-white">12K+</p><p className="text-clinical-label mt-0.5">Meals Delivered</p></div>
+              <div className="hidden sm:block w-px self-stretch bg-clinical-slate/30" />
+              <div className="min-w-0"><p className="tabular-nums text-2xl font-bold text-white">24</p><p className="text-clinical-label mt-0.5">RD Advisors</p></div>
             </div>
           </div>
         </div>
@@ -359,17 +353,9 @@ export default function Home() {
           <div className="grid grid-cols-4 gap-2">
             {[
               { to: "/menu", label: "Menu", icon: Utensils },
-              { to: "/subscriptions", label: "Plans", icon: CalendarClock },
-              { to: "/recipes", label: "Recipes", icon: BookOpen },
-              { to: "/challenges", label: "Cohorts", icon: Flag },
-              { to: "/plans", label: "RD Plans", icon: Stethoscope },
+              { to: "/meal-planner", label: "Plan", icon: CalendarClock },
               { to: "/rd", label: "Book RD", icon: HeartHandshake },
-              { to: "/rewards", label: "Rewards", icon: Sparkles },
-              { to: "/track", label: "Track", icon: MapPin },
-              { to: "/corporate", label: "Corporate", icon: Building2 },
-              { to: "/vouchers", label: "Vouchers", icon: Gift },
               { to: "/orders", label: "Orders", icon: RefreshCw },
-              { to: "/preferences", label: "Settings", icon: Activity },
             ].map((a) => (
               <Link
                 key={a.to}
@@ -388,8 +374,8 @@ export default function Home() {
         </div>
       </section>
 
-      {/* ═══════════════ TRUST BAR ═══════════════ */}
-      <section className="border-y border-clinical-slate/20 bg-clinical-surface">
+      {/* ═══════════════ TRUST BAR (desktop only — demoted on mobile so food sits above the fold) ═══════════════ */}
+      <section className="hidden md:block border-y border-clinical-slate/20 bg-clinical-surface">
         <div className="max-w-7xl mx-auto px-4 py-8">
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
             {TRUST_SIGNALS.map((sig) => (
