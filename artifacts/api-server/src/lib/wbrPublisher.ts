@@ -60,37 +60,19 @@ export async function publishWbr(
   }
   const url = process.env["WBR_SLACK_WEBHOOK_URL"];
   const payload = buildSlackBlocks(report);
-  let delivered = false;
-  let channel: "slack" | "log" = "log";
   if (!url) {
     // Log-only fallback: do NOT mark as published. If a webhook is wired
     // up later in the same week, the next scheduler tick should still be
     // able to deliver the real Slack post.
     logger.info({ wbrId: report.id, payload }, "wbr publish: no webhook configured, log-only (not marked published)");
     return { delivered: false, channel: "log", alreadyPublished: false };
-  } else {
-    channel = "slack";
-    try {
-      const resp = await fetch(url, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-      if (!resp.ok) {
-        const body = await resp.text().catch(() => "");
-        logger.error({ status: resp.status, body }, "wbr slack publish failed");
-        return { delivered: false, channel: "slack", alreadyPublished: false };
-      }
-      delivered = true;
-      logger.info({ wbrId: report.id }, "wbr published to slack");
-    } catch (err) {
-      logger.error({ err }, "wbr slack publish threw");
-      return { delivered: false, channel: "slack", alreadyPublished: false };
-    }
   }
-  // Concurrency-safe claim: only the first concurrent caller wins the
-  // update (publishedAt is null) — any racing caller updates 0 rows and
-  // returns alreadyPublished without re-sending.
+  const channel: "slack" = "slack";
+  // Atomic claim BEFORE the outbound Slack POST: only the first caller
+  // wins the conditional update (publishedAt IS NULL). Concurrent workers
+  // / scheduler ticks see 0 rows updated and bail out without sending.
+  // If the Slack delivery itself fails, we roll the claim back so a later
+  // tick can retry within the same week.
   const claimed = await db
     .update(wbrReportsTable)
     .set({ publishedAt: new Date(), publishChannel: channel })
@@ -99,5 +81,30 @@ export async function publishWbr(
   if (claimed.length === 0) {
     return { delivered: false, channel, alreadyPublished: true };
   }
-  return { delivered, channel, alreadyPublished: false };
+  try {
+    const resp = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    if (!resp.ok) {
+      const body = await resp.text().catch(() => "");
+      logger.error({ status: resp.status, body }, "wbr slack publish failed");
+      // Roll the claim back so the same-week backfill can retry.
+      await db
+        .update(wbrReportsTable)
+        .set({ publishedAt: null, publishChannel: null })
+        .where(eq(wbrReportsTable.id, report.id));
+      return { delivered: false, channel, alreadyPublished: false };
+    }
+    logger.info({ wbrId: report.id }, "wbr published to slack");
+    return { delivered: true, channel, alreadyPublished: false };
+  } catch (err) {
+    logger.error({ err }, "wbr slack publish threw");
+    await db
+      .update(wbrReportsTable)
+      .set({ publishedAt: null, publishChannel: null })
+      .where(eq(wbrReportsTable.id, report.id));
+    return { delivered: false, channel, alreadyPublished: false };
+  }
 }

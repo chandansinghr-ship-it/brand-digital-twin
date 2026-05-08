@@ -215,6 +215,19 @@ export function validateSafeSql(sqlIn: string): string {
   if (hasFromCommaJoin(stripped)) {
     throw new UnsafeSqlError("comma joins are not allowed; use explicit JOIN");
   }
+  // Block derived tables / subqueries in the FROM/JOIN position. The regex
+  // identifier check below scans every `from|join <ident>` occurrence
+  // (including inside subqueries), but disallowing parenthesized FROM
+  // sources entirely is a clearer guarantee that every relation reference
+  // is a bare allowlisted view name.
+  if (/\b(?:from|join)\s*\(/.test(stripped)) {
+    throw new UnsafeSqlError("subqueries / derived tables in FROM/JOIN are not allowed");
+  }
+  // CTEs (WITH ...) similarly introduce named relations that bypass the
+  // safe-view allowlist; refuse them.
+  if (/^\s*with\b/.test(stripped) || /\)\s*select\b/.test(stripped)) {
+    throw new UnsafeSqlError("CTEs are not allowed");
+  }
   // Column-level safety is enforced by the DB itself: queries are only
   // allowed to reference `safe_*` views (created by ensureSafeViews) which
   // SELECT a narrow, explicit column list from each underlying table. Even
@@ -343,13 +356,18 @@ export async function runSafeSql(sqlIn: string): Promise<SafeSqlResult> {
     await client.query("begin read only");
     try {
       await client.query(`set local statement_timeout = ${STATEMENT_TIMEOUT_MS}`);
-      // Privilege boundary: switch to the safe reader role for this
-      // transaction. The role only has SELECT on safe_* views, so any
-      // attempt to reference a base table (even via tricks the regex
-      // validator missed) will fail with a permission error.
-      await client.query(`set local role ${SAFE_ROLE}`).catch((err) => {
-        logger.warn({ err }, "set local role failed; falling back to validator-only");
-      });
+      // Privilege boundary (MANDATORY, fail-closed): switch to the safe
+      // reader role for this transaction. The role only has SELECT on
+      // safe_* views, so any attempt to reference a base table — even via
+      // a payload the regex validator missed — will fail with a permission
+      // error. If we can't enter the safe role we refuse to execute at
+      // all, rather than silently falling back to validator-only.
+      try {
+        await client.query(`set local role ${SAFE_ROLE}`);
+      } catch (err) {
+        logger.error({ err }, "set local role failed; refusing to execute analytics SQL");
+        throw new UnsafeSqlError("safe role boundary unavailable; refusing to execute");
+      }
       const wrapped = `select * from (${sql}) as _safe limit ${MAX_ROWS + 1}`;
       const result = await client.query(wrapped);
       const truncated = result.rows.length > MAX_ROWS;
