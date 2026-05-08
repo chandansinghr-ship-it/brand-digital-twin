@@ -25,6 +25,12 @@ interface RiderPosition {
   orderId?: number;
 }
 
+interface DeliveryEta {
+  orderId: number;
+  etaAt: string;
+  distanceMeters: number;
+}
+
 function Recenter({ lat, lng }: { lat: number; lng: number }) {
   const map = useMap();
   useEffect(() => {
@@ -43,20 +49,36 @@ export default function RiderMap({ orderId, initial }: Props) {
   const [position, setPosition] = useState<RiderPosition | null>(
     initial ? { lat: initial.lat, lng: initial.lng, riderId: initial.riderId ?? 0 } : null,
   );
+  const [eta, setEta] = useState<DeliveryEta | null>(null);
 
   useEffect(() => {
     const socket = getSocket();
     socket.emit("subscribe:order", orderId);
-    const handler = (msg: RiderPosition) => {
+    const onPosition = (msg: RiderPosition) => {
       if (!msg || (msg.orderId && msg.orderId !== orderId)) return;
       setPosition({ riderId: msg.riderId, lat: msg.lat, lng: msg.lng });
     };
-    socket.on("rider:position", handler);
+    const onEta = (msg: DeliveryEta) => {
+      if (!msg || msg.orderId !== orderId) return;
+      setEta(msg);
+    };
+    socket.on("rider:position", onPosition);
+    socket.on("delivery:eta", onEta);
     return () => {
-      socket.off("rider:position", handler);
+      socket.off("rider:position", onPosition);
+      socket.off("delivery:eta", onEta);
       socket.emit("unsubscribe:order", orderId);
     };
   }, [orderId]);
+
+  const etaMinutes = eta
+    ? Math.max(0, Math.round((new Date(eta.etaAt).getTime() - Date.now()) / 60000))
+    : null;
+  const distanceLabel = eta
+    ? eta.distanceMeters >= 1000
+      ? `${(eta.distanceMeters / 1000).toFixed(1)} km`
+      : `${eta.distanceMeters} m`
+    : null;
 
   const center = useMemo<[number, number]>(() => {
     if (position) return [position.lat, position.lng];
@@ -66,7 +88,16 @@ export default function RiderMap({ orderId, initial }: Props) {
   }, [position, initial]);
 
   return (
-    <div className="h-64 w-full rounded-md overflow-hidden border border-clinical-slate/20">
+    <div className="space-y-2">
+      {eta && (
+        <div className="flex items-center justify-between text-xs px-1">
+          <span className="text-clinical-zinc">
+            Live ETA: <span className="text-clinical-gold font-semibold">{etaMinutes} min</span>
+          </span>
+          <span className="text-clinical-zinc tabular-nums">{distanceLabel} away</span>
+        </div>
+      )}
+      <div className="h-64 w-full rounded-md overflow-hidden border border-clinical-slate/20">
       <MapContainer
         center={center}
         zoom={14}
@@ -87,6 +118,7 @@ export default function RiderMap({ orderId, initial }: Props) {
           </>
         )}
       </MapContainer>
+      </div>
     </div>
   );
 }

@@ -9,6 +9,7 @@ import { startAnomalyDigestSender } from "./lib/anomalyDigestSender";
 import { startReviewSummarizerScheduler } from "./lib/menuEngineeringScheduler";
 import { startAnalyticsScheduler } from "./lib/analyticsScheduler";
 import { ensureSafeViews } from "./lib/safeSql";
+import { resumeActiveSimulations } from "./lib/riderSim";
 
 const rawPort = process.env["PORT"];
 
@@ -31,6 +32,7 @@ startLoyaltyScheduler();
 startAnomalyScheduler();
 startAnomalyDigestSender();
 startReviewSummarizerScheduler();
+void resumeActiveSimulations();
 // Bootstrap the curated safe_* views and reader role BEFORE we start
 // listening, so the very first /analytics/* request can never race view
 // creation. We then start the scheduler and bind the port.

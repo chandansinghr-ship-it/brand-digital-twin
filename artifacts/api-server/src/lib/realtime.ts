@@ -31,6 +31,14 @@ export function emitDeliveryEvent(orderId: number, payload: Record<string, unkno
   io.to(`order:${orderId}`).emit("delivery:event", { orderId, ...payload });
 }
 
+export function emitDeliveryEta(
+  orderId: number,
+  payload: { etaAt: string; distanceMeters: number },
+): void {
+  if (!io) return;
+  io.to(`order:${orderId}`).emit("delivery:eta", { orderId, ...payload });
+}
+
 export function emitRiderPosition(
   riderId: number,
   pos: { lat: number; lng: number; orderId?: number },

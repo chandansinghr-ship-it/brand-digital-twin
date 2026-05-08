@@ -13,6 +13,7 @@
   },
   "dependencies": {
     "@ai-sdk/google": "^3.0.67",
+    "@google-cloud/storage": "^7.19.0",
     "@google/genai": "^1.44.0",
     "@opentelemetry/api": "^1.9.1",
     "@workspace/api-zod": "workspace:*",

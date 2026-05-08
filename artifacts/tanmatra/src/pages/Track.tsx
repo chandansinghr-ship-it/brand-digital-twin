@@ -136,6 +136,23 @@ export default function Track() {
     };
   }, [numericOrderId, qc]);
 
+  // Once the order is ready, ask the server to auto-assign a rider. That kicks off the
+  // server-side rider simulator which begins streaming live position + ETA updates over
+  // the websocket. Idempotent on the server (the rider is only assigned if there isn't one).
+  useEffect(() => {
+    if (!numericOrderId) return;
+    if (order?.status !== "ready" && order?.status !== "out_for_delivery") return;
+    const base = `${import.meta.env.BASE_URL.replace(/\/$/, "")}/api`;
+    void fetch(`${base}/delivery/auto-assign`, {
+      method: "POST",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ orderId: numericOrderId }),
+    }).catch(() => {
+      /* no riders available or already assigned — fine */
+    });
+  }, [order?.status, numericOrderId]);
+
   // Auto-advance "placed" → "preparing" via the server-side BullMQ pipeline (falls back to a
   // local optimistic update if the queue isn't accepting jobs — e.g. REDIS_URL unset).
   useEffect(() => {

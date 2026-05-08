@@ -2,7 +2,7 @@ import { Router, type IRouter, type Request, type Response } from "express";
 import { db, deliveryEventsTable, ordersTable, ridersTable } from "@workspace/db";
 import { eq, asc, sql } from "drizzle-orm";
 import { z } from "zod/v4";
-import { emitDeliveryEvent, emitRiderPosition } from "../lib/realtime";
+import { emitDeliveryEvent } from "../lib/realtime";
 import { scheduleOrderAdvance } from "../lib/queue";
 import {
   estimateEtaForCart,
@@ -18,6 +18,7 @@ import {
   dispatchComparison,
   recentDispatchDecisions,
 } from "../lib/dispatch";
+import { recordRiderPosition, startSimulation, stopSimulation } from "../lib/riderSim";
 
 const router: IRouter = Router();
 
@@ -56,6 +57,9 @@ router.post("/delivery/events", async (req: Request, res: Response) => {
   await db.insert(deliveryEventsTable).values({ orderId, riderId, event, meta });
   emitDeliveryEvent(orderId, { event, riderId, meta });
   await maybeRecordDeliveredFromEvent(orderId, event);
+  if (event === "delivered" || event === "delivery_failed") {
+    stopSimulation(orderId);
+  }
   res.json({ ok: true });
 });
 
@@ -77,8 +81,7 @@ router.post("/delivery/rider-position", async (req: Request, res: Response) => {
     return;
   }
   const { riderId, orderId, lat, lng } = parsed.data;
-  await db.update(ridersTable).set({ lat, lng }).where(eq(ridersTable.id, riderId));
-  emitRiderPosition(riderId, { lat, lng, orderId });
+  await recordRiderPosition(riderId, lat, lng, orderId);
   res.json({ ok: true });
 });
 
@@ -126,6 +129,16 @@ router.post("/delivery/auto-assign", async (req: Request, res: Response) => {
     return;
   }
   const { orderId } = parsed.data;
+  const existing = await db
+    .select({ riderId: ordersTable.riderId })
+    .from(ordersTable)
+    .where(eq(ordersTable.id, orderId))
+    .limit(1);
+  if (existing[0]?.riderId) {
+    startSimulation(orderId, existing[0].riderId);
+    res.json({ ok: true, alreadyAssigned: true, riderId: existing[0].riderId });
+    return;
+  }
   const candidates = await db
     .select()
     .from(ridersTable)
@@ -149,6 +162,7 @@ router.post("/delivery/auto-assign", async (req: Request, res: Response) => {
     meta: { strategy: "auto", riderName: rider.name },
   });
   emitDeliveryEvent(orderId, { event: "rider_assigned", riderId: rider.id, riderName: rider.name });
+  startSimulation(orderId, rider.id);
   res.json({ ok: true, rider });
 });
 
