@@ -169,6 +169,34 @@ test("buildDeterministicPlan warns when no vegan option exists", () => {
   assert.ok(plan.days[0]!.warnings.includes("no vegan option available"));
 });
 
+test("buildDeterministicPlan covers halal needs each day", () => {
+  const plan = buildDeterministicPlan({
+    weekStartDate: "2026-05-11",
+    constraints: { ...baseConstraints, halalCount: 2 },
+    items: sampleItems,
+  });
+  // Halal-eligible = veg items OR explicitly tagged halal.
+  const halalSlugs = new Set(
+    sampleItems.filter((it) => it.isVeg || it.tags.includes("halal"))
+      .map((it) => it.slug),
+  );
+  for (const day of plan.days) {
+    const hasHalal = day.picks.some((p) => halalSlugs.has(p.slug));
+    assert.ok(hasHalal, `day ${day.date} missing halal pick`);
+  }
+});
+
+test("buildDeterministicPlan warns when halal needed but none exist", () => {
+  const plan = buildDeterministicPlan({
+    weekStartDate: "2026-05-11",
+    constraints: { ...baseConstraints, halalCount: 1 },
+    items: sampleItems.filter(
+      (it) => !it.isVeg && !it.tags.includes("halal"),
+    ),
+  });
+  assert.ok(plan.days[0]!.warnings.includes("no halal option available"));
+});
+
 test("weekDates returns 5 consecutive weekdays from a Monday", () => {
   assert.deepEqual(weekDates("2026-05-11"), [
     "2026-05-11",

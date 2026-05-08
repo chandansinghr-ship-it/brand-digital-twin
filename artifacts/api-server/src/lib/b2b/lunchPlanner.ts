@@ -99,6 +99,11 @@ export function buildDeterministicPlan(args: {
   const vegan = veg.filter((it) => it.tags.includes("vegan"));
   const glutenFree = safeItems.filter((it) => it.tags.includes("gluten-free"));
   const jain = veg.filter((it) => it.tags.includes("jain"));
+  // Halal-eligible: any item explicitly tagged halal, plus all vegetarian items
+  // (which are halal by default since they contain no meat).
+  const halal = safeItems.filter(
+    (it) => it.isVeg || it.tags.includes("halal"),
+  );
 
   const used = new Set<number>();
   // Cycle through cuisine prefs for variety. If empty, use whatever we have.
@@ -170,6 +175,17 @@ export function buildDeterministicPlan(args: {
     if (constraints.jainCount > 0) {
       if (!tryPick(jain, `serves ${constraints.jainCount} Jain teammates`, cuisine)) {
         warnings.push("no Jain option available");
+      }
+    }
+    if (constraints.halalCount > 0) {
+      if (
+        !tryPick(
+          halal,
+          `serves ${constraints.halalCount} halal teammates`,
+          cuisine,
+        )
+      ) {
+        warnings.push("no halal option available");
       }
     }
     if (constraints.vegCount > 0) {

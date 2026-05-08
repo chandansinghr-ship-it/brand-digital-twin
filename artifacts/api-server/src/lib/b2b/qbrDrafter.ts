@@ -65,13 +65,22 @@ async function gatherFacts(company: Company, start: string, end: string) {
     .where(eq(companyBudgetUsageTable.companyId, company.id))
     .groupBy(companyBudgetUsageTable.periodMonth)
     .orderBy(companyBudgetUsageTable.periodMonth);
+  const monthlyOrders = await db
+    .select({
+      period: sql<string>`to_char(${officeOrdersTable.createdAt}, 'YYYY-MM')`,
+      count: sql<number>`count(*)::int`,
+    })
+    .from(officeOrdersTable)
+    .where(eq(officeOrdersTable.companyId, company.id))
+    .groupBy(sql`to_char(${officeOrdersTable.createdAt}, 'YYYY-MM')`)
+    .orderBy(sql`to_char(${officeOrdersTable.createdAt}, 'YYYY-MM')`);
   const members = await db
     .select({ n: sql<number>`count(*)::int` })
     .from(companyMembersTable)
     .where(eq(companyMembersTable.companyId, company.id));
   const totalMembers = members[0]?.n ?? 0;
   const drivers = await computeDrivers(company);
-  return { orders, monthly, totalMembers, drivers };
+  return { orders, monthly, monthlyOrders, totalMembers, drivers };
 }
 
 function deterministicSections(
@@ -129,10 +138,9 @@ function deterministicCharts(
     {
       title: "Office orders over the last 6 months",
       unit: "orders",
-      series: facts.monthly.slice(-6).map((m) => ({
+      series: facts.monthlyOrders.slice(-6).map((m) => ({
         label: m.period,
-        value: 0, // monthly orders count would need a separate query;
-        // we keep this lightweight and let the AI talk through trends.
+        value: m.count,
       })),
     },
     {
