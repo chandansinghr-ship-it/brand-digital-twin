@@ -5,6 +5,15 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 import { formatPrice } from "@/lib/api/adapter";
 import { useBundles, groupOrdersApi } from "@/lib/queries";
 import {
@@ -278,55 +287,174 @@ export default function Menu() {
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             {bundles.map((b) => {
               const savings = b.originalPricePaise - b.pricePaise;
+              const includedDishes = b.dishIds
+                .map((id) => getDishById(id))
+                .filter((d): d is DishData => Boolean(d));
+              const includesLine = includedDishes.map((d) => d.name).join(" · ");
               return (
-                <Card
-                  key={b.id}
-                  className="bg-clinical-surface border-clinical-slate/20 hover:border-clinical-gold/40 transition-colors overflow-hidden"
-                >
-                  <div className="relative aspect-[4/3]">
+                <Dialog key={b.id}>
+                  <Card className="bg-clinical-surface border-clinical-slate/20 hover:border-clinical-gold/40 transition-colors overflow-hidden flex flex-col">
+                    <DialogTrigger asChild>
+                      <button
+                        type="button"
+                        className="relative aspect-[4/3] block w-full text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-clinical-gold/60"
+                        aria-label={`View ${b.name} combo details`}
+                      >
+                        {b.image && (
+                          <img
+                            src={b.image}
+                            alt={b.name}
+                            loading="lazy"
+                            className="w-full h-full object-cover"
+                          />
+                        )}
+                        <div className="absolute inset-0 bg-gradient-to-t from-[#050505]/85 via-transparent to-transparent" />
+                        {b.badge && (
+                          <Badge className="absolute top-2 left-2 bg-clinical-gold/90 text-[#050505] border-0 text-[9px] tracking-widest">
+                            {b.badge}
+                          </Badge>
+                        )}
+                        <div className="absolute bottom-2 right-2 bg-clinical-sage/90 text-[#050505] rounded px-1.5 py-0.5 text-[10px] font-bold">
+                          Save {formatPrice(savings)}
+                        </div>
+                      </button>
+                    </DialogTrigger>
+                    <CardContent className="p-3 space-y-2 flex-1 flex flex-col">
+                      <DialogTrigger asChild>
+                        <button
+                          type="button"
+                          className="text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-clinical-gold/60 rounded"
+                        >
+                          <h3 className="text-sm font-semibold text-white hover:text-clinical-gold transition-colors">
+                            {b.name}
+                          </h3>
+                        </button>
+                      </DialogTrigger>
+                      <p className="text-[11px] text-clinical-zinc line-clamp-2 leading-relaxed">
+                        {b.description}
+                      </p>
+                      {includesLine && (
+                        <p className="text-[10px] text-clinical-zinc/70 line-clamp-2 leading-snug">
+                          <span className="text-clinical-zinc/50">Includes: </span>
+                          {includesLine}
+                        </p>
+                      )}
+                      <div className="flex items-baseline gap-2 mt-auto pt-1">
+                        <span className="text-base font-bold text-clinical-gold tabular-nums">
+                          {formatPrice(b.pricePaise)}
+                        </span>
+                        <span className="text-[11px] text-clinical-zinc line-through tabular-nums">
+                          {formatPrice(b.originalPricePaise)}
+                        </span>
+                      </div>
+                      <div className="grid grid-cols-2 gap-2">
+                        <DialogTrigger asChild>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="border-clinical-slate/40 text-clinical-zinc hover:text-white hover:border-clinical-slate/60 h-9 text-xs"
+                          >
+                            View
+                          </Button>
+                        </DialogTrigger>
+                        <Button
+                          size="sm"
+                          onClick={() => handleAddBundle(b)}
+                          className="bg-clinical-gold/15 text-clinical-gold border border-clinical-gold/40 hover:bg-clinical-gold/25 gap-1.5 h-9 text-xs"
+                        >
+                          <PlusCircle className="w-3.5 h-3.5" />
+                          Add Combo
+                        </Button>
+                      </div>
+                    </CardContent>
+                  </Card>
+                  <DialogContent className="bg-clinical-surface border-clinical-slate/20 max-w-lg max-h-[85vh] overflow-y-auto">
+                    <DialogHeader>
+                      <DialogTitle className="text-white font-serif text-xl">
+                        {b.name}
+                      </DialogTitle>
+                      <DialogDescription className="text-clinical-zinc text-xs leading-relaxed">
+                        {b.description}
+                      </DialogDescription>
+                    </DialogHeader>
                     {b.image && (
-                      <img
-                        src={b.image}
-                        alt={b.name}
-                        loading="lazy"
-                        className="w-full h-full object-cover"
-                      />
+                      <div className="relative aspect-[16/9] rounded-lg overflow-hidden border border-clinical-slate/20">
+                        <img
+                          src={b.image}
+                          alt={b.name}
+                          className="w-full h-full object-cover"
+                        />
+                        {b.badge && (
+                          <Badge className="absolute top-2 left-2 bg-clinical-gold/90 text-[#050505] border-0 text-[9px] tracking-widest">
+                            {b.badge}
+                          </Badge>
+                        )}
+                      </div>
                     )}
-                    <div className="absolute inset-0 bg-gradient-to-t from-[#050505]/85 via-transparent to-transparent" />
-                    {b.badge && (
-                      <Badge className="absolute top-2 left-2 bg-clinical-gold/90 text-[#050505] border-0 text-[9px] tracking-widest">
-                        {b.badge}
-                      </Badge>
-                    )}
-                    <div className="absolute bottom-2 right-2 bg-clinical-sage/90 text-[#050505] rounded px-1.5 py-0.5 text-[10px] font-bold">
-                      Save {formatPrice(savings)}
+                    <div className="space-y-2">
+                      <p className="text-[10px] uppercase tracking-[0.18em] text-clinical-zinc/60 font-semibold">
+                        What's inside ({includedDishes.length} {includedDishes.length === 1 ? "dish" : "dishes"})
+                      </p>
+                      {includedDishes.length === 0 ? (
+                        <p className="text-xs text-clinical-zinc/70 italic">
+                          This combo's dishes are temporarily unavailable.
+                        </p>
+                      ) : (
+                        <ul className="space-y-2">
+                          {includedDishes.map((d) => (
+                            <li key={d.id}>
+                              <Link
+                                to={`/dish/${d.slug}`}
+                                className="flex items-center gap-3 p-2 rounded-lg border border-clinical-slate/20 hover:border-clinical-gold/40 transition-colors group"
+                              >
+                                <img
+                                  src={d.image}
+                                  alt={d.name}
+                                  className="w-12 h-12 rounded object-cover shrink-0"
+                                />
+                                <div className="flex-1 min-w-0">
+                                  <p className="text-sm font-medium text-white group-hover:text-clinical-gold transition-colors truncate">
+                                    {d.name}
+                                  </p>
+                                  <p className="text-[11px] text-clinical-zinc truncate">
+                                    {d.macros.calories} kcal · {d.macros.protein}g protein
+                                  </p>
+                                </div>
+                                <span className="text-xs text-clinical-zinc tabular-nums shrink-0">
+                                  {formatPrice(d.price)}
+                                </span>
+                              </Link>
+                            </li>
+                          ))}
+                        </ul>
+                      )}
                     </div>
-                  </div>
-                  <CardContent className="p-3 space-y-2">
-                    <h3 className="text-sm font-semibold text-white">
-                      {b.name}
-                    </h3>
-                    <p className="text-[11px] text-clinical-zinc line-clamp-2 leading-relaxed">
-                      {b.description}
-                    </p>
-                    <div className="flex items-baseline gap-2">
-                      <span className="text-base font-bold text-clinical-gold tabular-nums">
-                        {formatPrice(b.pricePaise)}
-                      </span>
-                      <span className="text-[11px] text-clinical-zinc line-through tabular-nums">
-                        {formatPrice(b.originalPricePaise)}
-                      </span>
+                    <div className="flex items-center justify-between pt-2 border-t border-clinical-slate/20">
+                      <div className="space-y-0.5">
+                        <div className="flex items-baseline gap-2">
+                          <span className="text-xl font-bold text-clinical-gold tabular-nums">
+                            {formatPrice(b.pricePaise)}
+                          </span>
+                          <span className="text-xs text-clinical-zinc line-through tabular-nums">
+                            {formatPrice(b.originalPricePaise)}
+                          </span>
+                        </div>
+                        <p className="text-[10px] text-clinical-sage font-semibold">
+                          You save {formatPrice(savings)}
+                        </p>
+                      </div>
                     </div>
-                    <Button
-                      size="sm"
-                      onClick={() => handleAddBundle(b)}
-                      className="w-full bg-clinical-gold/15 text-clinical-gold border border-clinical-gold/40 hover:bg-clinical-gold/25 gap-1.5 h-9 text-xs"
-                    >
-                      <PlusCircle className="w-3.5 h-3.5" />
-                      Add Combo
-                    </Button>
-                  </CardContent>
-                </Card>
+                    <DialogFooter>
+                      <Button
+                        onClick={() => handleAddBundle(b)}
+                        className="w-full bg-clinical-gold text-[#050505] hover:bg-clinical-gold/90 gap-1.5"
+                      >
+                        <PlusCircle className="w-4 h-4" />
+                        Add Combo to Cart
+                      </Button>
+                    </DialogFooter>
+                  </DialogContent>
+                </Dialog>
               );
             })}
           </div>
