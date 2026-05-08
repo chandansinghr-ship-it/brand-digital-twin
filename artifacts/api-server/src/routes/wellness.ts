@@ -309,11 +309,14 @@ router.get("/wellness/today", async (req: Request, res: Response) => {
 });
 
 router.get("/wellness/week", async (req: Request, res: Response) => {
-  const userId = requireAuth(req, res);
-  if (!userId) return;
-  const targets = await ensureTargets(userId);
+  const userId = (req as Request & { user?: { id?: string } }).user?.id;
   const today = todayStr();
   const start = addDaysStr(today, -6);
+  if (!userId) {
+    res.json({ from: start, to: today, days: [], targets: null });
+    return;
+  }
+  const targets = await ensureTargets(userId);
   const days = await aggregateRange(userId, start, today);
   res.json({ from: start, to: today, days, targets });
 });

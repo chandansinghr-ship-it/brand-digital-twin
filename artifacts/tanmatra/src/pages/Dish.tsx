@@ -234,6 +234,7 @@ export default function Dish() {
 
             <div className="absolute top-4 left-4 flex gap-2 items-center">
               <span
+                role="img"
                 className={`w-4 h-4 rounded-sm border-2 flex items-center justify-center bg-[#050505]/80 ${
                   meal.isVeg ? "border-green-500" : "border-red-500"
                 }`}
@@ -482,7 +483,7 @@ export default function Dish() {
                       <span className={`${rdAccent.text} group-hover:underline`}>
                         {rd.name}
                       </span>
-                      <span className="text-clinical-zinc/70"> · {rd.title}</span>
+                      <span className="text-clinical-zinc"> · {rd.title}</span>
                     </span>
                   </Link>
                 )}
@@ -513,7 +514,7 @@ export default function Dish() {
                       <span className={`${chefAccent.text} group-hover:underline`}>
                         {chef.name}
                       </span>
-                      <span className="text-clinical-zinc/70"> · {chef.title}</span>
+                      <span className="text-clinical-zinc"> · {chef.title}</span>
                     </span>
                   </Link>
                 )}
@@ -551,7 +552,7 @@ export default function Dish() {
 
               {customizations.map((group, groupIdx) => (
                 <div key={group.groupName} className="space-y-3">
-                  <h3 className="text-sm font-semibold text-white">{group.groupName}</h3>
+                  <h2 className="text-sm font-semibold text-white">{group.groupName}</h2>
 
                   {group.type === "single" ? (
                     <RadioGroup

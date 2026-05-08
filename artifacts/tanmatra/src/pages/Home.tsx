@@ -347,7 +347,7 @@ export default function Home() {
       {/* ═══════════════ MOBILE QUICK ACTIONS ═══════════════ */}
       <section className="md:hidden border-b border-clinical-slate/15 bg-clinical-surface/40">
         <div className="px-4 py-5">
-          <p className="text-[10px] tracking-widest uppercase text-clinical-zinc/70 mb-3">
+          <p className="text-[10px] tracking-widest uppercase text-clinical-zinc mb-3">
             Quick start
           </p>
           <div className="grid grid-cols-4 gap-2">
@@ -431,7 +431,7 @@ export default function Home() {
                         <UsersIcon className="w-3 h-3 text-clinical-gold" />
                         {featuredChallenge.memberCount} joined
                       </span>
-                      <span className="text-clinical-zinc/70">
+                      <span className="text-clinical-zinc">
                         Led by {featuredChallenge.rdName}
                       </span>
                     </div>

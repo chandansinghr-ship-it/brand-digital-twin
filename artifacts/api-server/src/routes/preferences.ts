@@ -57,8 +57,11 @@ const preferencesSchema = z.object({
 });
 
 router.get("/preferences", async (req: Request, res: Response) => {
-  const userId = requireAuth(req, res);
-  if (!userId) return;
+  const userId = (req as Request & { user?: { id?: string } }).user?.id;
+  if (!userId) {
+    res.json({ preferences: null });
+    return;
+  }
   const [row] = await db
     .select()
     .from(userPreferencesTable)

@@ -1211,7 +1211,7 @@ export function WeeklySummaryCard() {
       <CardContent className="p-5">
         <div className="flex items-center justify-between mb-3">
           <div>
-            <div className="text-xs uppercase tracking-widest text-clinical-slate">
+            <div className="text-xs uppercase tracking-widest text-clinical-zinc">
               Your week so far
             </div>
             <div className="text-white text-lg font-semibold">
@@ -1230,7 +1230,7 @@ export function WeeklySummaryCard() {
             <div className="text-white font-semibold">
               {Math.round(summary.totals.calories / Math.max(1, summary.days))}
             </div>
-            <div className="text-[10px] uppercase tracking-widest text-clinical-slate">
+            <div className="text-[10px] uppercase tracking-widest text-clinical-zinc">
               avg kcal
             </div>
           </div>
@@ -1238,7 +1238,7 @@ export function WeeklySummaryCard() {
             <div className="text-white font-semibold">
               {Math.round(summary.totals.protein / Math.max(1, summary.days))}g
             </div>
-            <div className="text-[10px] uppercase tracking-widest text-clinical-slate">
+            <div className="text-[10px] uppercase tracking-widest text-clinical-zinc">
               avg protein
             </div>
           </div>
@@ -1246,7 +1246,7 @@ export function WeeklySummaryCard() {
             <div className="text-white font-semibold">
               {Math.round(summary.totals.fiber / Math.max(1, summary.days))}g
             </div>
-            <div className="text-[10px] uppercase tracking-widest text-clinical-slate">
+            <div className="text-[10px] uppercase tracking-widest text-clinical-zinc">
               avg fiber
             </div>
           </div>
@@ -1254,7 +1254,7 @@ export function WeeklySummaryCard() {
             <div className="text-white font-semibold">
               {Math.round(summary.totals.water / Math.max(1, summary.days))} ml
             </div>
-            <div className="text-[10px] uppercase tracking-widest text-clinical-slate">
+            <div className="text-[10px] uppercase tracking-widest text-clinical-zinc">
               avg water
             </div>
           </div>

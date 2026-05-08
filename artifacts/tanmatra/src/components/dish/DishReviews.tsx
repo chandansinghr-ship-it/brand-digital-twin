@@ -272,7 +272,7 @@ export default function DishReviews({ slug }: DishReviewsProps) {
       )}
 
       {!canReview && (
-        <p className="text-[11px] text-clinical-zinc/70">
+        <p className="text-[11px] text-clinical-zinc">
           {isLoggedIn
             ? "Order this dish once to leave a review."
             : "Log in and order this dish to leave a review."}
@@ -302,7 +302,7 @@ export default function DishReviews({ slug }: DishReviewsProps) {
                   </p>
                   <div className="flex items-center gap-2">
                     <StarRow value={r.rating} size={12} />
-                    <span className="text-[10px] text-clinical-zinc/70 tabular-nums">
+                    <span className="text-[10px] text-clinical-zinc tabular-nums">
                       {formatRelative(r.createdAt)}
                     </span>
                   </div>
@@ -325,7 +325,7 @@ export default function DishReviews({ slug }: DishReviewsProps) {
           ))}
         </div>
       ) : (
-        <p className="text-[11px] text-clinical-zinc/70">
+        <p className="text-[11px] text-clinical-zinc">
           No reviews yet — be the first to share your experience.
         </p>
       )}

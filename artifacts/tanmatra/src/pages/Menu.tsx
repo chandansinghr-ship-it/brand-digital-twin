@@ -265,7 +265,7 @@ export default function Menu() {
             ? `${PROTOCOL_LABELS[activeProtocol]} Protocol — qualifying dishes`
             : "Curated Selections"}
         </h1>
-        <p className="text-xs uppercase tracking-[0.18em] text-clinical-zinc/70 font-medium">
+        <p className="text-xs uppercase tracking-[0.18em] text-clinical-zinc font-medium">
           {activeProtocol
             ? `Filtered by ${PROTOCOL_LABELS[activeProtocol]} criteria · ${filtered.length} ${filtered.length === 1 ? "dish" : "dishes"}`
             : "Kitchen-synced · Inventory-aware · RD-verified"}
@@ -315,7 +315,7 @@ export default function Menu() {
         <div className="space-y-3">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-[10px] uppercase tracking-[0.18em] text-clinical-zinc/60 font-semibold flex items-center gap-1.5">
+              <p className="text-[10px] uppercase tracking-[0.18em] text-clinical-zinc font-semibold flex items-center gap-1.5">
                 <Package className="w-3 h-3 text-clinical-gold" />
                 Combo Bundles
               </p>
@@ -338,7 +338,7 @@ export default function Menu() {
                       <button
                         type="button"
                         className="relative aspect-[4/3] block w-full text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-clinical-gold/60"
-                        aria-label={`View ${b.name} combo details`}
+                        aria-label={`View ${b.name} combo details — save ${formatPrice(savings)}${b.badge ? ` · ${b.badge}` : ""}`}
                       >
                         {b.image && (
                           <img
@@ -374,8 +374,8 @@ export default function Menu() {
                         {b.description}
                       </p>
                       {includesLine && (
-                        <p className="text-[10px] text-clinical-zinc/70 line-clamp-2 leading-snug">
-                          <span className="text-clinical-zinc/50">Includes: </span>
+                        <p className="text-[10px] text-clinical-zinc line-clamp-2 leading-snug">
+                          <span className="text-white/80">Includes: </span>
                           {includesLine}
                         </p>
                       )}
@@ -523,7 +523,7 @@ export default function Menu() {
 
       {/* Lifestyle filter chips */}
       <div className="space-y-2">
-        <p className="text-[10px] uppercase tracking-[0.18em] text-clinical-zinc/60 font-semibold">
+        <p className="text-[10px] uppercase tracking-[0.18em] text-clinical-zinc font-semibold">
           Lifestyle
         </p>
         <div className="flex flex-wrap gap-2">
@@ -550,7 +550,7 @@ export default function Menu() {
       {/* Diet + Category + Kitchen */}
       <div className="space-y-3">
         <div className="flex items-center gap-2 overflow-x-auto md:flex-wrap -mx-4 px-4 md:mx-0 md:px-0 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-          <span className="shrink-0 text-[10px] uppercase tracking-[0.18em] text-clinical-zinc/60 font-semibold pr-1">
+          <span className="shrink-0 text-[10px] uppercase tracking-[0.18em] text-clinical-zinc font-semibold pr-1">
             Diet
           </span>
           {(["all", "veg", "nonveg"] as DietFilter[]).map((opt) => {
@@ -652,7 +652,7 @@ export default function Menu() {
         </div>
       )}
 
-      <div className="text-xs text-clinical-zinc/70 tabular-nums">
+      <div className="text-xs text-clinical-zinc tabular-nums">
         {filtered.length} {filtered.length === 1 ? "dish" : "dishes"}
       </div>
 
@@ -786,7 +786,7 @@ export default function Menu() {
                 />
               </div>
 
-              <div className="text-[10px] uppercase tracking-[0.12em] text-clinical-zinc/60 font-semibold">
+              <div className="text-[10px] uppercase tracking-[0.12em] text-clinical-zinc font-semibold">
                 {CATEGORY_LABELS[item.category]} · {item.kitchen}
               </div>
 
@@ -954,7 +954,7 @@ function MacroChip({
       role="group"
     >
       <span
-        className="text-[9px] uppercase tracking-[0.12em] text-clinical-zinc/70 font-semibold"
+        className="text-[9px] uppercase tracking-[0.12em] text-clinical-zinc font-semibold"
         aria-hidden="true"
       >
         {label}

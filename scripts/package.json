@@ -17,6 +17,7 @@
   },
   "devDependencies": {
     "@types/node": "catalog:",
+    "lighthouse": "^13.2.0",
     "tsx": "catalog:"
   }
 }

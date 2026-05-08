@@ -76,7 +76,7 @@ export default function Cart() {
             7-day meal plan instead? Try the{" "}
             <Link
               to="/meal-planner"
-              className="text-clinical-gold hover:underline underline-offset-2"
+              className="text-clinical-gold underline underline-offset-2"
             >
               Weekly Planner
             </Link>
