@@ -651,38 +651,45 @@ export async function regenerateDay(
   }
   const target = days[dayIndex]!;
   const usedToday = new Set<number>();
-  const newSlots: Record<MealPlanSlot, MealPlanSlotEntry> = {} as Record<
-    MealPlanSlot,
-    MealPlanSlotEntry
-  >;
+  const newSlotsPartial: Partial<Record<MealPlanSlot, MealPlanSlotEntry>> = {};
   for (const slot of MEAL_SLOTS) {
     const currentId = target[slot]?.dishId;
+    // Pool is pre-filtered to allergen-safe + diet-matching candidates;
+    // we never fall back outside it. If no candidate is available the
+    // slot stays empty and validatePlan surfaces "missing-dish".
     const candidates = pool[slot].filter((d) => {
       if (usedToday.has(d.id)) return false;
       if (currentId !== undefined && d.id === currentId) return false;
       const used = counts.get(d.id) ?? 0;
       return used < constraints.maxRepetitionsPerDish;
     });
-    // Rotate so we don't always pick the first candidate
     const offset = (dayIndex + slot.length) % Math.max(candidates.length, 1);
-    const pick =
-      candidates[offset] ?? candidates[0] ?? pool[slot][0] ?? DISHES[0]!;
-    newSlots[slot] = dishToSlotEntry(pick);
+    const pick = candidates[offset] ?? candidates[0];
+    if (!pick) continue;
+    newSlotsPartial[slot] = dishToSlotEntry(pick);
     usedToday.add(pick.id);
     counts.set(pick.id, (counts.get(pick.id) ?? 0) + 1);
   }
-  const newDays = days.map((d, i) =>
-    i === dayIndex
-      ? {
-          date: target.date,
-          breakfast: newSlots.breakfast,
-          lunch: newSlots.lunch,
-          dinner: newSlots.dinner,
-        }
-      : d,
-  );
-  // Touch userId in a debug log so the param isn't dead — and so we keep
-  // an audit trail of who triggered the regen.
+  const newDays = days.map((d, i) => {
+    if (i !== dayIndex) return d;
+    const next: MealPlanDay = { date: target.date };
+    if (newSlotsPartial.breakfast) next.breakfast = newSlotsPartial.breakfast;
+    if (newSlotsPartial.lunch) next.lunch = newSlotsPartial.lunch;
+    if (newSlotsPartial.dinner) next.dinner = newSlotsPartial.dinner;
+    return next;
+  });
+  // Final safety check: never persist a regenerated day that would
+  // violate the user's allergen / diet / repetition / budget rules.
+  const violations = validatePlan(newDays, constraints);
+  if (violations.length > 0) {
+    const err = new Error(
+      `regenerated day violates constraints: ${violations
+        .map((v) => v.message)
+        .join("; ")}`,
+    );
+    (err as Error & { violations: typeof violations }).violations = violations;
+    throw err;
+  }
   logger.debug({ userId, dayIndex }, "meal-plan regenerated day");
   return { days: newDays, totals: computeTotals(newDays) };
 }

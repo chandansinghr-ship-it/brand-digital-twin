@@ -1,5 +1,5 @@
 import { Router, type IRouter, type Request, type Response } from "express";
-import { and, desc, eq, inArray, sql } from "drizzle-orm";
+import { and, desc, eq, inArray } from "drizzle-orm";
 import { z } from "zod/v4";
 import {
   db,
@@ -18,7 +18,6 @@ import {
   regenerateDay,
   swapSlot,
   suggestSwapsForSlot,
-  computeTotals,
   validatePlan,
   DEFAULT_MAX_REPETITIONS,
 } from "../lib/mealPlanner";
@@ -552,13 +551,5 @@ router.post("/meal-plans/:id/discard", async (req: Request, res: Response) => {
   }
   res.json({ plan: updated });
 });
-
-// Internal-only helper exposed for tests / scheduler - touch sql so the
-// import isn't dead.
-export const _mealPlanSqlSentinel = sql`1`;
-
-// Touch computeTotals so an unused-import lint stays quiet in builds
-// where the route file is imported but the helper isn't called above.
-void computeTotals;
 
 export default router;

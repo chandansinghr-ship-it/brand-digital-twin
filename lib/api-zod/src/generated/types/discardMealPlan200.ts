@@ -5,7 +5,8 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+import type { MealPlan } from "./mealPlan";
 
 export type DiscardMealPlan200 = {
-  ok: boolean;
+  plan: MealPlan;
 };

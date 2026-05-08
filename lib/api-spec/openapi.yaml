@@ -892,11 +892,12 @@ paths:
             application/json:
               schema:
                 type: object
-                required: [ok]
+                required: [plan]
                 properties:
-                  ok: { type: boolean }
+                  plan: { $ref: "#/components/schemas/MealPlan" }
         "401": { description: Unauthorized }
         "404": { description: Not found }
+        "409": { description: Plan is not draft }
 components:
   schemas:
     MealPlanSlot:

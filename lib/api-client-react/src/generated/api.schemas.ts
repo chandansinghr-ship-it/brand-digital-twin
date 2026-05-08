@@ -870,5 +870,5 @@ export type AcceptMealPlan200 = {
 };
 
 export type DiscardMealPlan200 = {
-  ok: boolean;
+  plan: MealPlan;
 };

@@ -1694,5 +1694,82 @@ export const DiscardMealPlanParams = zod.object({
 });
 
 export const DiscardMealPlanResponse = zod.object({
-  ok: zod.boolean(),
+  plan: zod.object({
+    id: zod.number(),
+    userId: zod.string(),
+    weekStartDate: zod.string(),
+    status: zod.enum(["draft", "accepted", "scheduled", "discarded"]),
+    constraints: zod.object({
+      dailyCalorieTarget: zod.number().nullish(),
+      dailyProteinTargetGrams: zod.number().nullish(),
+      weeklyBudgetPaise: zod.number().nullish(),
+      maxRepetitionsPerDish: zod.number(),
+      allergens: zod.array(zod.string()),
+      dietaryStyle: zod.string().nullish(),
+      spiceLevel: zod.string().nullish(),
+      goal: zod.string().nullish(),
+    }),
+    days: zod.array(
+      zod.object({
+        date: zod.string(),
+        breakfast: zod
+          .object({
+            dishId: zod.number(),
+            slug: zod.string(),
+            name: zod.string(),
+            image: zod.string(),
+            pricePaise: zod.number(),
+            calories: zod.number(),
+            protein: zod.number(),
+            carbs: zod.number(),
+            fat: zod.number(),
+          })
+          .optional(),
+        lunch: zod
+          .object({
+            dishId: zod.number(),
+            slug: zod.string(),
+            name: zod.string(),
+            image: zod.string(),
+            pricePaise: zod.number(),
+            calories: zod.number(),
+            protein: zod.number(),
+            carbs: zod.number(),
+            fat: zod.number(),
+          })
+          .optional(),
+        dinner: zod
+          .object({
+            dishId: zod.number(),
+            slug: zod.string(),
+            name: zod.string(),
+            image: zod.string(),
+            pricePaise: zod.number(),
+            calories: zod.number(),
+            protein: zod.number(),
+            carbs: zod.number(),
+            fat: zod.number(),
+          })
+          .optional(),
+      }),
+    ),
+    totals: zod
+      .union([
+        zod.object({
+          totalPaise: zod.number(),
+          avgCalories: zod.number(),
+          avgProteinGrams: zod.number(),
+          avgCarbsGrams: zod.number(),
+          avgFatGrams: zod.number(),
+        }),
+        zod.null(),
+      ])
+      .optional(),
+    subscriptionId: zod.number().nullish(),
+    model: zod.string().nullish(),
+    notes: zod.string().nullish(),
+    acceptedAt: zod.coerce.date().nullish(),
+    createdAt: zod.coerce.date(),
+    updatedAt: zod.coerce.date(),
+  }),
 });
