@@ -14,13 +14,16 @@ import {
   type SafeSqlResult,
 } from "./safeSql";
 
-export interface ChartSpec {
-  kind: "bar" | "line" | "area" | "table" | "pie";
-  xKey?: string;
-  yKey?: string;
-  seriesKey?: string;
-  title?: string;
-}
+import { z } from "zod/v4";
+
+export const chartSpecSchema = z.object({
+  kind: z.enum(["bar", "line", "area", "table", "pie"]),
+  xKey: z.string().min(1).max(64).optional(),
+  yKey: z.string().min(1).max(64).optional(),
+  seriesKey: z.string().min(1).max(64).optional(),
+  title: z.string().max(200).optional(),
+});
+export type ChartSpec = z.infer<typeof chartSpecSchema>;
 
 export interface AskResult {
   question: string;

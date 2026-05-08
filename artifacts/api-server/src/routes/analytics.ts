@@ -5,7 +5,7 @@ import {
   listRecentQueries,
   markQuerySaved,
   runEditedSql,
-  type ChartSpec,
+  chartSpecSchema,
 } from "../lib/nlAnalytics";
 import {
   generateWbr,
@@ -93,7 +93,7 @@ router.post("/analytics/ask", async (req: Request, res: Response) => {
 const sqlSchema = z.object({
   sql: z.string().min(6).max(10_000),
   question: z.string().max(2000).optional(),
-  chartSpec: z.any().optional(),
+  chartSpec: chartSpecSchema.optional(),
 });
 
 router.post("/analytics/sql", async (req: Request, res: Response) => {
@@ -107,7 +107,7 @@ router.post("/analytics/sql", async (req: Request, res: Response) => {
     const out = await runEditedSql(
       parsed.data.sql,
       parsed.data.question ?? null,
-      (parsed.data.chartSpec as ChartSpec | undefined) ?? null,
+      parsed.data.chartSpec ?? null,
       userId(req),
     );
     res.json(out);
