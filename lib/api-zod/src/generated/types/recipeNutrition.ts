@@ -12,4 +12,7 @@ export type RecipeNutrition = {
   carbsG?: number;
   fatG?: number;
   fiberG?: number;
+  saturatedFatG?: number;
+  sugarG?: number;
+  sodiumMg?: number;
 } | null;

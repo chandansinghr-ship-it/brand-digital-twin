@@ -9,6 +9,7 @@ export * from "./pickupLocations";
 export * from "./addressInstructions";
 export * from "./inventory";
 export * from "./recipes";
+export * from "./teamProfiles";
 export * from "./subscriptions";
 export * from "./loyalty";
 export * from "./preferences";

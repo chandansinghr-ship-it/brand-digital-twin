@@ -6,7 +6,9 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { RecipeIngredientsItem } from "./recipeIngredientsItem";
+import type { RecipeMicronutrientsItem } from "./recipeMicronutrientsItem";
 import type { RecipeNutrition } from "./recipeNutrition";
+import type { RecipeSourcingNotesItem } from "./recipeSourcingNotesItem";
 
 export interface Recipe {
   id: number;
@@ -23,5 +25,8 @@ export interface Recipe {
   ingredients?: RecipeIngredientsItem[];
   steps?: string[];
   nutrition?: RecipeNutrition;
+  allergens?: string[];
+  sourcingNotes?: RecipeSourcingNotesItem[];
+  micronutrients?: RecipeMicronutrientsItem[];
   status: string;
 }

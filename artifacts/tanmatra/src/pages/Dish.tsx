@@ -9,6 +9,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import MacroOverlay from "@/components/dish/MacroOverlay";
 import NutritionLabelModal from "@/components/dish/NutritionLabelModal";
+import { buildNutritionLabel } from "@/lib/nutritionLabel";
 import WhyThisMealPanel from "@/components/dish/WhyThisMealPanel";
 import DishReviews from "@/components/dish/DishReviews";
 import { getChefForDish, getRdForDish, ACCENT_CLASSES } from "@/lib/teamData";
@@ -264,7 +265,11 @@ export default function Dish() {
             </div>
 
             <div className="absolute bottom-4 left-4 right-4 bg-[#050505]/80 backdrop-blur-md rounded-xl p-4 border border-clinical-slate/20">
-              <MacroOverlay macros={meal.macros} rdVerified={meal.rdVerified} />
+              <MacroOverlay
+                macros={meal.macros}
+                rdVerified={meal.rdVerified}
+                sodiumMg={buildNutritionLabel(meal).macros.sodiumMg}
+              />
             </div>
           </div>
 

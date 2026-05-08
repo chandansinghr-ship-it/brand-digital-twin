@@ -3,7 +3,7 @@ import { Badge } from "@/components/ui/badge";
 import MacroOverlay from "@/components/dish/MacroOverlay";
 import SegmentToggle from "@/components/layout/SegmentToggle";
 import { Link } from "react-router";
-import { Dna, Syringe, HeartPulse, ShieldCheck, AlertCircle } from "lucide-react";
+import { Dna, Syringe, HeartPulse, ShieldCheck, AlertCircle, ScrollText } from "lucide-react";
 
 const FEATURED = [
   { id: 56, name: "Moong Dal Chilla with Curd", image: "https://images.unsplash.com/photo-1525351484163-7529414344d8?w=800&q=80", price: 7500, slug: "moong-dal-chilla-with-curd", macros: { protein: 12, carbs: 22, fat: 14, fiber: 3, calories: 260 }, rdVerified: true, description: "Protein-rich moong dal pancake with curd. Low-glycemic and gut-friendly." },
@@ -81,6 +81,18 @@ export default function Clinical() {
             adjuncts to medical treatment and should not replace prescribed therapies. Always consult your
             physician or registered dietitian before beginning any therapeutic nutrition program.
           </p>
+        </div>
+      </section>
+
+      <section className="py-3 border-b border-clinical-slate/20 bg-clinical-sage/5">
+        <div className="max-w-7xl mx-auto px-4 flex flex-wrap items-center justify-between gap-3">
+          <div className="flex items-center gap-2 text-xs text-clinical-zinc">
+            <ScrollText className="w-4 h-4 text-clinical-sage" />
+            Every clinical meal ships with a full nutrition label, allergens, and sourcing notes.
+          </div>
+          <Link to="/team" className="text-xs text-clinical-sage hover:underline">
+            Meet the chefs &amp; RDs behind your plate →
+          </Link>
         </div>
       </section>
 

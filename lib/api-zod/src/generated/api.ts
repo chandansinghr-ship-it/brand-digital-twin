@@ -47,8 +47,31 @@ export const ListRecipesResponse = zod.object({
           carbsG: zod.number().optional(),
           fatG: zod.number().optional(),
           fiberG: zod.number().optional(),
+          saturatedFatG: zod.number().optional(),
+          sugarG: zod.number().optional(),
+          sodiumMg: zod.number().optional(),
         })
         .nullish(),
+      allergens: zod.array(zod.string()).optional(),
+      sourcingNotes: zod
+        .array(
+          zod.object({
+            area: zod.string(),
+            detail: zod.string(),
+          }),
+        )
+        .optional(),
+      micronutrients: zod
+        .array(
+          zod.object({
+            key: zod.string(),
+            label: zod.string(),
+            value: zod.number(),
+            unit: zod.string(),
+            dailyTargetPct: zod.number(),
+          }),
+        )
+        .optional(),
       status: zod.string(),
     }),
   ),
@@ -89,8 +112,31 @@ export const GetRecipeResponse = zod.object({
         carbsG: zod.number().optional(),
         fatG: zod.number().optional(),
         fiberG: zod.number().optional(),
+        saturatedFatG: zod.number().optional(),
+        sugarG: zod.number().optional(),
+        sodiumMg: zod.number().optional(),
       })
       .nullish(),
+    allergens: zod.array(zod.string()).optional(),
+    sourcingNotes: zod
+      .array(
+        zod.object({
+          area: zod.string(),
+          detail: zod.string(),
+        }),
+      )
+      .optional(),
+    micronutrients: zod
+      .array(
+        zod.object({
+          key: zod.string(),
+          label: zod.string(),
+          value: zod.number(),
+          unit: zod.string(),
+          dailyTargetPct: zod.number(),
+        }),
+      )
+      .optional(),
     status: zod.string(),
   }),
 });
@@ -229,6 +275,57 @@ export const HideDishReviewParams = zod.object({
  */
 export const UnhideDishReviewParams = zod.object({
   id: zod.coerce.number(),
+});
+
+/**
+ * @summary List published chef and RD profiles
+ */
+export const ListTeamProfilesQueryParams = zod.object({
+  role: zod.enum(["chef", "rd"]).optional(),
+});
+
+export const ListTeamProfilesResponse = zod.object({
+  profiles: zod.array(
+    zod.object({
+      slug: zod.string(),
+      name: zod.string(),
+      role: zod.enum(["chef", "rd"]),
+      title: zod.string(),
+      bio: zod.string(),
+      signatureLine: zod.string().nullish(),
+      yearsExperience: zod.number(),
+      initials: zod.string(),
+      accent: zod.enum(["gold", "sage", "blue"]),
+      credentials: zod.array(zod.string()),
+      kitchens: zod.array(zod.string()).optional(),
+      lifestyles: zod.array(zod.string()).optional(),
+    }),
+  ),
+});
+
+/**
+ * @summary Get a chef or RD profile by slug, including owned dishes
+ */
+export const GetTeamProfileParams = zod.object({
+  slug: zod.coerce.string(),
+});
+
+export const GetTeamProfileResponse = zod.object({
+  profile: zod.object({
+    slug: zod.string(),
+    name: zod.string(),
+    role: zod.enum(["chef", "rd"]),
+    title: zod.string(),
+    bio: zod.string(),
+    signatureLine: zod.string().nullish(),
+    yearsExperience: zod.number(),
+    initials: zod.string(),
+    accent: zod.enum(["gold", "sage", "blue"]),
+    credentials: zod.array(zod.string()),
+    kitchens: zod.array(zod.string()).optional(),
+    lifestyles: zod.array(zod.string()).optional(),
+  }),
+  ownedDishSlugs: zod.array(zod.string()),
 });
 
 /**

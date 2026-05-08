@@ -14,9 +14,10 @@ interface MacroOverlayProps {
   macros: MacroData;
   rdVerified?: boolean;
   compact?: boolean;
+  sodiumMg?: number;
 }
 
-export default function MacroOverlay({ macros, rdVerified = false, compact = false }: MacroOverlayProps) {
+export default function MacroOverlay({ macros, rdVerified = false, compact = false, sodiumMg }: MacroOverlayProps) {
   const total = macros.protein + macros.carbs + macros.fat;
   const proteinPct = Math.round((macros.protein / total) * 100);
   const carbsPct = Math.round((macros.carbs / total) * 100);
@@ -65,6 +66,17 @@ export default function MacroOverlay({ macros, rdVerified = false, compact = fal
         <MacroBar label="Carbs" value={macros.carbs} pct={carbsPct} barColor="bg-clinical-gold" unit="g" />
         <MacroBar label="Fat" value={macros.fat} pct={fatPct} barColor="bg-clinical-sage" unit="g" />
         <MacroBar label="Fiber" value={macros.fiber} pct={Math.min((macros.fiber / 30) * 100, 100)} barColor="bg-emerald-400" unit="g" />
+        {typeof sodiumMg === "number" && (
+          <div className="flex items-center justify-between text-xs pt-1">
+            <span className="text-clinical-zinc">Sodium</span>
+            <span className="tabular-nums text-white font-medium">
+              {sodiumMg}mg
+              <span className="text-clinical-zinc/70 text-[10px] ml-1">
+                ({Math.round((sodiumMg / 2300) * 100)}% DV)
+              </span>
+            </span>
+          </div>
+        )}
       </div>
     </div>
   );

@@ -22,6 +22,8 @@ tags:
     description: Per-dish customer reviews and moderation
   - name: rd-partners
     description: RD partner & advisory onboarding wizard (public)
+  - name: team-profiles
+    description: Public chef & RD profiles for trust & transparency
 paths:
   /recipes:
     get:
@@ -249,6 +251,52 @@ paths:
           description: Updated
         "403":
           description: Catalog scope required
+        "404":
+          description: Not found
+  /team-profiles:
+    get:
+      operationId: listTeamProfiles
+      tags: [team-profiles]
+      summary: List published chef and RD profiles
+      parameters:
+        - in: query
+          name: role
+          schema: { type: string, enum: [chef, rd] }
+      responses:
+        "200":
+          description: Team profiles
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [profiles]
+                properties:
+                  profiles:
+                    type: array
+                    items: { $ref: "#/components/schemas/TeamProfile" }
+  /team-profiles/{slug}:
+    get:
+      operationId: getTeamProfile
+      tags: [team-profiles]
+      summary: Get a chef or RD profile by slug, including owned dishes
+      parameters:
+        - in: path
+          name: slug
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Team profile
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [profile, ownedDishSlugs]
+                properties:
+                  profile: { $ref: "#/components/schemas/TeamProfile" }
+                  ownedDishSlugs:
+                    type: array
+                    items: { type: string }
         "404":
           description: Not found
   /healthz:
@@ -865,7 +913,54 @@ components:
             carbsG: { type: number }
             fatG: { type: number }
             fiberG: { type: number }
+            saturatedFatG: { type: number }
+            sugarG: { type: number }
+            sodiumMg: { type: number }
+        allergens:
+          type: array
+          items: { type: string }
+        sourcingNotes:
+          type: array
+          items:
+            type: object
+            required: [area, detail]
+            properties:
+              area: { type: string }
+              detail: { type: string }
+        micronutrients:
+          type: array
+          items:
+            type: object
+            required: [key, label, value, unit, dailyTargetPct]
+            properties:
+              key: { type: string }
+              label: { type: string }
+              value: { type: number }
+              unit: { type: string }
+              dailyTargetPct: { type: number }
         status: { type: string }
+    TeamProfile:
+      type: object
+      required: [slug, name, role, title, bio, yearsExperience, initials, accent, credentials]
+      properties:
+        slug: { type: string }
+        name: { type: string }
+        role: { type: string, enum: [chef, rd] }
+        title: { type: string }
+        bio: { type: string }
+        signatureLine: { type: string, nullable: true }
+        yearsExperience: { type: integer }
+        initials: { type: string }
+        accent: { type: string, enum: [gold, sage, blue] }
+        credentials:
+          type: array
+          items: { type: string }
+        kitchens:
+          type: array
+          items: { type: string }
+        lifestyles:
+          type: array
+          items: { type: string }
     Challenge:
       type: object
       required: [id, slug, title, summary, durationDays, status]

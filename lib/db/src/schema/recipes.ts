@@ -1,4 +1,4 @@
-import { pgTable, serial, varchar, integer, text } from "drizzle-orm/pg-core";
+import { pgTable, serial, varchar, integer, text, jsonb } from "drizzle-orm/pg-core";
 
 export const recipesTable = pgTable("recipes", {
   id: serial("id").primaryKey(),
@@ -8,6 +8,25 @@ export const recipesTable = pgTable("recipes", {
   servingSize: varchar("serving_size", { length: 64 }),
   method: text("method").notNull().default(""),
   foodCostPaise: integer("food_cost_paise"),
+  // Nutrition label fields (Trust & Transparency)
+  caloriesKcal: integer("calories_kcal"),
+  proteinG: integer("protein_g"),
+  carbsG: integer("carbs_g"),
+  fatG: integer("fat_g"),
+  fiberG: integer("fiber_g"),
+  saturatedFatG: integer("saturated_fat_g"),
+  sugarG: integer("sugar_g"),
+  sodiumMg: integer("sodium_mg"),
+  glycaemicIndex: varchar("glycaemic_index", { length: 16 }),
+  allergens: jsonb("allergens").$type<string[]>().default([]),
+  micronutrients: jsonb("micronutrients").$type<
+    Array<{ key: string; label: string; value: number; unit: string; dailyTargetPct: number }>
+  >().default([]),
+  sourcingNotes: jsonb("sourcing_notes").$type<
+    Array<{ area: string; detail: string }>
+  >().default([]),
+  containsClaims: jsonb("contains_claims").$type<string[]>().default([]),
+  freeFromClaims: jsonb("free_from_claims").$type<string[]>().default([]),
 });
 
 export const recipeIngredientsTable = pgTable("recipe_ingredients", {

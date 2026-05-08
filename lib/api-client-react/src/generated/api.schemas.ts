@@ -205,7 +205,23 @@ export type RecipeNutrition = {
   carbsG?: number;
   fatG?: number;
   fiberG?: number;
+  saturatedFatG?: number;
+  sugarG?: number;
+  sodiumMg?: number;
 } | null;
+
+export type RecipeSourcingNotesItem = {
+  area: string;
+  detail: string;
+};
+
+export type RecipeMicronutrientsItem = {
+  key: string;
+  label: string;
+  value: number;
+  unit: string;
+  dailyTargetPct: number;
+};
 
 export interface Recipe {
   id: number;
@@ -222,7 +238,42 @@ export interface Recipe {
   ingredients?: RecipeIngredientsItem[];
   steps?: string[];
   nutrition?: RecipeNutrition;
+  allergens?: string[];
+  sourcingNotes?: RecipeSourcingNotesItem[];
+  micronutrients?: RecipeMicronutrientsItem[];
   status: string;
+}
+
+export type TeamProfileRole =
+  (typeof TeamProfileRole)[keyof typeof TeamProfileRole];
+
+export const TeamProfileRole = {
+  chef: "chef",
+  rd: "rd",
+} as const;
+
+export type TeamProfileAccent =
+  (typeof TeamProfileAccent)[keyof typeof TeamProfileAccent];
+
+export const TeamProfileAccent = {
+  gold: "gold",
+  sage: "sage",
+  blue: "blue",
+} as const;
+
+export interface TeamProfile {
+  slug: string;
+  name: string;
+  role: TeamProfileRole;
+  title: string;
+  bio: string;
+  signatureLine?: string | null;
+  yearsExperience: number;
+  initials: string;
+  accent: TeamProfileAccent;
+  credentials: string[];
+  kitchens?: string[];
+  lifestyles?: string[];
 }
 
 export interface Challenge {
@@ -568,6 +619,27 @@ export type GetChallenge200 = {
 
 export type PostToChallenge200 = {
   post: ChallengePost;
+};
+
+export type ListTeamProfilesParams = {
+  role?: ListTeamProfilesRole;
+};
+
+export type ListTeamProfilesRole =
+  (typeof ListTeamProfilesRole)[keyof typeof ListTeamProfilesRole];
+
+export const ListTeamProfilesRole = {
+  chef: "chef",
+  rd: "rd",
+} as const;
+
+export type ListTeamProfiles200 = {
+  profiles: TeamProfile[];
+};
+
+export type GetTeamProfile200 = {
+  profile: TeamProfile;
+  ownedDishSlugs: string[];
 };
 
 export type TrackRdPartnersEvent200 = {

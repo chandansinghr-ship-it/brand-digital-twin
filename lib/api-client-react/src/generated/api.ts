@@ -24,11 +24,14 @@ import type {
   DishReviewInput,
   GetChallenge200,
   GetRecipe200,
+  GetTeamProfile200,
   HealthStatus,
   ListAdminRdApplicationsParams,
   ListChallenges200,
   ListRecipes200,
   ListRecipesParams,
+  ListTeamProfiles200,
+  ListTeamProfilesParams,
   OkEnvelope,
   PostToChallenge200,
   PreferencesEnvelope,
@@ -1070,6 +1073,190 @@ export const useUnhideDishReview = <
 > => {
   return useMutation(getUnhideDishReviewMutationOptions(options));
 };
+
+/**
+ * @summary List published chef and RD profiles
+ */
+export const getListTeamProfilesUrl = (params?: ListTeamProfilesParams) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/team-profiles?${stringifiedParams}`
+    : `/api/team-profiles`;
+};
+
+export const listTeamProfiles = async (
+  params?: ListTeamProfilesParams,
+  options?: RequestInit,
+): Promise<ListTeamProfiles200> => {
+  return customFetch<ListTeamProfiles200>(getListTeamProfilesUrl(params), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getListTeamProfilesQueryKey = (
+  params?: ListTeamProfilesParams,
+) => {
+  return [`/api/team-profiles`, ...(params ? [params] : [])] as const;
+};
+
+export const getListTeamProfilesQueryOptions = <
+  TData = Awaited<ReturnType<typeof listTeamProfiles>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: ListTeamProfilesParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listTeamProfiles>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getListTeamProfilesQueryKey(params);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof listTeamProfiles>>
+  > = ({ signal }) => listTeamProfiles(params, { signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof listTeamProfiles>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type ListTeamProfilesQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listTeamProfiles>>
+>;
+export type ListTeamProfilesQueryError = ErrorType<unknown>;
+
+/**
+ * @summary List published chef and RD profiles
+ */
+
+export function useListTeamProfiles<
+  TData = Awaited<ReturnType<typeof listTeamProfiles>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: ListTeamProfilesParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listTeamProfiles>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getListTeamProfilesQueryOptions(params, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Get a chef or RD profile by slug, including owned dishes
+ */
+export const getGetTeamProfileUrl = (slug: string) => {
+  return `/api/team-profiles/${slug}`;
+};
+
+export const getTeamProfile = async (
+  slug: string,
+  options?: RequestInit,
+): Promise<GetTeamProfile200> => {
+  return customFetch<GetTeamProfile200>(getGetTeamProfileUrl(slug), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetTeamProfileQueryKey = (slug: string) => {
+  return [`/api/team-profiles/${slug}`] as const;
+};
+
+export const getGetTeamProfileQueryOptions = <
+  TData = Awaited<ReturnType<typeof getTeamProfile>>,
+  TError = ErrorType<void>,
+>(
+  slug: string,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getTeamProfile>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetTeamProfileQueryKey(slug);
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getTeamProfile>>> = ({
+    signal,
+  }) => getTeamProfile(slug, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!slug,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof getTeamProfile>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetTeamProfileQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getTeamProfile>>
+>;
+export type GetTeamProfileQueryError = ErrorType<void>;
+
+/**
+ * @summary Get a chef or RD profile by slug, including owned dishes
+ */
+
+export function useGetTeamProfile<
+  TData = Awaited<ReturnType<typeof getTeamProfile>>,
+  TError = ErrorType<void>,
+>(
+  slug: string,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getTeamProfile>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetTeamProfileQueryOptions(slug, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
 
 /**
  * Returns server health status
