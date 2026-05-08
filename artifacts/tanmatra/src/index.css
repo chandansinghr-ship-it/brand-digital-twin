@@ -120,6 +120,17 @@
 
   .tabular-nums { font-variant-numeric: tabular-nums; font-family: var(--font-mono); }
 
+  /* ─── Canonical focus ring (use on every interactive primitive) ─── */
+  .focus-ring-clinical {
+    outline: none;
+  }
+  .focus-ring-clinical:focus-visible {
+    outline: none;
+    box-shadow:
+      0 0 0 2px var(--color-clinical-dark),
+      0 0 0 4px rgba(212, 175, 55, 0.55);
+  }
+
   /* All numeric fields tabular by default for clinical data */
   table, .data-grid { font-variant-numeric: tabular-nums; }
 

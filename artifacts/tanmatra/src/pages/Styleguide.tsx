@@ -237,6 +237,25 @@ export default function Styleguide() {
           </div>
         </Section>
 
+        {/* Focus rings */}
+        <Section title="Focus rings" kicker="a11y · keyboard">
+          <Card className="p-6 bg-clinical-surface border-clinical-slate/30">
+            <p className="text-body-sm text-clinical-zinc mb-4">
+              Every interactive primitive uses the same canonical focus ring:{" "}
+              <code className="text-clinical-data text-clinical-gold">
+                focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:ring-offset-2 focus-visible:ring-offset-background
+              </code>
+              . Tab through the controls below to see it.
+            </p>
+            <div className="flex flex-wrap items-center gap-3">
+              <Button>Tab to me</Button>
+              <Button variant="outline">Then me</Button>
+              <Input placeholder="Then this input" className="w-56" />
+              <Badge>Then this badge</Badge>
+            </div>
+          </Card>
+        </Section>
+
         {/* Cards */}
         <Section title="Surface elevations">
           <div className="grid sm:grid-cols-3 gap-3">
