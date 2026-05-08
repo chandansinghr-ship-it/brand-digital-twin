@@ -50,9 +50,7 @@ import {
   Ticket,
 } from "lucide-react";
 
-import { SAVED_ADDRESSES, type SavedAddress } from "@/lib/savedAddresses";
-// Re-export so existing local references compile unchanged.
-export type { SavedAddress };
+import { SAVED_ADDRESSES } from "@/lib/savedAddresses";
 
 const TIP_PRESETS = [0, 2000, 5000, 10000];
 
