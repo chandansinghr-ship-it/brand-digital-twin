@@ -20,6 +20,8 @@ tags:
     description: Cohort challenges with shared progress feed
   - name: reviews
     description: Per-dish customer reviews and moderation
+  - name: rd-partners
+    description: RD partner & advisory onboarding wizard (public)
 paths:
   /recipes:
     get:
@@ -400,6 +402,122 @@ paths:
           description: Unauthorized
         "409":
           description: Wearable not connected
+  /rd-partners/events:
+    post:
+      operationId: trackRdPartnersEvent
+      tags: [rd-partners]
+      summary: Record a wizard funnel event
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RdPartnersEvent"
+      responses:
+        "200":
+          description: Recorded
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [ok]
+                properties:
+                  ok: { type: boolean }
+        "400":
+          description: Invalid payload
+        "429":
+          description: Too many events
+  /rd-partners/whatsapp/send-otp:
+    post:
+      operationId: rdPartnersSendOtp
+      tags: [rd-partners]
+      summary: Send a WhatsApp verification code via Twilio Verify
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RdPartnersOtpSendRequest"
+      responses:
+        "200":
+          description: Code sent (devCode echoed when no Twilio credentials are configured)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RdPartnersOtpSendResponse"
+        "400":
+          description: Invalid phone
+        "429":
+          description: Too many requests
+  /rd-partners/whatsapp/verify-otp:
+    post:
+      operationId: rdPartnersVerifyOtp
+      tags: [rd-partners]
+      summary: Verify a WhatsApp code and record a server-side proof
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RdPartnersOtpVerifyRequest"
+      responses:
+        "200":
+          description: Verified
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RdPartnersOtpVerifyResponse"
+        "400":
+          description: Invalid code
+        "429":
+          description: Too many attempts
+  /rd-partners/applications:
+    post:
+      operationId: rdPartnersSubmitApplication
+      tags: [rd-partners]
+      summary: Submit an RD partner / advisory application
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RdPartnersApplicationRequest"
+      responses:
+        "200":
+          description: Application accepted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RdPartnersApplicationResponse"
+        "400":
+          description: Invalid payload
+        "409":
+          description: Email already used
+        "429":
+          description: Too many submissions
+  /rd-partners/applications/{id}/create-account:
+    post:
+      operationId: rdPartnersAttachAccount
+      tags: [rd-partners]
+      summary: Attach the signed-in user (and provision an RD seat for advisory paths)
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer, minimum: 1 }
+      responses:
+        "200":
+          description: Attached / provisioned
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RdPartnersAttachAccountResult"
+        "401":
+          description: Sign in required
+        "403":
+          description: Email mismatch with application
+        "404":
+          description: Application not found
 components:
   schemas:
     HealthStatus:
@@ -736,3 +854,152 @@ components:
           format: uri
           maxLength: 1024
           nullable: true
+    RdPartnersEvent:
+      type: object
+      required: [sessionId, eventName]
+      properties:
+        sessionId: { type: string, minLength: 8, maxLength: 64 }
+        eventName: { type: string, minLength: 2, maxLength: 64 }
+        step: { type: integer, minimum: 0, maximum: 10 }
+        applicationId: { type: integer, minimum: 1 }
+        extra:
+          type: object
+          additionalProperties: true
+    RdPartnersOtpSendRequest:
+      type: object
+      required: [countryCode, phone]
+      properties:
+        countryCode: { type: string, minLength: 2, maxLength: 8 }
+        phone: { type: string, minLength: 5, maxLength: 20 }
+    RdPartnersOtpSendResponse:
+      type: object
+      required: [ok]
+      properties:
+        ok: { type: boolean }
+        devCode:
+          type: string
+          nullable: true
+          description: Echoed only when no Twilio credentials are configured
+    RdPartnersOtpVerifyRequest:
+      type: object
+      required: [countryCode, phone, code, sessionId]
+      properties:
+        countryCode: { type: string, minLength: 2, maxLength: 8 }
+        phone: { type: string, minLength: 5, maxLength: 20 }
+        code: { type: string, minLength: 4, maxLength: 10 }
+        sessionId: { type: string, minLength: 8, maxLength: 64 }
+    RdPartnersOtpVerifyResponse:
+      type: object
+      required: [ok]
+      properties:
+        ok: { type: boolean }
+        e164: { type: string }
+    RdPartnersWhatsApp:
+      type: object
+      required: [countryCode, phone]
+      properties:
+        countryCode: { type: string, minLength: 2, maxLength: 8 }
+        phone: { type: string, minLength: 5, maxLength: 20 }
+    RdPartnersApplicationRequest:
+      type: object
+      required:
+        - path
+        - fullName
+        - email
+        - credentials
+        - yearsExperience
+        - cityRegion
+        - languages
+        - practiceSetting
+        - sessionId
+      properties:
+        path:
+          type: string
+          enum: [partner, advisory, both]
+        fullName: { type: string, minLength: 2, maxLength: 200 }
+        email: { type: string, format: email, maxLength: 200 }
+        credentials: { type: string, minLength: 1, maxLength: 200 }
+        registrationBody:
+          type: string
+          maxLength: 120
+          nullable: true
+        registrationNumber:
+          type: string
+          maxLength: 80
+          nullable: true
+        yearsExperience: { type: integer, minimum: 0, maximum: 80 }
+        specializations:
+          type: array
+          items: { type: string, maxLength: 80 }
+        cityRegion: { type: string, minLength: 2, maxLength: 200 }
+        languages:
+          type: array
+          minItems: 1
+          items: { type: string, maxLength: 80 }
+        practiceSetting:
+          type: string
+          enum: [solo, clinic, hospital, online, mixed]
+        clientVolumeBucket:
+          type: string
+          maxLength: 32
+          nullable: true
+        interests:
+          type: array
+          items: { type: string, maxLength: 80 }
+        bio:
+          type: string
+          maxLength: 4000
+          nullable: true
+        whatsapp:
+          $ref: "#/components/schemas/RdPartnersWhatsApp"
+        whatsappOptIn: { type: boolean, default: false }
+        notifyPref:
+          type: string
+          enum: [daily, weekly, critical]
+        sessionId: { type: string, minLength: 8, maxLength: 64 }
+    RdPartnersApplicationSummary:
+      type: object
+      required: [id, status, path, email]
+      properties:
+        id: { type: integer }
+        status:
+          type: string
+          enum: [new, contacted, approved, rejected]
+        path:
+          type: string
+          enum: [partner, advisory, both]
+        email: { type: string }
+        whatsappOptIn: { type: boolean }
+        whatsappVerifiedAt:
+          type: string
+          format: date-time
+          nullable: true
+    RdPartnersApplicationResponse:
+      type: object
+      required: [application, notify]
+      properties:
+        application:
+          $ref: "#/components/schemas/RdPartnersApplicationSummary"
+        notify:
+          type: object
+          required: [delivered, channel]
+          properties:
+            delivered: { type: boolean }
+            to:
+              type: string
+              nullable: true
+            channel:
+              type: string
+              enum: [log, email]
+    RdPartnersAttachAccountResult:
+      type: object
+      required: [ok]
+      properties:
+        ok: { type: boolean }
+        linkedUserId:
+          type: string
+          nullable: true
+        rdSlug:
+          type: string
+          nullable: true
+        provisioned: { type: boolean }

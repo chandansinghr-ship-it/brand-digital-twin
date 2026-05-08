@@ -399,13 +399,99 @@ router.post(
       res.status(403).json({ error: "email mismatch with application" });
       return;
     }
+    // Idempotent: if a row is already linked we just echo the slug.
+    if (app.linkedUserId === req.user.id && app.linkedRdSlug) {
+      res.json({
+        ok: true,
+        linkedUserId: app.linkedUserId,
+        rdSlug: app.linkedRdSlug,
+        provisioned: false,
+      });
+      return;
+    }
+
+    // For partner-only applications we just attach the user; advisory
+    // and "both" applications also get an `rd_users` row + slug so the
+    // partner can step into the console immediately on approval.
+    let provisionedSlug: string | null = app.linkedRdSlug ?? null;
+    const wantsConsole = app.path === "advisory" || app.path === "both";
+    if (wantsConsole && !provisionedSlug) {
+      provisionedSlug = await provisionRdSlug(req.user.id, app.fullName);
+    } else if (wantsConsole && provisionedSlug) {
+      // Make sure the rd_users row actually exists for the slug we
+      // recorded — admins may have wiped it.
+      const existing = await db
+        .select({ id: rdUsersTable.id })
+        .from(rdUsersTable)
+        .where(
+          and(
+            eq(rdUsersTable.userId, req.user.id),
+            eq(rdUsersTable.rdSlug, provisionedSlug),
+          ),
+        )
+        .limit(1);
+      if (existing.length === 0) {
+        await db
+          .insert(rdUsersTable)
+          .values({ userId: req.user.id, rdSlug: provisionedSlug });
+      }
+    }
+
     await db
       .update(rdApplicationsTable)
-      .set({ linkedUserId: req.user.id })
+      .set({
+        linkedUserId: req.user.id,
+        ...(provisionedSlug ? { linkedRdSlug: provisionedSlug } : {}),
+      })
       .where(eq(rdApplicationsTable.id, id));
-    res.json({ ok: true });
+    res.json({
+      ok: true,
+      linkedUserId: req.user.id,
+      rdSlug: provisionedSlug,
+      provisioned: Boolean(provisionedSlug && !app.linkedRdSlug),
+    });
   },
 );
+
+// Generate an `[a-z0-9-]` slug from the applicant's full name. Falls
+// back to suffixing a counter when the natural slug is taken.
+function slugifyName(name: string): string {
+  return (
+    name
+      .toLowerCase()
+      .normalize("NFKD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "")
+      .slice(0, 48) || "rd"
+  );
+}
+
+async function provisionRdSlug(
+  userId: string,
+  fullName: string,
+): Promise<string> {
+  const base = slugifyName(fullName);
+  for (let i = 0; i < 25; i++) {
+    const candidate = i === 0 ? base : `${base}-${i + 1}`;
+    const taken = await db
+      .select({ id: rdUsersTable.id })
+      .from(rdUsersTable)
+      .where(eq(rdUsersTable.rdSlug, candidate))
+      .limit(1);
+    if (taken.length === 0) {
+      await db
+        .insert(rdUsersTable)
+        .values({ userId, rdSlug: candidate });
+      return candidate;
+    }
+  }
+  // Extremely unlikely — fall back to a random suffix.
+  const suffix = Math.random().toString(36).slice(2, 8);
+  const candidate = `${base}-${suffix}`;
+  await db.insert(rdUsersTable).values({ userId, rdSlug: candidate });
+  return candidate;
+}
 
 // ---------- admin ----------
 

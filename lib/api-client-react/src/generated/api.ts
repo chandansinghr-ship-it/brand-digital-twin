@@ -30,6 +30,15 @@ import type {
   PreferencesEnvelope,
   PreferencesEnvelopeRequired,
   PreferencesPatch,
+  RdPartnersApplicationRequest,
+  RdPartnersApplicationResponse,
+  RdPartnersAttachAccountResult,
+  RdPartnersEvent,
+  RdPartnersOtpSendRequest,
+  RdPartnersOtpSendResponse,
+  RdPartnersOtpVerifyRequest,
+  RdPartnersOtpVerifyResponse,
+  TrackRdPartnersEvent200,
   WearableConnectInput,
   WearableLinkEnvelope,
   WearableSyncInput,
@@ -1712,4 +1721,440 @@ export const useSyncWearable = <
   TContext
 > => {
   return useMutation(getSyncWearableMutationOptions(options));
+};
+
+/**
+ * @summary Record a wizard funnel event
+ */
+export const getTrackRdPartnersEventUrl = () => {
+  return `/api/rd-partners/events`;
+};
+
+export const trackRdPartnersEvent = async (
+  rdPartnersEvent: RdPartnersEvent,
+  options?: RequestInit,
+): Promise<TrackRdPartnersEvent200> => {
+  return customFetch<TrackRdPartnersEvent200>(getTrackRdPartnersEventUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(rdPartnersEvent),
+  });
+};
+
+export const getTrackRdPartnersEventMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof trackRdPartnersEvent>>,
+    TError,
+    { data: BodyType<RdPartnersEvent> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof trackRdPartnersEvent>>,
+  TError,
+  { data: BodyType<RdPartnersEvent> },
+  TContext
+> => {
+  const mutationKey = ["trackRdPartnersEvent"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof trackRdPartnersEvent>>,
+    { data: BodyType<RdPartnersEvent> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return trackRdPartnersEvent(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type TrackRdPartnersEventMutationResult = NonNullable<
+  Awaited<ReturnType<typeof trackRdPartnersEvent>>
+>;
+export type TrackRdPartnersEventMutationBody = BodyType<RdPartnersEvent>;
+export type TrackRdPartnersEventMutationError = ErrorType<void>;
+
+/**
+ * @summary Record a wizard funnel event
+ */
+export const useTrackRdPartnersEvent = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof trackRdPartnersEvent>>,
+    TError,
+    { data: BodyType<RdPartnersEvent> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof trackRdPartnersEvent>>,
+  TError,
+  { data: BodyType<RdPartnersEvent> },
+  TContext
+> => {
+  return useMutation(getTrackRdPartnersEventMutationOptions(options));
+};
+
+/**
+ * @summary Send a WhatsApp verification code via Twilio Verify
+ */
+export const getRdPartnersSendOtpUrl = () => {
+  return `/api/rd-partners/whatsapp/send-otp`;
+};
+
+export const rdPartnersSendOtp = async (
+  rdPartnersOtpSendRequest: RdPartnersOtpSendRequest,
+  options?: RequestInit,
+): Promise<RdPartnersOtpSendResponse> => {
+  return customFetch<RdPartnersOtpSendResponse>(getRdPartnersSendOtpUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(rdPartnersOtpSendRequest),
+  });
+};
+
+export const getRdPartnersSendOtpMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof rdPartnersSendOtp>>,
+    TError,
+    { data: BodyType<RdPartnersOtpSendRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof rdPartnersSendOtp>>,
+  TError,
+  { data: BodyType<RdPartnersOtpSendRequest> },
+  TContext
+> => {
+  const mutationKey = ["rdPartnersSendOtp"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof rdPartnersSendOtp>>,
+    { data: BodyType<RdPartnersOtpSendRequest> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return rdPartnersSendOtp(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type RdPartnersSendOtpMutationResult = NonNullable<
+  Awaited<ReturnType<typeof rdPartnersSendOtp>>
+>;
+export type RdPartnersSendOtpMutationBody = BodyType<RdPartnersOtpSendRequest>;
+export type RdPartnersSendOtpMutationError = ErrorType<void>;
+
+/**
+ * @summary Send a WhatsApp verification code via Twilio Verify
+ */
+export const useRdPartnersSendOtp = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof rdPartnersSendOtp>>,
+    TError,
+    { data: BodyType<RdPartnersOtpSendRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof rdPartnersSendOtp>>,
+  TError,
+  { data: BodyType<RdPartnersOtpSendRequest> },
+  TContext
+> => {
+  return useMutation(getRdPartnersSendOtpMutationOptions(options));
+};
+
+/**
+ * @summary Verify a WhatsApp code and record a server-side proof
+ */
+export const getRdPartnersVerifyOtpUrl = () => {
+  return `/api/rd-partners/whatsapp/verify-otp`;
+};
+
+export const rdPartnersVerifyOtp = async (
+  rdPartnersOtpVerifyRequest: RdPartnersOtpVerifyRequest,
+  options?: RequestInit,
+): Promise<RdPartnersOtpVerifyResponse> => {
+  return customFetch<RdPartnersOtpVerifyResponse>(getRdPartnersVerifyOtpUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(rdPartnersOtpVerifyRequest),
+  });
+};
+
+export const getRdPartnersVerifyOtpMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof rdPartnersVerifyOtp>>,
+    TError,
+    { data: BodyType<RdPartnersOtpVerifyRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof rdPartnersVerifyOtp>>,
+  TError,
+  { data: BodyType<RdPartnersOtpVerifyRequest> },
+  TContext
+> => {
+  const mutationKey = ["rdPartnersVerifyOtp"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof rdPartnersVerifyOtp>>,
+    { data: BodyType<RdPartnersOtpVerifyRequest> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return rdPartnersVerifyOtp(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type RdPartnersVerifyOtpMutationResult = NonNullable<
+  Awaited<ReturnType<typeof rdPartnersVerifyOtp>>
+>;
+export type RdPartnersVerifyOtpMutationBody =
+  BodyType<RdPartnersOtpVerifyRequest>;
+export type RdPartnersVerifyOtpMutationError = ErrorType<void>;
+
+/**
+ * @summary Verify a WhatsApp code and record a server-side proof
+ */
+export const useRdPartnersVerifyOtp = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof rdPartnersVerifyOtp>>,
+    TError,
+    { data: BodyType<RdPartnersOtpVerifyRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof rdPartnersVerifyOtp>>,
+  TError,
+  { data: BodyType<RdPartnersOtpVerifyRequest> },
+  TContext
+> => {
+  return useMutation(getRdPartnersVerifyOtpMutationOptions(options));
+};
+
+/**
+ * @summary Submit an RD partner / advisory application
+ */
+export const getRdPartnersSubmitApplicationUrl = () => {
+  return `/api/rd-partners/applications`;
+};
+
+export const rdPartnersSubmitApplication = async (
+  rdPartnersApplicationRequest: RdPartnersApplicationRequest,
+  options?: RequestInit,
+): Promise<RdPartnersApplicationResponse> => {
+  return customFetch<RdPartnersApplicationResponse>(
+    getRdPartnersSubmitApplicationUrl(),
+    {
+      ...options,
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...options?.headers },
+      body: JSON.stringify(rdPartnersApplicationRequest),
+    },
+  );
+};
+
+export const getRdPartnersSubmitApplicationMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof rdPartnersSubmitApplication>>,
+    TError,
+    { data: BodyType<RdPartnersApplicationRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof rdPartnersSubmitApplication>>,
+  TError,
+  { data: BodyType<RdPartnersApplicationRequest> },
+  TContext
+> => {
+  const mutationKey = ["rdPartnersSubmitApplication"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof rdPartnersSubmitApplication>>,
+    { data: BodyType<RdPartnersApplicationRequest> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return rdPartnersSubmitApplication(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type RdPartnersSubmitApplicationMutationResult = NonNullable<
+  Awaited<ReturnType<typeof rdPartnersSubmitApplication>>
+>;
+export type RdPartnersSubmitApplicationMutationBody =
+  BodyType<RdPartnersApplicationRequest>;
+export type RdPartnersSubmitApplicationMutationError = ErrorType<void>;
+
+/**
+ * @summary Submit an RD partner / advisory application
+ */
+export const useRdPartnersSubmitApplication = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof rdPartnersSubmitApplication>>,
+    TError,
+    { data: BodyType<RdPartnersApplicationRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof rdPartnersSubmitApplication>>,
+  TError,
+  { data: BodyType<RdPartnersApplicationRequest> },
+  TContext
+> => {
+  return useMutation(getRdPartnersSubmitApplicationMutationOptions(options));
+};
+
+/**
+ * @summary Attach the signed-in user (and provision an RD seat for advisory paths)
+ */
+export const getRdPartnersAttachAccountUrl = (id: number) => {
+  return `/api/rd-partners/applications/${id}/create-account`;
+};
+
+export const rdPartnersAttachAccount = async (
+  id: number,
+  options?: RequestInit,
+): Promise<RdPartnersAttachAccountResult> => {
+  return customFetch<RdPartnersAttachAccountResult>(
+    getRdPartnersAttachAccountUrl(id),
+    {
+      ...options,
+      method: "POST",
+    },
+  );
+};
+
+export const getRdPartnersAttachAccountMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof rdPartnersAttachAccount>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof rdPartnersAttachAccount>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  const mutationKey = ["rdPartnersAttachAccount"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof rdPartnersAttachAccount>>,
+    { id: number }
+  > = (props) => {
+    const { id } = props ?? {};
+
+    return rdPartnersAttachAccount(id, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type RdPartnersAttachAccountMutationResult = NonNullable<
+  Awaited<ReturnType<typeof rdPartnersAttachAccount>>
+>;
+
+export type RdPartnersAttachAccountMutationError = ErrorType<void>;
+
+/**
+ * @summary Attach the signed-in user (and provision an RD seat for advisory paths)
+ */
+export const useRdPartnersAttachAccount = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof rdPartnersAttachAccount>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof rdPartnersAttachAccount>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  return useMutation(getRdPartnersAttachAccountMutationOptions(options));
 };

@@ -94,13 +94,17 @@ const INTERESTS = [
   "Speak / publish",
 ];
 
-const DRAFT_KEY = "tanmatra:rd-partners:draft:v1";
+const DRAFT_KEY_PREFIX = "tanmatra:rd-partners:draft:v1:";
 const STEPS = ["Path", "Profile", "Practice", "WhatsApp", "Review"] as const;
+
+function draftKey(): string {
+  return `${DRAFT_KEY_PREFIX}${getRdPartnersSessionId()}`;
+}
 
 function loadDraft(): DraftState {
   if (typeof window === "undefined") return EMPTY;
   try {
-    const raw = window.localStorage.getItem(DRAFT_KEY);
+    const raw = window.localStorage.getItem(draftKey());
     if (!raw) return EMPTY;
     return { ...EMPTY, ...(JSON.parse(raw) as Partial<DraftState>) };
   } catch {
@@ -110,11 +114,11 @@ function loadDraft(): DraftState {
 
 function saveDraft(d: DraftState) {
   if (typeof window === "undefined") return;
-  window.localStorage.setItem(DRAFT_KEY, JSON.stringify(d));
+  window.localStorage.setItem(draftKey(), JSON.stringify(d));
 }
 
 function clearDraft() {
-  if (typeof window !== "undefined") window.localStorage.removeItem(DRAFT_KEY);
+  if (typeof window !== "undefined") window.localStorage.removeItem(draftKey());
 }
 
 export default function RdPartnersWizard() {
@@ -129,7 +133,7 @@ export default function RdPartnersWizard() {
   } | null>(null);
 
   useEffect(() => {
-    void trackRdPartnersEvent("wizard_open", { step: 0 });
+    void trackRdPartnersEvent("rd_wizard_started", { step: 0 });
   }, []);
 
   // If we returned from /login with `?linked=<id>`, jump to the done
@@ -151,7 +155,7 @@ export default function RdPartnersWizard() {
     }).then((res) => {
       if (res.ok) {
         toast.success("Account attached");
-        void trackRdPartnersEvent("account_attached", {
+        void trackRdPartnersEvent("rd_account_created", {
           step: 5,
           applicationId: id,
         });
@@ -209,14 +213,14 @@ export default function RdPartnersWizard() {
 
   const next = () => {
     if (!stepValid) return;
-    void trackRdPartnersEvent("step_advance", {
+    void trackRdPartnersEvent("rd_wizard_step_completed", {
       step,
       extra: { to: step + 1 },
     });
     setStep((s) => Math.min(5, s + 1));
   };
   const back = () => {
-    void trackRdPartnersEvent("step_back", { step });
+    void trackRdPartnersEvent("rd_wizard_step_back", { step });
     setStep((s) => Math.max(0, s - 1));
   };
 
@@ -265,13 +269,13 @@ export default function RdPartnersWizard() {
       setSubmitted({ id: j.application.id, notifyTo: j.notify.to });
       setStep(5);
       clearDraft();
-      void trackRdPartnersEvent("submit_success", {
+      void trackRdPartnersEvent("rd_wizard_submitted", {
         step: 5,
         applicationId: j.application.id,
       });
     } catch (err) {
       toast.error("Could not submit", { description: (err as Error).message });
-      void trackRdPartnersEvent("submit_failure", {
+      void trackRdPartnersEvent("rd_wizard_submit_failed", {
         step: 5,
         extra: { message: (err as Error).message },
       });
@@ -614,6 +618,13 @@ function StepWhatsapp({
   const [verifying, setVerifying] = useState(false);
   const [sent, setSent] = useState(false);
   const [devCode, setDevCode] = useState<string | null>(null);
+  const [resendIn, setResendIn] = useState(0);
+
+  useEffect(() => {
+    if (resendIn <= 0) return;
+    const t = setTimeout(() => setResendIn((s) => s - 1), 1000);
+    return () => clearTimeout(t);
+  }, [resendIn]);
 
   async function sendOtp() {
     setSending(true);
@@ -638,7 +649,8 @@ function StepWhatsapp({
           ? `Dev mode — your code is ${j.devCode}`
           : "Check WhatsApp for the 6-digit code.",
       });
-      void trackRdPartnersEvent("otp_sent", { step: 3 });
+      setResendIn(30);
+      void trackRdPartnersEvent("rd_whatsapp_otp_sent", { step: 3 });
     } catch (err) {
       toast.error("Could not send code", {
         description: (err as Error).message,
@@ -667,7 +679,7 @@ function StepWhatsapp({
       }
       update({ whatsappVerified: true });
       toast.success("WhatsApp verified");
-      void trackRdPartnersEvent("otp_verified", { step: 3 });
+      void trackRdPartnersEvent("rd_whatsapp_verified", { step: 3 });
     } catch (err) {
       toast.error("Could not verify", {
         description: (err as Error).message,
@@ -705,12 +717,16 @@ function StepWhatsapp({
       <div className="flex flex-wrap items-center gap-3">
         <Button
           onClick={sendOtp}
-          disabled={sending || draft.whatsappPhone.length < 6}
+          disabled={
+            sending || draft.whatsappPhone.length < 6 || resendIn > 0
+          }
           variant="outline"
           className="border-clinical-gold/40 text-clinical-gold hover:bg-clinical-gold/10 text-xs h-8"
         >
           {sending ? (
             <Loader2 className="w-3.5 h-3.5 animate-spin" />
+          ) : resendIn > 0 ? (
+            `Resend in ${resendIn}s`
           ) : sent ? (
             "Resend code"
           ) : (
@@ -907,12 +923,23 @@ function StepDone({
           {linked ? "Account attached" : linking ? "Attaching…" : "Attach my account"}
         </Button>
       </div>
-      <Link
-        to="/rd-partners"
-        className="text-xs text-clinical-zinc hover:text-white inline-block"
-      >
-        Back to partners overview
-      </Link>
+      <div className="flex items-center justify-center gap-4 text-xs">
+        <a
+          href="/downloads/tanmatra-rd-partner-brochure.pdf"
+          target="_blank"
+          rel="noopener noreferrer"
+          download
+          className="text-clinical-gold hover:text-clinical-gold/80 underline"
+        >
+          Download partner brochure (PDF)
+        </a>
+        <Link
+          to="/rd-partners"
+          className="text-clinical-zinc hover:text-white"
+        >
+          Back to partners overview
+        </Link>
+      </div>
     </div>
   );
 }

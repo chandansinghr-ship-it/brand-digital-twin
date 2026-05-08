@@ -1,24 +1,49 @@
 import { logger } from "./logger";
+import { sendMail } from "./mail";
 import type { RdApplication } from "@workspace/db";
 
 /**
  * Notify ops that a new RD partner application was submitted.
  *
- * The repo currently ships no SMTP/SendGrid transport — sending real
- * email is intentionally out of scope here and tracked as a follow-up.
- * Until that exists this helper:
- *   1. Logs a structured `rd_partners.application.submitted` line that
- *      ops piping (Loki / pino-collector / etc.) can route.
- *   2. Returns a small descriptor so callers can surface "ops have
- *      been notified" feedback without making another DB call.
- *
- * The recipient is read from `RD_OPS_INBOX_EMAIL` (configurable per
- * deploy) so the wiring point is in place when the transport lands.
+ * Sends a plain-text + HTML email summary to `RD_OPS_INBOX_EMAIL` via
+ * the shared `sendMail` helper. If no SMTP transport is configured the
+ * helper still logs a structured `rd_partners.application.submitted`
+ * line that ops piping can route.
  */
 export interface RdNotifyResult {
   delivered: boolean;
   to: string | null;
   channel: "log" | "email";
+}
+
+function formatBody(app: RdApplication): { text: string; html: string } {
+  const lines = [
+    `New RD ${app.path} application — #${app.id}`,
+    ``,
+    `Name: ${app.fullName}`,
+    `Email: ${app.email}`,
+    `Credentials: ${app.credentials}`,
+    `Years of experience: ${app.yearsExperience}`,
+    `City / region: ${app.cityRegion}`,
+    `Practice setting: ${app.practiceSetting}`,
+    `Specializations: ${(app.specializations ?? []).join(", ") || "—"}`,
+    `Languages: ${(app.languages ?? []).join(", ") || "—"}`,
+    `Interests: ${(app.interests ?? []).join(", ") || "—"}`,
+    `WhatsApp: ${
+      app.whatsappPhone
+        ? `${app.whatsappCountryCode}${app.whatsappPhone}${
+            app.whatsappVerifiedAt ? " (verified)" : " (unverified)"
+          }`
+        : "Not provided"
+    }`,
+    ``,
+    `Open in admin: /admin/rd-applications`,
+  ];
+  const text = lines.join("\n");
+  const html = `<pre style="font-family:ui-monospace,monospace;font-size:13px;white-space:pre-wrap">${text
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")}</pre>`;
+  return { text, html };
 }
 
 export async function notifyOpsOfApplication(
@@ -37,5 +62,17 @@ export async function notifyOpsOfApplication(
     },
     "rd_partners.application.submitted",
   );
-  return { delivered: false, to, channel: "log" };
+  if (!to) return { delivered: false, to, channel: "log" };
+  const { text, html } = formatBody(app);
+  const result = await sendMail({
+    to,
+    subject: `[RD partners] New ${app.path} application — ${app.fullName} (#${app.id})`,
+    text,
+    html,
+  });
+  return {
+    delivered: result.delivered,
+    to,
+    channel: result.delivered ? "email" : "log",
+  };
 }

@@ -5,6 +5,21 @@
 
 const SESSION_KEY = "tanmatra:rd-partners:session";
 
+/** Canonical event names — kept in sync with the spec so the funnel
+ * stays stable across deploys. New events go here, never as ad-hoc
+ * strings at the call sites. */
+export type RdPartnersEventName =
+  | "rd_landing_view"
+  | "rd_landing_cta_click"
+  | "rd_wizard_started"
+  | "rd_wizard_step_completed"
+  | "rd_wizard_step_back"
+  | "rd_whatsapp_otp_sent"
+  | "rd_whatsapp_verified"
+  | "rd_wizard_submitted"
+  | "rd_wizard_submit_failed"
+  | "rd_account_created";
+
 function newId(): string {
   if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
     return crypto.randomUUID().replace(/-/g, "").slice(0, 24);
@@ -29,7 +44,7 @@ interface EventPayload {
 }
 
 export async function trackRdPartnersEvent(
-  eventName: string,
+  eventName: RdPartnersEventName,
   payload: EventPayload = {},
 ): Promise<void> {
   try {

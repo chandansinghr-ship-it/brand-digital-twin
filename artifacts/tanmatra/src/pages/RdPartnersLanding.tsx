@@ -48,7 +48,7 @@ const STEPS = [
 
 export default function RdPartnersLanding() {
   useEffect(() => {
-    void trackRdPartnersEvent("landing_view", { step: 0 });
+    void trackRdPartnersEvent("rd_landing_view", { step: 0 });
   }, []);
 
   return (
@@ -72,7 +72,10 @@ export default function RdPartnersLanding() {
               <Link
                 to="/rd-partners/apply"
                 onClick={() =>
-                  void trackRdPartnersEvent("hero_cta_click", { step: 0 })
+                  void trackRdPartnersEvent("rd_landing_cta_click", {
+                    step: 0,
+                    extra: { source: "hero" },
+                  })
                 }
               >
                 <Button className="bg-clinical-gold text-[#050505] hover:bg-clinical-gold/90 h-10 text-sm gap-2">
@@ -130,7 +133,10 @@ export default function RdPartnersLanding() {
                 to="/rd-partners/apply"
                 className="block"
                 onClick={() =>
-                  void trackRdPartnersEvent("card_cta_click", { step: 0 })
+                  void trackRdPartnersEvent("rd_landing_cta_click", {
+                    step: 0,
+                    extra: { source: "card" },
+                  })
                 }
               >
                 <Button className="w-full bg-clinical-gold text-[#050505] hover:bg-clinical-gold/90 h-9 text-xs">
@@ -188,7 +194,10 @@ export default function RdPartnersLanding() {
             <Link
               to="/rd-partners/apply"
               onClick={() =>
-                void trackRdPartnersEvent("steps_cta_click", { step: 0 })
+                void trackRdPartnersEvent("rd_landing_cta_click", {
+                  step: 0,
+                  extra: { source: "steps" },
+                })
               }
             >
               <Button className="bg-clinical-gold text-[#050505] hover:bg-clinical-gold/90 h-10 text-sm gap-2">

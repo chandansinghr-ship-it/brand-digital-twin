@@ -272,6 +272,219 @@ export interface DishReviewInput {
   photoUrl?: string | null;
 }
 
+export type RdPartnersEventExtra = { [key: string]: unknown };
+
+export interface RdPartnersEvent {
+  /**
+   * @minLength 8
+   * @maxLength 64
+   */
+  sessionId: string;
+  /**
+   * @minLength 2
+   * @maxLength 64
+   */
+  eventName: string;
+  /**
+   * @minimum 0
+   * @maximum 10
+   */
+  step?: number;
+  /** @minimum 1 */
+  applicationId?: number;
+  extra?: RdPartnersEventExtra;
+}
+
+export interface RdPartnersOtpSendRequest {
+  /**
+   * @minLength 2
+   * @maxLength 8
+   */
+  countryCode: string;
+  /**
+   * @minLength 5
+   * @maxLength 20
+   */
+  phone: string;
+}
+
+export interface RdPartnersOtpSendResponse {
+  ok: boolean;
+  /** Echoed only when no Twilio credentials are configured */
+  devCode?: string | null;
+}
+
+export interface RdPartnersOtpVerifyRequest {
+  /**
+   * @minLength 2
+   * @maxLength 8
+   */
+  countryCode: string;
+  /**
+   * @minLength 5
+   * @maxLength 20
+   */
+  phone: string;
+  /**
+   * @minLength 4
+   * @maxLength 10
+   */
+  code: string;
+  /**
+   * @minLength 8
+   * @maxLength 64
+   */
+  sessionId: string;
+}
+
+export interface RdPartnersOtpVerifyResponse {
+  ok: boolean;
+  e164?: string;
+}
+
+export interface RdPartnersWhatsApp {
+  /**
+   * @minLength 2
+   * @maxLength 8
+   */
+  countryCode: string;
+  /**
+   * @minLength 5
+   * @maxLength 20
+   */
+  phone: string;
+}
+
+export type RdPartnersApplicationRequestPath =
+  (typeof RdPartnersApplicationRequestPath)[keyof typeof RdPartnersApplicationRequestPath];
+
+export const RdPartnersApplicationRequestPath = {
+  partner: "partner",
+  advisory: "advisory",
+  both: "both",
+} as const;
+
+export type RdPartnersApplicationRequestPracticeSetting =
+  (typeof RdPartnersApplicationRequestPracticeSetting)[keyof typeof RdPartnersApplicationRequestPracticeSetting];
+
+export const RdPartnersApplicationRequestPracticeSetting = {
+  solo: "solo",
+  clinic: "clinic",
+  hospital: "hospital",
+  online: "online",
+  mixed: "mixed",
+} as const;
+
+export type RdPartnersApplicationRequestNotifyPref =
+  (typeof RdPartnersApplicationRequestNotifyPref)[keyof typeof RdPartnersApplicationRequestNotifyPref];
+
+export const RdPartnersApplicationRequestNotifyPref = {
+  daily: "daily",
+  weekly: "weekly",
+  critical: "critical",
+} as const;
+
+export interface RdPartnersApplicationRequest {
+  path: RdPartnersApplicationRequestPath;
+  /**
+   * @minLength 2
+   * @maxLength 200
+   */
+  fullName: string;
+  /** @maxLength 200 */
+  email: string;
+  /**
+   * @minLength 1
+   * @maxLength 200
+   */
+  credentials: string;
+  /** @maxLength 120 */
+  registrationBody?: string | null;
+  /** @maxLength 80 */
+  registrationNumber?: string | null;
+  /**
+   * @minimum 0
+   * @maximum 80
+   */
+  yearsExperience: number;
+  specializations?: string[];
+  /**
+   * @minLength 2
+   * @maxLength 200
+   */
+  cityRegion: string;
+  /** @minItems 1 */
+  languages: string[];
+  practiceSetting: RdPartnersApplicationRequestPracticeSetting;
+  /** @maxLength 32 */
+  clientVolumeBucket?: string | null;
+  interests?: string[];
+  /** @maxLength 4000 */
+  bio?: string | null;
+  whatsapp?: RdPartnersWhatsApp;
+  whatsappOptIn?: boolean;
+  notifyPref?: RdPartnersApplicationRequestNotifyPref;
+  /**
+   * @minLength 8
+   * @maxLength 64
+   */
+  sessionId: string;
+}
+
+export type RdPartnersApplicationSummaryStatus =
+  (typeof RdPartnersApplicationSummaryStatus)[keyof typeof RdPartnersApplicationSummaryStatus];
+
+export const RdPartnersApplicationSummaryStatus = {
+  new: "new",
+  contacted: "contacted",
+  approved: "approved",
+  rejected: "rejected",
+} as const;
+
+export type RdPartnersApplicationSummaryPath =
+  (typeof RdPartnersApplicationSummaryPath)[keyof typeof RdPartnersApplicationSummaryPath];
+
+export const RdPartnersApplicationSummaryPath = {
+  partner: "partner",
+  advisory: "advisory",
+  both: "both",
+} as const;
+
+export interface RdPartnersApplicationSummary {
+  id: number;
+  status: RdPartnersApplicationSummaryStatus;
+  path: RdPartnersApplicationSummaryPath;
+  email: string;
+  whatsappOptIn?: boolean;
+  whatsappVerifiedAt?: string | null;
+}
+
+export type RdPartnersApplicationResponseNotifyChannel =
+  (typeof RdPartnersApplicationResponseNotifyChannel)[keyof typeof RdPartnersApplicationResponseNotifyChannel];
+
+export const RdPartnersApplicationResponseNotifyChannel = {
+  log: "log",
+  email: "email",
+} as const;
+
+export type RdPartnersApplicationResponseNotify = {
+  delivered: boolean;
+  to?: string | null;
+  channel: RdPartnersApplicationResponseNotifyChannel;
+};
+
+export interface RdPartnersApplicationResponse {
+  application: RdPartnersApplicationSummary;
+  notify: RdPartnersApplicationResponseNotify;
+}
+
+export interface RdPartnersAttachAccountResult {
+  ok: boolean;
+  linkedUserId?: string | null;
+  rdSlug?: string | null;
+  provisioned?: boolean;
+}
+
 export type ListRecipesParams = {
   goal?: string;
   diet?: string;
@@ -302,4 +515,8 @@ export type GetChallenge200 = {
 
 export type PostToChallenge200 = {
   post: ChallengePost;
+};
+
+export type TrackRdPartnersEvent200 = {
+  ok: boolean;
 };

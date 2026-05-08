@@ -690,3 +690,241 @@ export const SyncWearableResponse = zod.object({
     lastSteps: zod.number().nullish(),
   }),
 });
+
+/**
+ * @summary Record a wizard funnel event
+ */
+export const trackRdPartnersEventBodySessionIdMin = 8;
+export const trackRdPartnersEventBodySessionIdMax = 64;
+
+export const trackRdPartnersEventBodyEventNameMin = 2;
+export const trackRdPartnersEventBodyEventNameMax = 64;
+
+export const trackRdPartnersEventBodyStepMin = 0;
+export const trackRdPartnersEventBodyStepMax = 10;
+
+export const TrackRdPartnersEventBody = zod.object({
+  sessionId: zod
+    .string()
+    .min(trackRdPartnersEventBodySessionIdMin)
+    .max(trackRdPartnersEventBodySessionIdMax),
+  eventName: zod
+    .string()
+    .min(trackRdPartnersEventBodyEventNameMin)
+    .max(trackRdPartnersEventBodyEventNameMax),
+  step: zod
+    .number()
+    .min(trackRdPartnersEventBodyStepMin)
+    .max(trackRdPartnersEventBodyStepMax)
+    .optional(),
+  applicationId: zod.number().min(1).optional(),
+  extra: zod.record(zod.string(), zod.unknown()).optional(),
+});
+
+export const TrackRdPartnersEventResponse = zod.object({
+  ok: zod.boolean(),
+});
+
+/**
+ * @summary Send a WhatsApp verification code via Twilio Verify
+ */
+export const rdPartnersSendOtpBodyCountryCodeMin = 2;
+export const rdPartnersSendOtpBodyCountryCodeMax = 8;
+
+export const rdPartnersSendOtpBodyPhoneMin = 5;
+export const rdPartnersSendOtpBodyPhoneMax = 20;
+
+export const RdPartnersSendOtpBody = zod.object({
+  countryCode: zod
+    .string()
+    .min(rdPartnersSendOtpBodyCountryCodeMin)
+    .max(rdPartnersSendOtpBodyCountryCodeMax),
+  phone: zod
+    .string()
+    .min(rdPartnersSendOtpBodyPhoneMin)
+    .max(rdPartnersSendOtpBodyPhoneMax),
+});
+
+export const RdPartnersSendOtpResponse = zod.object({
+  ok: zod.boolean(),
+  devCode: zod
+    .string()
+    .nullish()
+    .describe("Echoed only when no Twilio credentials are configured"),
+});
+
+/**
+ * @summary Verify a WhatsApp code and record a server-side proof
+ */
+export const rdPartnersVerifyOtpBodyCountryCodeMin = 2;
+export const rdPartnersVerifyOtpBodyCountryCodeMax = 8;
+
+export const rdPartnersVerifyOtpBodyPhoneMin = 5;
+export const rdPartnersVerifyOtpBodyPhoneMax = 20;
+
+export const rdPartnersVerifyOtpBodyCodeMin = 4;
+export const rdPartnersVerifyOtpBodyCodeMax = 10;
+
+export const rdPartnersVerifyOtpBodySessionIdMin = 8;
+export const rdPartnersVerifyOtpBodySessionIdMax = 64;
+
+export const RdPartnersVerifyOtpBody = zod.object({
+  countryCode: zod
+    .string()
+    .min(rdPartnersVerifyOtpBodyCountryCodeMin)
+    .max(rdPartnersVerifyOtpBodyCountryCodeMax),
+  phone: zod
+    .string()
+    .min(rdPartnersVerifyOtpBodyPhoneMin)
+    .max(rdPartnersVerifyOtpBodyPhoneMax),
+  code: zod
+    .string()
+    .min(rdPartnersVerifyOtpBodyCodeMin)
+    .max(rdPartnersVerifyOtpBodyCodeMax),
+  sessionId: zod
+    .string()
+    .min(rdPartnersVerifyOtpBodySessionIdMin)
+    .max(rdPartnersVerifyOtpBodySessionIdMax),
+});
+
+export const RdPartnersVerifyOtpResponse = zod.object({
+  ok: zod.boolean(),
+  e164: zod.string().optional(),
+});
+
+/**
+ * @summary Submit an RD partner / advisory application
+ */
+export const rdPartnersSubmitApplicationBodyFullNameMin = 2;
+export const rdPartnersSubmitApplicationBodyFullNameMax = 200;
+
+export const rdPartnersSubmitApplicationBodyEmailMax = 200;
+
+export const rdPartnersSubmitApplicationBodyCredentialsMax = 200;
+
+export const rdPartnersSubmitApplicationBodyRegistrationBodyMax = 120;
+
+export const rdPartnersSubmitApplicationBodyRegistrationNumberMax = 80;
+
+export const rdPartnersSubmitApplicationBodyYearsExperienceMin = 0;
+export const rdPartnersSubmitApplicationBodyYearsExperienceMax = 80;
+
+export const rdPartnersSubmitApplicationBodySpecializationsItemMax = 80;
+
+export const rdPartnersSubmitApplicationBodyCityRegionMin = 2;
+export const rdPartnersSubmitApplicationBodyCityRegionMax = 200;
+
+export const rdPartnersSubmitApplicationBodyLanguagesItemMax = 80;
+
+export const rdPartnersSubmitApplicationBodyClientVolumeBucketMax = 32;
+
+export const rdPartnersSubmitApplicationBodyInterestsItemMax = 80;
+
+export const rdPartnersSubmitApplicationBodyBioMax = 4000;
+
+export const rdPartnersSubmitApplicationBodyWhatsappCountryCodeMin = 2;
+export const rdPartnersSubmitApplicationBodyWhatsappCountryCodeMax = 8;
+
+export const rdPartnersSubmitApplicationBodyWhatsappPhoneMin = 5;
+export const rdPartnersSubmitApplicationBodyWhatsappPhoneMax = 20;
+
+export const rdPartnersSubmitApplicationBodyWhatsappOptInDefault = false;
+export const rdPartnersSubmitApplicationBodySessionIdMin = 8;
+export const rdPartnersSubmitApplicationBodySessionIdMax = 64;
+
+export const RdPartnersSubmitApplicationBody = zod.object({
+  path: zod.enum(["partner", "advisory", "both"]),
+  fullName: zod
+    .string()
+    .min(rdPartnersSubmitApplicationBodyFullNameMin)
+    .max(rdPartnersSubmitApplicationBodyFullNameMax),
+  email: zod.string().email().max(rdPartnersSubmitApplicationBodyEmailMax),
+  credentials: zod
+    .string()
+    .min(1)
+    .max(rdPartnersSubmitApplicationBodyCredentialsMax),
+  registrationBody: zod
+    .string()
+    .max(rdPartnersSubmitApplicationBodyRegistrationBodyMax)
+    .nullish(),
+  registrationNumber: zod
+    .string()
+    .max(rdPartnersSubmitApplicationBodyRegistrationNumberMax)
+    .nullish(),
+  yearsExperience: zod
+    .number()
+    .min(rdPartnersSubmitApplicationBodyYearsExperienceMin)
+    .max(rdPartnersSubmitApplicationBodyYearsExperienceMax),
+  specializations: zod
+    .array(
+      zod.string().max(rdPartnersSubmitApplicationBodySpecializationsItemMax),
+    )
+    .optional(),
+  cityRegion: zod
+    .string()
+    .min(rdPartnersSubmitApplicationBodyCityRegionMin)
+    .max(rdPartnersSubmitApplicationBodyCityRegionMax),
+  languages: zod
+    .array(zod.string().max(rdPartnersSubmitApplicationBodyLanguagesItemMax))
+    .min(1),
+  practiceSetting: zod.enum(["solo", "clinic", "hospital", "online", "mixed"]),
+  clientVolumeBucket: zod
+    .string()
+    .max(rdPartnersSubmitApplicationBodyClientVolumeBucketMax)
+    .nullish(),
+  interests: zod
+    .array(zod.string().max(rdPartnersSubmitApplicationBodyInterestsItemMax))
+    .optional(),
+  bio: zod.string().max(rdPartnersSubmitApplicationBodyBioMax).nullish(),
+  whatsapp: zod
+    .object({
+      countryCode: zod
+        .string()
+        .min(rdPartnersSubmitApplicationBodyWhatsappCountryCodeMin)
+        .max(rdPartnersSubmitApplicationBodyWhatsappCountryCodeMax),
+      phone: zod
+        .string()
+        .min(rdPartnersSubmitApplicationBodyWhatsappPhoneMin)
+        .max(rdPartnersSubmitApplicationBodyWhatsappPhoneMax),
+    })
+    .optional(),
+  whatsappOptIn: zod
+    .boolean()
+    .default(rdPartnersSubmitApplicationBodyWhatsappOptInDefault),
+  notifyPref: zod.enum(["daily", "weekly", "critical"]).optional(),
+  sessionId: zod
+    .string()
+    .min(rdPartnersSubmitApplicationBodySessionIdMin)
+    .max(rdPartnersSubmitApplicationBodySessionIdMax),
+});
+
+export const RdPartnersSubmitApplicationResponse = zod.object({
+  application: zod.object({
+    id: zod.number(),
+    status: zod.enum(["new", "contacted", "approved", "rejected"]),
+    path: zod.enum(["partner", "advisory", "both"]),
+    email: zod.string(),
+    whatsappOptIn: zod.boolean().optional(),
+    whatsappVerifiedAt: zod.coerce.date().nullish(),
+  }),
+  notify: zod.object({
+    delivered: zod.boolean(),
+    to: zod.string().nullish(),
+    channel: zod.enum(["log", "email"]),
+  }),
+});
+
+/**
+ * @summary Attach the signed-in user (and provision an RD seat for advisory paths)
+ */
+
+export const RdPartnersAttachAccountParams = zod.object({
+  id: zod.coerce.number().min(1),
+});
+
+export const RdPartnersAttachAccountResponse = zod.object({
+  ok: zod.boolean(),
+  linkedUserId: zod.string().nullish(),
+  rdSlug: zod.string().nullish(),
+  provisioned: zod.boolean().optional(),
+});
