@@ -15,6 +15,7 @@ import {
   type PricingSuggestion,
   type PricingSuggestionStatus,
 } from "@workspace/db";
+import { DISHES } from "@workspace/menu-catalog";
 import { DEFAULT_MODEL_ID, getModel } from "./ai/model";
 import { logger } from "./logger";
 import { findBySlug, updatePrice } from "./menu";
@@ -628,17 +629,50 @@ export async function approvePricingSuggestion(
   // Only apply price changes when the suggestion is for "all" zones/dayparts;
   // slice-level suggestions are insight-only — we don't have per-slice price
   // overrides in the catalog yet.
-  // KNOWN GAP: customer ordering currently prices off the static
-  // `@workspace/menu-catalog` DISHES list (see loyaltyEngine.finalizeOrder).
-  // Updating menu_items.pricePaise here changes admin/CMS displays and any
-  // future catalog-DB-driven flows, but does NOT yet affect checkout totals.
-  // Tracked as a follow-up to unify pricing source-of-truth.
+  // Checkout (loyaltyEngine.finalizeOrder) prices off the merged catalog
+  // (menuResolver.getMergedCatalog), which overlays menu_items rows on top
+  // of the static `@workspace/menu-catalog` DISHES seed. So updating
+  // menu_items.pricePaise here is what makes the approved price actually
+  // apply at checkout. For static-only dishes that have never been touched
+  // in the CMS there is no menu_items row yet — in that case we seed one
+  // from the static dish first so the override has somewhere to live.
   // Reuse the existing CMS price-change flow (lib/menu.updatePrice) so the
   // audit trail and any future hooks fire identically to a manual edit. We
   // only mutate when the suggestion targets the global price ("all/all").
   let appliedPricePaise: number | undefined;
   if (updated.zone === "all" && updated.daypart === "all") {
-    const before = await findBySlug(updated.slug);
+    let before = await findBySlug(updated.slug);
+    let seededFromStatic = false;
+    if (!before) {
+      const stat = DISHES.find((d) => d.slug === updated.slug);
+      if (stat) {
+        const [seeded] = await db
+          .insert(menuItemsTable)
+          .values({
+            slug: stat.slug,
+            name: stat.name,
+            description: stat.description,
+            longDescription: stat.longDescription,
+            pricePaise: stat.price,
+            category: stat.category,
+            kitchenLocation: stat.kitchen,
+            isVeg: stat.isVeg,
+            isAvailable: stat.isAvailable,
+            imageUrl: stat.image,
+            allergens: stat.allergens,
+            macros: {
+              kcal: stat.macros.calories,
+              proteinG: stat.macros.protein,
+              carbsG: stat.macros.carbs,
+              fatG: stat.macros.fat,
+            },
+          })
+          .onConflictDoNothing({ target: menuItemsTable.slug })
+          .returning();
+        before = seeded ?? (await findBySlug(updated.slug));
+        seededFromStatic = Boolean(seeded);
+      }
+    }
     if (before) {
       const item = await updatePrice(updated.slug, updated.suggestedPaise);
       appliedPricePaise = item?.pricePaise;
@@ -651,6 +685,7 @@ export async function approvePricingSuggestion(
           pricePaise: updated.suggestedPaise,
           source: "menu_engineering_suggestion",
           suggestionId: id,
+          seededFromStatic,
         },
         beforeState: { pricePaise: before.pricePaise },
         afterState: { pricePaise: item?.pricePaise ?? null },
