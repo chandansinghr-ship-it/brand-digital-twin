@@ -11,6 +11,7 @@ import {
   type RdMessage,
   type RdProgressLog,
 } from "@/lib/rdAdvisoryApi";
+import { RdCopilotPanel } from "@/components/rd/RdCopilotPanel";
 import {
   APPOINTMENT_KIND_META,
   formatRupees,
@@ -269,12 +270,19 @@ export default function RdConsole() {
         {/* Detail column */}
         <div className="space-y-4">
           {selectedUserId ? (
-            <UserDetail
-              key={`${rdSlug}:${selectedUserId}`}
-              rdSlug={rdSlug}
-              userId={selectedUserId}
-              onChange={refresh}
-            />
+            <>
+              <RdCopilotPanel
+                key={`copilot:${rdSlug}:${selectedUserId}`}
+                rdSlug={rdSlug}
+                userId={selectedUserId}
+              />
+              <UserDetail
+                key={`${rdSlug}:${selectedUserId}`}
+                rdSlug={rdSlug}
+                userId={selectedUserId}
+                onChange={refresh}
+              />
+            </>
           ) : (
             <Card className="bg-clinical-surface border-clinical-slate/30">
               <CardContent className="p-6 text-center text-xs text-clinical-zinc">

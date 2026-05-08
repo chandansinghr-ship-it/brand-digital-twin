@@ -40,3 +40,4 @@ export * from "./premium";
 export * from "./marketplace";
 export * from "./dishRationales";
 export * from "./mealPlans";
+export * from "./rdCopilot";

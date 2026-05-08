@@ -32,6 +32,7 @@ import premiumRouter from "./premium";
 import marketplaceRouter from "./marketplace";
 import dishRationalesRouter from "./dishRationales";
 import mealPlansRouter from "./mealPlans";
+import rdCopilotRouter from "./rdCopilot";
 
 const router: IRouter = Router();
 
@@ -68,5 +69,6 @@ router.use(premiumRouter);
 router.use(marketplaceRouter);
 router.use(dishRationalesRouter);
 router.use(mealPlansRouter);
+router.use(rdCopilotRouter);
 
 export default router;
