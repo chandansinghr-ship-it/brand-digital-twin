@@ -35,6 +35,12 @@ export const supportTicketsTable = pgTable(
     sentReply: text("sent_reply"),
     sentBy: varchar("sent_by", { length: 128 }),
     sentAt: timestamp("sent_at", { withTimezone: true }),
+    // Human-confirmed triage labels, captured at approve-and-send time.
+    // These power the weekly triage-accuracy report by comparing the
+    // human-final labels to the AI's category/priority/team.
+    humanCategory: varchar("human_category", { length: 32 }),
+    humanPriority: varchar("human_priority", { length: 16 }),
+    humanTeam: varchar("human_team", { length: 16 }),
     rejectionReason: text("rejection_reason"),
     rejectedBy: varchar("rejected_by", { length: 128 }),
     rejectedAt: timestamp("rejected_at", { withTimezone: true }),

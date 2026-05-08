@@ -1,5 +1,6 @@
 import { generateText } from "ai";
-import { and, desc, eq, gte, notInArray, sql } from "drizzle-orm";
+import { and, desc, eq, gte, notInArray } from "drizzle-orm";
+import { sql } from "drizzle-orm/sql";
 import {
   db,
   supportTicketsTable,
@@ -363,7 +364,27 @@ export async function sendReply(
   ticketId: number,
   reply: string,
   agentUserId: string | null,
+  humanLabels?: {
+    category?: SupportCategory | null;
+    priority?: SupportPriority | null;
+    team?: SupportTeam | null;
+  },
 ): Promise<SupportTicket | null> {
+  // Read the AI's triage so we can default the human-confirmed labels to
+  // the AI labels when the agent didn't override them. This lets us treat
+  // a no-override "send" as an implicit approval of triage and feeds the
+  // weekly triage-accuracy report.
+  const [existing] = await db
+    .select()
+    .from(supportTicketsTable)
+    .where(eq(supportTicketsTable.id, ticketId))
+    .limit(1);
+  if (!existing) return null;
+  const finalCategory =
+    humanLabels?.category ?? (existing.category as SupportCategory | null);
+  const finalPriority =
+    humanLabels?.priority ?? (existing.priority as SupportPriority | null);
+  const finalTeam = humanLabels?.team ?? (existing.team as SupportTeam | null);
   const [updated] = await db
     .update(supportTicketsTable)
     .set({
@@ -371,6 +392,9 @@ export async function sendReply(
       sentBy: agentUserId,
       sentAt: new Date(),
       status: "sent",
+      humanCategory: finalCategory ?? null,
+      humanPriority: finalPriority ?? null,
+      humanTeam: finalTeam ?? null,
     })
     .where(eq(supportTicketsTable.id, ticketId))
     .returning();
@@ -422,6 +446,14 @@ export interface SupportMetrics {
   sent: number;
   rejected: number;
   acceptanceRate: number;
+  triageAccuracy: {
+    judged: number;
+    categoryMatches: number;
+    priorityMatches: number;
+    teamMatches: number;
+    allThreeMatches: number;
+    overallPct: number;
+  };
   byCategory: Array<{ category: string; n: number }>;
   byTeam: Array<{ team: string; n: number }>;
   byPriority: Array<{ priority: string; n: number }>;
@@ -440,6 +472,29 @@ export async function getMetrics(windowDays = 7): Promise<SupportMetrics> {
   const rejected = rows.filter((r) => r.status === "rejected").length;
   const decided = sent + rejected;
   const acceptanceRate = decided === 0 ? 0 : Math.round((sent / decided) * 100);
+
+  // Triage accuracy: among tickets where a human confirmed labels at
+  // send time, count how often the AI's pre-send triage matched.
+  const judged = rows.filter((r) => r.humanCategory || r.humanPriority || r.humanTeam);
+  const categoryMatches = judged.filter(
+    (r) => r.category && r.humanCategory && r.category === r.humanCategory,
+  ).length;
+  const priorityMatches = judged.filter(
+    (r) => r.priority && r.humanPriority && r.priority === r.humanPriority,
+  ).length;
+  const teamMatches = judged.filter(
+    (r) => r.team && r.humanTeam && r.team === r.humanTeam,
+  ).length;
+  const allThreeMatches = judged.filter(
+    (r) =>
+      r.category === r.humanCategory &&
+      r.priority === r.humanPriority &&
+      r.team === r.humanTeam,
+  ).length;
+  const overallPct =
+    judged.length === 0
+      ? 0
+      : Math.round((allThreeMatches / judged.length) * 100);
   const groupCount = <K extends keyof SupportTicket>(
     key: K,
   ): Array<{ key: string; n: number }> => {
@@ -460,6 +515,14 @@ export async function getMetrics(windowDays = 7): Promise<SupportMetrics> {
     sent,
     rejected,
     acceptanceRate,
+    triageAccuracy: {
+      judged: judged.length,
+      categoryMatches,
+      priorityMatches,
+      teamMatches,
+      allThreeMatches,
+      overallPct,
+    },
     byCategory: groupCount("category").map((x) => ({ category: x.key, n: x.n })),
     byTeam: groupCount("team").map((x) => ({ team: x.key, n: x.n })),
     byPriority: groupCount("priority").map((x) => ({ priority: x.key, n: x.n })),
@@ -495,17 +558,3 @@ export async function listRejectedForEval(limit = 50): Promise<
   }));
 }
 
-// Lightweight unused-import shim so `sql` stays imported for future use
-// without ts(6133). Cheap helper: count rows by status.
-export async function countByStatus(): Promise<
-  Array<{ status: string; n: number }>
-> {
-  const rows = await db
-    .select({
-      status: supportTicketsTable.status,
-      n: sql<number>`count(*)::int`.as("n"),
-    })
-    .from(supportTicketsTable)
-    .groupBy(supportTicketsTable.status);
-  return rows.map((r) => ({ status: r.status, n: r.n }));
-}

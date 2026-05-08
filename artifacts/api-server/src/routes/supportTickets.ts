@@ -218,7 +218,23 @@ router.post(
   },
 );
 
-const sendBody = z.object({ reply: z.string().min(1).max(8000) });
+const sendBody = z.object({
+  reply: z.string().min(1).max(8000),
+  category: z
+    .enum([
+      "delivery",
+      "refund",
+      "modification",
+      "allergen",
+      "subscription",
+      "billing",
+      "feedback",
+      "other",
+    ])
+    .optional(),
+  priority: z.enum(["low", "normal", "high", "urgent"]).optional(),
+  team: z.enum(["care", "ops", "kitchen", "rd", "billing"]).optional(),
+});
 
 router.post(
   "/support-tickets/:id/send",
@@ -235,7 +251,11 @@ router.post(
       return;
     }
     try {
-      const ticket = await sendReply(sp.data.id, bp.data.reply, userId(req));
+      const ticket = await sendReply(sp.data.id, bp.data.reply, userId(req), {
+        category: bp.data.category ?? null,
+        priority: bp.data.priority ?? null,
+        team: bp.data.team ?? null,
+      });
       if (!ticket) {
         res.status(404).json({ error: "ticket not found" });
         return;

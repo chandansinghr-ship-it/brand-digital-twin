@@ -26,11 +26,27 @@ interface Ticket {
   sentReply: string | null;
   sentBy: string | null;
   sentAt: string | null;
+  humanCategory: string | null;
+  humanPriority: string | null;
+  humanTeam: string | null;
   rejectionReason: string | null;
   rejectedAt: string | null;
   createdAt: string;
   updatedAt: string;
 }
+
+const CATEGORIES = [
+  "delivery",
+  "refund",
+  "modification",
+  "allergen",
+  "subscription",
+  "billing",
+  "feedback",
+  "other",
+] as const;
+const PRIORITIES = ["low", "normal", "high", "urgent"] as const;
+const TEAMS = ["care", "ops", "kitchen", "rd", "billing"] as const;
 
 interface Metrics {
   windowDays: number;
@@ -40,9 +56,55 @@ interface Metrics {
   sent: number;
   rejected: number;
   acceptanceRate: number;
+  triageAccuracy: {
+    judged: number;
+    categoryMatches: number;
+    priorityMatches: number;
+    teamMatches: number;
+    allThreeMatches: number;
+    overallPct: number;
+  };
   byCategory: Array<{ category: string; n: number }>;
   byTeam: Array<{ team: string; n: number }>;
   byPriority: Array<{ priority: string; n: number }>;
+}
+
+function inlineDiff(
+  baseline: string,
+  edited: string,
+): Array<{ kind: "same" | "added" | "removed"; text: string }> {
+  // Word-level LCS diff — small, no deps. Good enough for review UI.
+  const a = baseline.split(/(\s+)/);
+  const b = edited.split(/(\s+)/);
+  const m = a.length;
+  const n = b.length;
+  const dp: number[][] = Array.from({ length: m + 1 }, () =>
+    Array<number>(n + 1).fill(0),
+  );
+  for (let i = m - 1; i >= 0; i--) {
+    for (let j = n - 1; j >= 0; j--) {
+      dp[i]![j] = a[i] === b[j] ? dp[i + 1]![j + 1]! + 1 : Math.max(dp[i + 1]![j]!, dp[i]![j + 1]!);
+    }
+  }
+  const out: Array<{ kind: "same" | "added" | "removed"; text: string }> = [];
+  let i = 0;
+  let j = 0;
+  while (i < m && j < n) {
+    if (a[i] === b[j]) {
+      out.push({ kind: "same", text: a[i]! });
+      i++;
+      j++;
+    } else if (dp[i + 1]![j]! >= dp[i]![j + 1]!) {
+      out.push({ kind: "removed", text: a[i]! });
+      i++;
+    } else {
+      out.push({ kind: "added", text: b[j]! });
+      j++;
+    }
+  }
+  while (i < m) out.push({ kind: "removed", text: a[i++]! });
+  while (j < n) out.push({ kind: "added", text: b[j++]! });
+  return out;
 }
 
 const PRIORITY_COLOR: Record<string, string> = {
@@ -70,6 +132,10 @@ export default function AdminSupportTickets() {
   const [tickets, setTickets] = useState<Ticket[]>([]);
   const [selected, setSelected] = useState<Ticket | null>(null);
   const [editedReply, setEditedReply] = useState("");
+  const [showDiff, setShowDiff] = useState(false);
+  const [overrideCategory, setOverrideCategory] = useState<string>("");
+  const [overridePriority, setOverridePriority] = useState<string>("");
+  const [overrideTeam, setOverrideTeam] = useState<string>("");
   const [rejectReason, setRejectReason] = useState("");
   const [metrics, setMetrics] = useState<Metrics | null>(null);
   const [statusFilter, setStatusFilter] = useState("");
@@ -128,7 +194,11 @@ export default function AdminSupportTickets() {
   function selectTicket(t: Ticket): void {
     setSelected(t);
     setEditedReply(t.draftReply ?? "");
+    setOverrideCategory(t.category ?? "");
+    setOverridePriority(t.priority ?? "");
+    setOverrideTeam(t.team ?? "");
     setRejectReason("");
+    setShowDiff(false);
   }
 
   async function callAction(
@@ -192,7 +262,7 @@ export default function AdminSupportTickets() {
               Last {metrics.windowDays} days
             </CardTitle>
           </CardHeader>
-          <CardContent>
+          <CardContent className="space-y-3">
             <div className="grid grid-cols-2 md:grid-cols-6 gap-3 text-sm">
               <Stat label="Total" value={metrics.totalTickets} />
               <Stat label="Triaged" value={metrics.triaged} />
@@ -200,11 +270,35 @@ export default function AdminSupportTickets() {
               <Stat label="Sent" value={metrics.sent} />
               <Stat label="Rejected" value={metrics.rejected} />
               <Stat
-                label="Acceptance"
+                label="Draft acceptance"
                 value={`${metrics.acceptanceRate}%`}
               />
             </div>
-            <div className="mt-3 flex flex-wrap gap-1.5 text-xs">
+            <div>
+              <p className="text-xs text-muted-foreground mb-1">
+                Triage accuracy (vs human-confirmed labels at send time, n=
+                {metrics.triageAccuracy.judged})
+              </p>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
+                <Stat
+                  label="All three"
+                  value={`${metrics.triageAccuracy.overallPct}%`}
+                />
+                <Stat
+                  label="Category"
+                  value={`${metrics.triageAccuracy.categoryMatches}/${metrics.triageAccuracy.judged}`}
+                />
+                <Stat
+                  label="Priority"
+                  value={`${metrics.triageAccuracy.priorityMatches}/${metrics.triageAccuracy.judged}`}
+                />
+                <Stat
+                  label="Team"
+                  value={`${metrics.triageAccuracy.teamMatches}/${metrics.triageAccuracy.judged}`}
+                />
+              </div>
+            </div>
+            <div className="flex flex-wrap gap-1.5 text-xs">
               {metrics.byCategory.map((c) => (
                 <Badge key={c.category} variant="outline">
                   {c.category}: {c.n}
@@ -354,18 +448,57 @@ export default function AdminSupportTickets() {
                 </div>
 
                 <div>
-                  <p className="text-xs text-muted-foreground mb-1">
-                    Drafted reply (editable)
-                    {selected.draftedAt
-                      ? ` · drafted ${new Date(selected.draftedAt).toLocaleString()}`
-                      : ""}
-                  </p>
+                  <div className="flex items-center justify-between mb-1">
+                    <p className="text-xs text-muted-foreground">
+                      Drafted reply (editable)
+                      {selected.draftedAt
+                        ? ` · drafted ${new Date(selected.draftedAt).toLocaleString()}`
+                        : ""}
+                    </p>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => setShowDiff((v) => !v)}
+                      disabled={!selected.draftReply}
+                    >
+                      {showDiff ? "Hide diff" : "Show diff vs AI draft"}
+                    </Button>
+                  </div>
                   <Textarea
                     value={editedReply}
                     onChange={(e) => setEditedReply(e.target.value)}
                     rows={8}
                     className="font-mono text-sm"
                   />
+                  {showDiff && selected.draftReply && (
+                    <div className="mt-2 rounded border p-3 bg-muted/40">
+                      <p className="text-xs text-muted-foreground mb-1">
+                        AI draft baseline → your edit (red = removed, green = added)
+                      </p>
+                      <p className="text-sm font-mono whitespace-pre-wrap leading-relaxed">
+                        {inlineDiff(selected.draftReply, editedReply).map(
+                          (seg, i) =>
+                            seg.kind === "same" ? (
+                              <span key={i}>{seg.text}</span>
+                            ) : seg.kind === "added" ? (
+                              <span
+                                key={i}
+                                className="bg-emerald-500/20 text-emerald-700 dark:text-emerald-400"
+                              >
+                                {seg.text}
+                              </span>
+                            ) : (
+                              <span
+                                key={i}
+                                className="bg-rose-500/20 text-rose-700 dark:text-rose-400 line-through"
+                              >
+                                {seg.text}
+                              </span>
+                            ),
+                        )}
+                      </p>
+                    </div>
+                  )}
                   {selected.draftCitations.length > 0 && (
                     <div className="mt-2 text-xs text-muted-foreground">
                       <strong>Cited facts:</strong>
@@ -378,11 +511,46 @@ export default function AdminSupportTickets() {
                   )}
                 </div>
 
+                <div className="rounded border p-3">
+                  <p className="text-xs text-muted-foreground mb-2">
+                    Confirm or override AI triage (saved with the send for the
+                    weekly accuracy report).
+                  </p>
+                  <div className="grid grid-cols-3 gap-2 text-sm">
+                    <LabelSelect
+                      label="Category"
+                      value={overrideCategory}
+                      onChange={setOverrideCategory}
+                      options={CATEGORIES}
+                      aiValue={selected.category}
+                    />
+                    <LabelSelect
+                      label="Priority"
+                      value={overridePriority}
+                      onChange={setOverridePriority}
+                      options={PRIORITIES}
+                      aiValue={selected.priority}
+                    />
+                    <LabelSelect
+                      label="Team"
+                      value={overrideTeam}
+                      onChange={setOverrideTeam}
+                      options={TEAMS}
+                      aiValue={selected.team}
+                    />
+                  </div>
+                </div>
+
                 <div className="flex gap-2 flex-wrap">
                   <Button
                     disabled={busy || !editedReply.trim()}
                     onClick={() =>
-                      void callAction("send", { reply: editedReply })
+                      void callAction("send", {
+                        reply: editedReply,
+                        category: overrideCategory || undefined,
+                        priority: overridePriority || undefined,
+                        team: overrideTeam || undefined,
+                      })
                     }
                   >
                     Approve & send
@@ -441,5 +609,42 @@ function Stat({ label, value }: { label: string; value: string | number }) {
       <p className="text-xs text-muted-foreground">{label}</p>
       <p className="text-xl font-semibold">{value}</p>
     </div>
+  );
+}
+
+function LabelSelect({
+  label,
+  value,
+  onChange,
+  options,
+  aiValue,
+}: {
+  label: string;
+  value: string;
+  onChange: (v: string) => void;
+  options: readonly string[];
+  aiValue: string | null;
+}) {
+  const overridden = aiValue && value && value !== aiValue;
+  return (
+    <label className="block">
+      <span className="text-xs text-muted-foreground">
+        {label}
+        {overridden ? " · overridden" : ""}
+      </span>
+      <select
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        className="mt-1 w-full rounded border bg-background px-2 py-1.5 text-sm"
+      >
+        <option value="">—</option>
+        {options.map((o) => (
+          <option key={o} value={o}>
+            {o}
+            {o === aiValue ? " (AI)" : ""}
+          </option>
+        ))}
+      </select>
+    </label>
   );
 }
