@@ -278,3 +278,156 @@ export async function streamSupportAgentChat(
   }
   return final;
 }
+
+export interface CoachChatRequest {
+  message: string;
+  history: Array<{ role: "user" | "agent"; text: string }>;
+  dishSlug?: string;
+}
+
+export interface CoachActionAddToCart {
+  kind: "add_to_cart";
+  slug: string;
+  name: string;
+  image: string;
+  quantity: number;
+  target: "cart" | "next_delivery" | "replace_in_cart";
+  pricePaise: number;
+  priceLabel: string;
+  macros: { protein: number; carbs: number; fat: number; fiber: number; calories: number };
+  reasoning: string;
+  /** Slug of the existing cart line to drop when target === "replace_in_cart". */
+  replaceSlug?: string | null;
+}
+
+export interface CoachActionBookRd {
+  kind: "book_rd";
+  href: string;
+  appointmentsHref: string;
+  reason: string;
+  urgency: "routine" | "soon";
+  premiumConsultsRemaining: number | null;
+}
+
+export type CoachAction = CoachActionAddToCart | CoachActionBookRd;
+
+export interface CoachToolCall {
+  name: string;
+  args?: unknown;
+  result?: unknown;
+}
+
+export interface CoachChatResponse {
+  text: string;
+  toolCalls: CoachToolCall[];
+  escalated: boolean;
+  refusalReason?: string;
+  actions: CoachAction[];
+}
+
+type CoachStreamEvent =
+  | { type: "text-delta"; delta: string }
+  | { type: "tool-call"; name: string; args?: unknown }
+  | { type: "tool-result"; name: string; result?: unknown }
+  | {
+      type: "finish";
+      text: string;
+      toolCalls: CoachToolCall[];
+      escalated: boolean;
+      refusalReason?: string;
+    }
+  | { type: "error"; message: string };
+
+export interface CoachStreamHandlers {
+  onDelta?: (delta: string) => void;
+  onAction?: (action: CoachAction) => void;
+  signal?: AbortSignal;
+}
+
+function extractAction(result: unknown): CoachAction | null {
+  if (!result || typeof result !== "object") return null;
+  const r = result as { success?: boolean; action?: unknown };
+  if (!r.success || !r.action || typeof r.action !== "object") return null;
+  const action = r.action as { kind?: string };
+  if (action.kind === "add_to_cart" || action.kind === "book_rd") {
+    return action as unknown as CoachAction;
+  }
+  return null;
+}
+
+export async function streamCoachAgentChat(
+  vars: CoachChatRequest,
+  handlers: CoachStreamHandlers = {},
+): Promise<CoachChatResponse> {
+  const base = import.meta.env.BASE_URL.replace(/\/$/, "");
+  const res = await fetch(`${base}/api/coach-agent/chat`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(vars),
+    credentials: "include",
+    signal: handlers.signal,
+  });
+  if (!res.ok || !res.body) {
+    throw new Error(`coach-agent stream failed: ${res.status}`);
+  }
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let buf = "";
+  let final: CoachChatResponse | null = null;
+  const actions: CoachAction[] = [];
+
+  const dispatch = (line: string): void => {
+    if (!line) return;
+    let evt: CoachStreamEvent;
+    try {
+      evt = JSON.parse(line) as CoachStreamEvent;
+    } catch {
+      return;
+    }
+    switch (evt.type) {
+      case "text-delta":
+        handlers.onDelta?.(evt.delta);
+        break;
+      case "tool-result": {
+        const action = extractAction(evt.result);
+        if (action) {
+          actions.push(action);
+          handlers.onAction?.(action);
+        }
+        break;
+      }
+      case "finish":
+        final = {
+          text: evt.text,
+          toolCalls: evt.toolCalls,
+          escalated: evt.escalated,
+          refusalReason: evt.refusalReason,
+          actions: [...actions],
+        };
+        break;
+      case "error":
+        throw new Error(evt.message);
+      default:
+        break;
+    }
+  };
+
+  while (true) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    buf += decoder.decode(value, { stream: true });
+    let nl = buf.indexOf("\n");
+    while (nl !== -1) {
+      const line = buf.slice(0, nl).trim();
+      buf = buf.slice(nl + 1);
+      nl = buf.indexOf("\n");
+      dispatch(line);
+    }
+  }
+  buf += decoder.decode();
+  for (const line of buf.split("\n")) dispatch(line.trim());
+  if (!final) {
+    throw new Error("coach-agent stream ended without finish event");
+  }
+  return final;
+}

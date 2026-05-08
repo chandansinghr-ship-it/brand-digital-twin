@@ -11,6 +11,7 @@ import Footer from "@/components/layout/Footer";
 import BottomNav from "@/components/layout/BottomNav";
 import ScrollToTop from "@/components/layout/ScrollToTop";
 import SupportAgentWidget from "@/components/ai/SupportAgent";
+import CoachAgentWidget from "@/components/ai/CoachAgent";
 import Home from "@/pages/Home";
 import Menu from "@/pages/Menu";
 import Dish from "@/pages/Dish";
@@ -219,6 +220,7 @@ export default function App() {
                 <Footer />
                 <BottomNav />
                 <SupportAgentWidget />
+                <CoachAgentWidget />
               </div>
               <Toaster theme="dark" position="top-right" richColors />
             </BrowserRouter>

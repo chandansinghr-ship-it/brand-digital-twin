@@ -11,6 +11,7 @@ import MacroOverlay from "@/components/dish/MacroOverlay";
 import NutritionLabelModal from "@/components/dish/NutritionLabelModal";
 import { buildNutritionLabel } from "@/lib/nutritionLabel";
 import WhyThisMealPanel from "@/components/dish/WhyThisMealPanel";
+import CoachAgentWidget from "@/components/ai/CoachAgent";
 import DishReviews from "@/components/dish/DishReviews";
 import { getChefForDish, getRdForDish, ACCENT_CLASSES } from "@/lib/teamData";
 import { toast } from "sonner";
@@ -415,6 +416,7 @@ export default function Dish() {
                 preferences={preferences}
                 match={match}
               />
+              <CoachAgentWidget dishSlug={meal.slug} inline />
               {smartSwap && (
                 <Link
                   to={`/dish/${smartSwap.slug}`}

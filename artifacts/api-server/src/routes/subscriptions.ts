@@ -503,6 +503,61 @@ router.post(
 );
 
 router.post(
+  "/subscriptions/next-delivery/add-item",
+  async (req: Request, res: Response) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    const parsed = itemSchema.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: "invalid payload" });
+      return;
+    }
+    // Find user's earliest upcoming delivery across any active subscription.
+    const rows = await db
+      .select({
+        delivery: subscriptionDeliveriesTable,
+        subscription: subscriptionsTable,
+      })
+      .from(subscriptionDeliveriesTable)
+      .innerJoin(
+        subscriptionsTable,
+        eq(subscriptionDeliveriesTable.subscriptionId, subscriptionsTable.id),
+      )
+      .where(
+        and(
+          eq(subscriptionsTable.userId, userId),
+          eq(subscriptionsTable.status, "active"),
+          eq(subscriptionDeliveriesTable.status, "upcoming"),
+        ),
+      )
+      .orderBy(asc(subscriptionDeliveriesTable.scheduledFor))
+      .limit(1);
+    const next = rows[0];
+    if (!next) {
+      res.status(409).json({ error: "no_upcoming_delivery" });
+      return;
+    }
+    const items = [...next.delivery.items];
+    const existing = items.findIndex(
+      (it) => it.slug === parsed.data.slug && (it.memberId ?? null) === (parsed.data.memberId ?? null),
+    );
+    if (existing >= 0) {
+      const cur = items[existing];
+      if (cur) items[existing] = { ...cur, quantity: cur.quantity + parsed.data.quantity };
+    } else {
+      items.push(parsed.data);
+    }
+    const [updated] = await db
+      .update(subscriptionDeliveriesTable)
+      .set({ items })
+      .where(eq(subscriptionDeliveriesTable.id, next.delivery.id))
+      .returning();
+    invalidateUserBrief(userId);
+    res.json({ delivery: updated, scheduledFor: next.delivery.scheduledFor });
+  },
+);
+
+router.post(
   "/subscription-deliveries/:id/swap",
   async (req: Request, res: Response) => {
     const userId = requireAuth(req, res);

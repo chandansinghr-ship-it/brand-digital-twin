@@ -13,6 +13,7 @@ import { runAgent } from "./lib/ai";
 import { supportEvals, type EvalCase } from "./lib/ai/agents/support.evals";
 import { opsEvals } from "./lib/ai/agents/ops.evals";
 import { reorderEvals } from "./lib/ai/agents/reorder.evals";
+import { coachEvals } from "./lib/ai/agents/coach.evals";
 
 interface AgentEval {
   agent: string;
@@ -23,6 +24,7 @@ const ALL: AgentEval[] = [
   { agent: "support", cases: supportEvals },
   { agent: "ops", cases: opsEvals },
   { agent: "reorder", cases: reorderEvals },
+  { agent: "coach", cases: coachEvals },
 ];
 
 interface CaseResult {
