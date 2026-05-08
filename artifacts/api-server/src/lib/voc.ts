@@ -3,6 +3,7 @@ import { and, desc, gte, lt, sql } from "drizzle-orm";
 import {
   db,
   dishReviewsTable,
+  npsResponsesTable,
   vocThemesTable,
   type VocTheme,
 } from "@workspace/db";
@@ -11,7 +12,7 @@ import { DEFAULT_MODEL_ID, getModel } from "./ai/model";
 import { logger } from "./logger";
 
 interface SourceDoc {
-  source: "review" | "support";
+  source: "review" | "support" | "nps";
   body: string;
   rating?: number;
 }
@@ -19,7 +20,7 @@ interface SourceDoc {
 const MAX_DOCS = 200;
 
 async function loadDocuments(start: Date, end: Date): Promise<SourceDoc[]> {
-  const [reviews, supportRows] = await Promise.all([
+  const [reviews, supportRows, npsRows] = await Promise.all([
     db
       .select({
         body: dishReviewsTable.body,
@@ -45,6 +46,20 @@ async function loadDocuments(start: Date, end: Date): Promise<SourceDoc[]> {
         ),
       )
       .limit(MAX_DOCS),
+    db
+      .select({
+        comment: npsResponsesTable.comment,
+        score: npsResponsesTable.score,
+      })
+      .from(npsResponsesTable)
+      .where(
+        and(
+          gte(npsResponsesTable.createdAt, start),
+          lt(npsResponsesTable.createdAt, end),
+        ),
+      )
+      .limit(MAX_DOCS)
+      .catch(() => [] as Array<{ comment: string | null; score: number }>),
   ]);
   const docs: SourceDoc[] = [
     ...reviews
@@ -53,6 +68,12 @@ async function loadDocuments(start: Date, end: Date): Promise<SourceDoc[]> {
     ...supportRows
       .filter((r) => r.content && r.content.trim().length > 5)
       .map((r) => ({ source: "support" as const, body: r.content })),
+    ...npsRows
+      .filter((r) => r.comment && r.comment.trim().length > 5)
+      .map((r) => ({
+        source: "nps" as const,
+        body: `[${r.score}/10] ${r.comment as string}`,
+      })),
   ];
   return docs.slice(0, MAX_DOCS);
 }

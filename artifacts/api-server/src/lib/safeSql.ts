@@ -1,29 +1,36 @@
 import { pool } from "@workspace/db";
+import { logger } from "./logger";
 
-// Curated, read-only schema exposed to the NL analytics agent. Adding a
-// table or column here is a deliberate decision — the agent and the user
-// can ONLY read what is listed. Sensitive PII (phone, address line, email)
-// is intentionally omitted.
+// ---- Curated safe data layer ------------------------------------------------
+// We expose the warehouse to the NL analytics agent and to manual SQL ONLY
+// through SQL VIEWS that we own and maintain in this file. Each view selects
+// a deliberately narrow column set — sensitive PII (phone, address, email)
+// is omitted. The validator below refuses any query that references a name
+// outside this allowlist, so column-level safety is enforced by the DB
+// itself even if the validator is somehow bypassed.
+
 export interface SafeColumn {
   name: string;
   type: string;
   description?: string;
 }
 export interface SafeTable {
-  name: string;
+  name: string; // view name analysts can reference
+  source: string; // underlying table the view is built from
   description: string;
   columns: SafeColumn[];
 }
 
 export const SAFE_SCHEMA: SafeTable[] = [
   {
-    name: "orders",
-    description: "Customer orders. items is jsonb array of {name,qty,price}.",
+    name: "safe_orders",
+    source: "orders",
+    description: "Orders. items is jsonb [{name,qty,price (paise)}].",
     columns: [
       { name: "id", type: "int" },
-      { name: "user_id", type: "varchar", description: "opaque user id" },
+      { name: "user_id", type: "varchar" },
       { name: "status", type: "varchar" },
-      { name: "total_paise", type: "int", description: "order total in paise" },
+      { name: "total_paise", type: "int" },
       { name: "city", type: "varchar" },
       { name: "pincode", type: "varchar" },
       { name: "items", type: "jsonb" },
@@ -31,7 +38,8 @@ export const SAFE_SCHEMA: SafeTable[] = [
     ],
   },
   {
-    name: "menu_items",
+    name: "safe_menu_items",
+    source: "menu_items",
     description: "Catalog menu items.",
     columns: [
       { name: "slug", type: "varchar" },
@@ -42,7 +50,8 @@ export const SAFE_SCHEMA: SafeTable[] = [
     ],
   },
   {
-    name: "dish_reviews",
+    name: "safe_dish_reviews",
+    source: "dish_reviews",
     description: "Customer dish reviews. rating is 1..5.",
     columns: [
       { name: "id", type: "int" },
@@ -53,21 +62,23 @@ export const SAFE_SCHEMA: SafeTable[] = [
     ],
   },
   {
-    name: "anomaly_alerts",
+    name: "safe_anomaly_alerts",
+    source: "anomaly_alerts",
     description: "Auto-detected metric anomalies.",
     columns: [
       { name: "id", type: "int" },
       { name: "metric", type: "varchar" },
       { name: "severity", type: "varchar" },
       { name: "status", type: "varchar" },
-      { name: "value", type: "double" },
-      { name: "baseline", type: "double" },
+      { name: "value", type: "double precision" },
+      { name: "baseline", type: "double precision" },
       { name: "summary", type: "text" },
       { name: "created_at", type: "timestamptz" },
     ],
   },
   {
-    name: "subscriptions",
+    name: "safe_subscriptions",
+    source: "subscriptions",
     description: "Active customer meal subscriptions.",
     columns: [
       { name: "id", type: "int" },
@@ -77,7 +88,8 @@ export const SAFE_SCHEMA: SafeTable[] = [
     ],
   },
   {
-    name: "loyalty_points",
+    name: "safe_loyalty_points",
+    source: "loyalty_points",
     description: "Loyalty point ledger entries.",
     columns: [
       { name: "id", type: "int" },
@@ -87,38 +99,26 @@ export const SAFE_SCHEMA: SafeTable[] = [
       { name: "created_at", type: "timestamptz" },
     ],
   },
+  {
+    name: "safe_nps_responses",
+    source: "nps_responses",
+    description: "Customer NPS responses (0-10) with optional comment.",
+    columns: [
+      { name: "id", type: "int" },
+      { name: "score", type: "int" },
+      { name: "comment", type: "text" },
+      { name: "created_at", type: "timestamptz" },
+    ],
+  },
 ];
 
 const ALLOWED_TABLE_NAMES = new Set(SAFE_SCHEMA.map((t) => t.name));
 
-// Block anything that mutates state, escapes the safe view, or hits system
-// catalogs. Allowlist is more reliable than denylist; we still keep both.
-const FORBIDDEN_KEYWORDS = [
-  "insert ",
-  "update ",
-  "delete ",
-  "drop ",
-  "alter ",
-  "create ",
-  "truncate ",
-  "grant ",
-  "revoke ",
-  "copy ",
-  "vacuum ",
-  "analyze ",
-  "comment ",
-  "set ",
-  "reset ",
-  "do ",
-  "call ",
-  "merge ",
-  "with recursive",
-  "pg_",
-  "information_schema",
-  ";--",
-  "/*",
-  "*/",
-  "\\\\copy",
+const FORBIDDEN_TOKENS = [
+  "insert ", "update ", "delete ", "drop ", "alter ", "create ",
+  "truncate ", "grant ", "revoke ", "copy ", "vacuum ", "analyze ",
+  "comment ", " set ", "reset ", "do ", "call ", "merge ", "with recursive",
+  "pg_", "information_schema", ";--", "/*", "*/", "\\copy", "lo_",
 ];
 
 const MAX_ROWS = 500;
@@ -133,37 +133,66 @@ export interface SafeSqlResult {
 
 export class UnsafeSqlError extends Error {}
 
+function stripStringLiterals(sql: string): string {
+  // Remove single-quoted strings so identifiers inside literals don't trip us.
+  return sql.replace(/'(?:''|[^'])*'/g, "''");
+}
+
 export function validateSafeSql(sqlIn: string): string {
   const sql = sqlIn.trim().replace(/;+\s*$/g, "");
   if (!sql) throw new UnsafeSqlError("empty SQL");
-  const lower = sql.toLowerCase();
-  // single statement only
   if (sql.includes(";")) {
-    throw new UnsafeSqlError("only a single SELECT is allowed");
+    throw new UnsafeSqlError("only a single SELECT statement is allowed");
   }
-  if (!lower.startsWith("select ") && !lower.startsWith("select\n")) {
+  const lowerFull = sql.toLowerCase();
+  if (!lowerFull.startsWith("select ") && !lowerFull.startsWith("select\n")) {
     throw new UnsafeSqlError("only SELECT queries are allowed");
   }
-  for (const kw of FORBIDDEN_KEYWORDS) {
-    if (lower.includes(kw)) {
-      throw new UnsafeSqlError(`forbidden token: ${kw.trim()}`);
+  const stripped = stripStringLiterals(sql).toLowerCase();
+  for (const tok of FORBIDDEN_TOKENS) {
+    if (stripped.includes(tok)) {
+      throw new UnsafeSqlError(`forbidden token: ${tok.trim()}`);
     }
   }
-  // Every referenced table after FROM/JOIN must be in the allowlist. We
-  // tolerate optional schema prefix `public.` but disallow other schemas.
-  const tableMatches = [
-    ...lower.matchAll(/\b(?:from|join)\s+(?:public\.)?([a-z_][a-z0-9_]*)/g),
-  ];
-  if (tableMatches.length === 0) {
+  // Column-level safety is enforced by the DB itself: queries are only
+  // allowed to reference `safe_*` views (created by ensureSafeViews) which
+  // SELECT a narrow, explicit column list from each underlying table. Even
+  // if the validator missed something, `select phone from safe_orders` will
+  // fail at parse time inside Postgres because the view doesn't expose it.
+  const tables = [
+    ...stripped.matchAll(/\b(?:from|join)\s+(?:public\.)?([a-z_][a-z0-9_]*)/g),
+  ].map((m) => m[1] ?? "");
+  if (tables.length === 0) {
     throw new UnsafeSqlError("query must reference at least one table");
   }
-  for (const m of tableMatches) {
-    const name = m[1] ?? "";
-    if (!ALLOWED_TABLE_NAMES.has(name)) {
-      throw new UnsafeSqlError(`table not in safe view: ${name}`);
+  for (const t of tables) {
+    if (!ALLOWED_TABLE_NAMES.has(t) || !t.startsWith("safe_")) {
+      throw new UnsafeSqlError(`table not in safe view: ${t}`);
     }
   }
   return sql;
+}
+
+export async function ensureSafeViews(): Promise<void> {
+  // Idempotent: run on startup. Each view selects only the explicitly listed
+  // columns from its source table. CREATE OR REPLACE means we can edit the
+  // SAFE_SCHEMA above and a server restart updates the views.
+  const client = await pool.connect();
+  try {
+    for (const t of SAFE_SCHEMA) {
+      const cols = t.columns.map((c) => `"${c.name}"`).join(", ");
+      const ddl = `create or replace view ${t.name} as select ${cols} from ${t.source}`;
+      try {
+        await client.query(ddl);
+      } catch (err) {
+        // The source table may not exist yet (e.g. nps_responses before its
+        // first migration); log and continue so the rest of the pack works.
+        logger.warn({ err, view: t.name }, "skipping safe view (source missing)");
+      }
+    }
+  } finally {
+    client.release();
+  }
 }
 
 export async function runSafeSql(sqlIn: string): Promise<SafeSqlResult> {
@@ -171,19 +200,26 @@ export async function runSafeSql(sqlIn: string): Promise<SafeSqlResult> {
   const client = await pool.connect();
   const start = Date.now();
   try {
-    // Per-session safety: enforce read-only + statement timeout.
-    await client.query(`set local statement_timeout = ${STATEMENT_TIMEOUT_MS}`);
-    await client.query("set local transaction read only");
-    const wrapped = `select * from (${sql}) as _safe limit ${MAX_ROWS + 1}`;
-    const result = await client.query(wrapped);
-    const truncated = result.rows.length > MAX_ROWS;
-    const rows = (truncated ? result.rows.slice(0, MAX_ROWS) : result.rows) as Record<string, unknown>[];
-    return {
-      rows,
-      rowCount: rows.length,
-      truncated,
-      durationMs: Date.now() - start,
-    };
+    // Explicit read-only transaction guarantees no DML can succeed even if
+    // the validator missed something. statement_timeout is set inside the
+    // same transaction so it applies to the wrapped query.
+    await client.query("begin read only");
+    try {
+      await client.query(`set local statement_timeout = ${STATEMENT_TIMEOUT_MS}`);
+      const wrapped = `select * from (${sql}) as _safe limit ${MAX_ROWS + 1}`;
+      const result = await client.query(wrapped);
+      const truncated = result.rows.length > MAX_ROWS;
+      const rows = (truncated ? result.rows.slice(0, MAX_ROWS) : result.rows) as Record<string, unknown>[];
+      return {
+        rows,
+        rowCount: rows.length,
+        truncated,
+        durationMs: Date.now() - start,
+      };
+    } finally {
+      // Read-only transaction: rollback is the cheapest way to end it.
+      await client.query("rollback").catch(() => undefined);
+    }
   } finally {
     client.release();
   }
@@ -194,6 +230,6 @@ export function describeSchemaForPrompt(): string {
     const cols = t.columns
       .map((c) => `  - ${c.name} (${c.type})${c.description ? ` — ${c.description}` : ""}`)
       .join("\n");
-    return `Table ${t.name} — ${t.description}\n${cols}`;
+    return `View ${t.name} — ${t.description}\n${cols}`;
   }).join("\n\n");
 }

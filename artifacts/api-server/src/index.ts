@@ -8,6 +8,7 @@ import { startAnomalyScheduler } from "./lib/anomalyScheduler";
 import { startAnomalyDigestSender } from "./lib/anomalyDigestSender";
 import { startReviewSummarizerScheduler } from "./lib/menuEngineeringScheduler";
 import { startAnalyticsScheduler } from "./lib/analyticsScheduler";
+import { ensureSafeViews } from "./lib/safeSql";
 
 const rawPort = process.env["PORT"];
 
@@ -31,6 +32,7 @@ startAnomalyScheduler();
 startAnomalyDigestSender();
 startReviewSummarizerScheduler();
 startAnalyticsScheduler();
+void ensureSafeViews();
 
 httpServer.listen(port, (err?: Error) => {
   if (err) {

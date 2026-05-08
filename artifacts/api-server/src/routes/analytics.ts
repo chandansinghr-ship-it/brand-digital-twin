@@ -14,6 +14,7 @@ import {
   listWbrReports,
 } from "../lib/wbr";
 import { extractWeeklyVoc, listVocThemes } from "../lib/voc";
+import { publishWbr } from "../lib/wbrPublisher";
 import { SAFE_SCHEMA, UnsafeSqlError } from "../lib/safeSql";
 
 const router: IRouter = Router();
@@ -197,6 +198,26 @@ router.post("/analytics/wbr/generate", async (req: Request, res: Response) => {
       : lastFullWeek();
     const report = await generateWbr(week);
     res.json({ report });
+  } catch (err) {
+    sendError(res, err);
+  }
+});
+
+router.post("/analytics/wbr/:id/publish", async (req: Request, res: Response) => {
+  if (!requireCatalog(req, res)) return;
+  const id = Number(req.params["id"]);
+  if (!Number.isFinite(id)) {
+    res.status(400).json({ error: "invalid id" });
+    return;
+  }
+  try {
+    const report = await (await import("../lib/wbr")).getWbrReport(id);
+    if (!report) {
+      res.status(404).json({ error: "report not found" });
+      return;
+    }
+    const result = await publishWbr(report);
+    res.json({ result });
   } catch (err) {
     sendError(res, err);
   }

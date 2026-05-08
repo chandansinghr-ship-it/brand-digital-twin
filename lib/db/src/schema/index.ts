@@ -24,3 +24,4 @@ export * from "./menuEngineering";
 export * from "./analytics";
 export * from "./conversations";
 export * from "./messages";
+export * from "./nps";
