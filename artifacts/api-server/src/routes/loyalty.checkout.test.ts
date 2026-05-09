@@ -41,7 +41,7 @@ import {
   slotReservationsTable,
   usersTable,
 } from "@workspace/db";
-import { DISHES } from "@workspace/menu-catalog";
+import { TEST_DISHES as DISHES } from "../test-fixtures/dishes.js";
 
 import loyaltyRouter from "./loyalty";
 

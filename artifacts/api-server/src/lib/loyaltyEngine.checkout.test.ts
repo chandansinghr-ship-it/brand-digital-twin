@@ -29,7 +29,7 @@ import {
   pickupLocationsTable,
   usersTable,
 } from "@workspace/db";
-import { DISHES } from "@workspace/menu-catalog";
+import { TEST_DISHES as DISHES } from "../test-fixtures/dishes.js";
 
 import { finalizeOrder } from "./loyaltyEngine";
 

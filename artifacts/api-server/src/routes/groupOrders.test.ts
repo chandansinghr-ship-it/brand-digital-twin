@@ -26,7 +26,7 @@ import http from "node:http";
 import express, { type Express, type Request, type Response, type NextFunction } from "express";
 import { eq, inArray } from "drizzle-orm";
 import { db, groupOrdersTable, menuItemsTable, usersTable } from "@workspace/db";
-import { DISHES } from "@workspace/menu-catalog";
+import { TEST_DISHES as DISHES } from "../test-fixtures/dishes.js";
 
 const SYNTHETIC_ID_OFFSET = 100000;
 
