@@ -1,10 +1,12 @@
-import { useEffect, useMemo, useState } from "react";
+import { lazy, Suspense, useEffect, useMemo, useState } from "react";
 import { Link, useSearchParams } from "react-router";
 import { useQueryClient } from "@tanstack/react-query";
 import { useDeliveryTimeline, useRecordDeliveryEvent } from "@/lib/queries";
 import { useOrders } from "@/lib/ordersContext";
 import { getSocket } from "@/lib/socket";
-import RiderMap from "@/components/track/RiderMap";
+// RiderMap pulls in leaflet + react-leaflet (~150kB gzip). Only the live
+// tracking screen needs it, so split it out of the customer entry chunk.
+const RiderMap = lazy(() => import("@/components/track/RiderMap"));
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -434,18 +436,20 @@ export default function Track() {
             </CardTitle>
           </CardHeader>
           <CardContent className="p-3">
-            <RiderMap
-              orderId={numericOrderId}
-              destination={
-                dynamicEta?.dropLat != null && dynamicEta?.dropLng != null
-                  ? {
-                      lat: dynamicEta.dropLat,
-                      lng: dynamicEta.dropLng,
-                      label: order?.address?.label ?? "Delivery address",
-                    }
-                  : undefined
-              }
-            />
+            <Suspense fallback={<Skeleton className="h-64 w-full rounded-md" />}>
+              <RiderMap
+                orderId={numericOrderId}
+                destination={
+                  dynamicEta?.dropLat != null && dynamicEta?.dropLng != null
+                    ? {
+                        lat: dynamicEta.dropLat,
+                        lng: dynamicEta.dropLng,
+                        label: order?.address?.label ?? "Delivery address",
+                      }
+                    : undefined
+                }
+              />
+            </Suspense>
           </CardContent>
         </Card>
       )}

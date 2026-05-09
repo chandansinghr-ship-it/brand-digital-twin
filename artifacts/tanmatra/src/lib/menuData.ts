@@ -1,4 +1,3 @@
-import { useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
   DISHES as STATIC_DISHES,
@@ -60,6 +59,10 @@ async function fetchPublicCatalog(): Promise<DishData[]> {
   const res = await fetch(`${API_BASE}/menu/public`, { credentials: "include" });
   if (!res.ok) throw new Error(`menu/public ${res.status}`);
   const json = (await res.json()) as { dishes: DishData[] };
+  // Sync the module-level cache while we have the fresh payload, so the
+  // synchronous `getDishById` / `getDishBySlug` helpers reflect editor
+  // changes without waiting for a useEffect tick.
+  setRuntime(json.dishes);
   return json.dishes;
 }
 
@@ -78,12 +81,6 @@ export function useMenuCatalog(): {
     staleTime: 1000 * 60 * 5,
     initialData: STATIC_DISHES,
   });
-
-  useEffect(() => {
-    if (q.data && q.data !== runtimeDishes) {
-      setRuntime(q.data);
-    }
-  }, [q.data]);
 
   return {
     dishes: q.data ?? STATIC_DISHES,
