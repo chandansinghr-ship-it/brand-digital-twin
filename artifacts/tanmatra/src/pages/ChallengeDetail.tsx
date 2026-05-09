@@ -266,7 +266,7 @@ export default function ChallengeDetail() {
                         <a
                           href={ci.joinUrl}
                           target="_blank"
-                          rel="noreferrer"
+                          rel="noopener noreferrer"
                           className="shrink-0"
                         >
                           <Button

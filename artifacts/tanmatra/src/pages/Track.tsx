@@ -268,7 +268,7 @@ export default function Track() {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ orderId: numericOrderId, step: "preparing", delayMs: 6000 }),
         });
-        if (!r.ok || !cancelled) {
+        if (!r.ok && !cancelled) {
           // Optimistic local fallback so the user still sees progress in dev.
           setTimeout(() => !cancelled && updateStatus(order.orderId, "preparing"), 6000);
         }

@@ -276,7 +276,7 @@ function ApptCard({
             <a
               href={appt.joinUrl}
               target="_blank"
-              rel="noreferrer"
+              rel="noopener noreferrer"
               className="inline-flex items-center gap-1 text-[11px] text-clinical-gold hover:underline"
             >
               Join call <ExternalLink className="w-3 h-3" />
@@ -744,7 +744,7 @@ function LabsTab({ activeRdSlug }: { activeRdSlug: string }) {
                         <a
                           href={l.fileUrl}
                           target="_blank"
-                          rel="noreferrer"
+                          rel="noopener noreferrer"
                           className="text-xs text-white hover:text-clinical-gold underline-offset-2 hover:underline truncate block"
                         >
                           {l.fileName}
