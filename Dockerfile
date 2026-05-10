@@ -5,7 +5,6 @@ FROM node:24-slim AS builder
 
 ENV PNPM_HOME="/pnpm"
 ENV PATH="$PNPM_HOME:$PATH"
-ENV NODE_ENV=production
 RUN corepack enable
 
 WORKDIR /app
@@ -18,7 +17,9 @@ COPY lib lib
 COPY artifacts/api-server artifacts/api-server
 
 # `preinstall` script enforces pnpm — corepack already provides it.
-RUN pnpm install --ignore-scripts
+# ADDED: Cache mount and --frozen-lockfile for deterministic, faster builds
+RUN --mount=type=cache,id=pnpm,target=/pnpm/store \
+ pnpm install --frozen-lockfile --ignore-scripts
 
 # Build the api-server bundle (esbuild → dist/index.mjs)
 RUN pnpm --filter @workspace/api-server run build
@@ -40,12 +41,13 @@ COPY --from=builder /app/artifacts/api-server/dist ./dist
 COPY --from=builder /app/artifacts/api-server/package.json ./package.json
 
 # Install only production deps for sharp & friends.
+# CHANGED: Reverted to --frozen-lockfile to guarantee build consistency
 RUN --mount=type=cache,id=pnpm,target=/pnpm/store \
-    pnpm install --prod --no-frozen-lockfile --ignore-scripts
+ pnpm install --prod --frozen-lockfile --ignore-scripts
 
 # Drop privileges.
 RUN groupadd --system --gid 1001 app \
- && useradd  --system --uid 1001 --gid app --home /app app \
+ && useradd --system --uid 1001 --gid app --home /app app \
  && chown -R app:app /app
 USER app
 
