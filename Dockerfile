@@ -16,8 +16,11 @@ COPY artifacts/api-server/package.json artifacts/api-server/
 COPY lib lib
 COPY artifacts/api-server artifacts/api-server
 
-# Enforce pnpm install without frozen lockfile validation
-RUN pnpm install --no-frozen-lockfile --ignore-scripts
+# Use the committed lockfile so pnpm doesn't re-resolve against the npm
+# registry on every build. This avoids ERR_PNPM_MISSING_TIME failures from
+# transitive packages whose registry metadata is missing the `time` field
+# (resolution-mode=highest in .npmrc only affects direct deps).
+RUN pnpm install --frozen-lockfile --ignore-scripts
 
 # Build the api-server bundle (esbuild → dist/index.mjs)
 RUN pnpm --filter @workspace/api-server run build
