@@ -5,6 +5,14 @@ import { isRedisConfigured, probeRedis } from "../lib/queue";
 
 const router: IRouter = Router();
 
+// Liveness probe: returns 200 as long as the event loop is responsive.
+// Intentionally has NO external dependencies (no DB, no Redis) so Cloud Run /
+// k8s startup + liveness probes never fail because of a downstream blip and
+// recycle the container. Use /healthz for readiness (deep dependency check).
+router.get("/livez", (_req: Request, res: Response) => {
+  res.json({ status: "ok" });
+});
+
 const DB_PROBE_TIMEOUT_MS = 1500;
 const REDIS_PROBE_TIMEOUT_MS = 1500;
 
