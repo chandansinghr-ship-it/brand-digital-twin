@@ -6,3 +6,9 @@ id = "3CeIo0J0yp16hR0GTyCzs"
 uri = "file://.local/tanmatra-audit.md"
 type = "text"
 title = "Tanmatra Audit (80 findings)"
+
+[[outputs]]
+id = "DZ_r5KrBHMTF1QiK0FrDA"
+uri = "file://audit/tanmatra-audit.md"
+type = "text"
+title = "Tanmatra Security & Reliability Audit"
