@@ -1,0 +1,82 @@
+nrathore8@cloudshell:~ (omnismtp)$ gcloud run services logs read wellness-foods --region=asia-south2 --project=omnismtp --limit=80 | tail -80
+2026-05-11 17:26:55 GET 500 https://wellness-foods-1076775857511.asia-south2.run.app/api/premium/me
+2026-05-11 17:26:55 GET 500 https://wellness-foods-1076775857511.asia-south2.run.app/api/premium/meals
+2026-05-11 17:26:55 
+2026-05-11 17:26:55 
+2026-05-11 17:26:55 
+2026-05-11 17:26:55 
+2026-05-11 17:26:56 GET 500 https://wellness-foods-1076775857511.asia-south2.run.app/api/premium/me
+2026-05-11 17:26:56 GET 500 https://wellness-foods-1076775857511.asia-south2.run.app/api/premium/meals
+2026-05-11 17:26:56 
+2026-05-11 17:26:56 
+2026-05-11 17:26:56 
+2026-05-11 17:26:56 
+2026-05-11 17:26:57 OPTIONS 204 https://wellness-foods-1076775857511.asia-south2.run.app/api/bundles
+2026-05-11 17:26:57 
+2026-05-11 17:26:57 GET 500 https://wellness-foods-1076775857511.asia-south2.run.app/api/bundles
+2026-05-11 17:26:57 
+2026-05-11 17:26:57 
+2026-05-11 17:26:57 
+2026-05-11 17:26:57 
+2026-05-11 17:26:58 
+2026-05-11 17:26:58 GET 500 https://wellness-foods-1076775857511.asia-south2.run.app/api/bundles
+2026-05-11 17:26:58 
+2026-05-11 17:26:58 
+2026-05-11 17:26:58 
+2026-05-11 17:26:58 
+2026-05-11 17:26:58 GET 500 https://wellness-foods-1076775857511.asia-south2.run.app/api/premium/me
+2026-05-11 17:26:58 GET 500 https://wellness-foods-1076775857511.asia-south2.run.app/api/premium/meals
+2026-05-11 17:26:58 
+2026-05-11 17:26:58 
+2026-05-11 17:26:58 
+2026-05-11 17:26:58 
+2026-05-11 17:26:59 
+2026-05-11 17:26:59 GET 200 https://wellness-foods-1076775857511.asia-south2.run.app/api/healthz
+2026-05-11 17:26:59 
+2026-05-11 17:26:59 OPTIONS 204 https://wellness-foods-1076775857511.asia-south2.run.app/api/wellness/week
+2026-05-11 17:26:59 
+2026-05-11 17:26:59 OPTIONS 204 https://wellness-foods-1076775857511.asia-south2.run.app/api/challenges
+2026-05-11 17:26:59 
+2026-05-11 17:26:59 GET 304 https://wellness-foods-1076775857511.asia-south2.run.app/api/wellness/week
+2026-05-11 17:26:59 GET 500 https://wellness-foods-1076775857511.asia-south2.run.app/api/challenges
+2026-05-11 17:26:59 
+2026-05-11 17:26:59 
+2026-05-11 17:26:59 
+2026-05-11 17:26:59 GET 500 https://wellness-foods-1076775857511.asia-south2.run.app/api/menu/public
+2026-05-11 17:26:59 
+2026-05-11 17:26:59 
+2026-05-11 17:26:59 GET 200 https://wellness-foods-1076775857511.asia-south2.run.app/api/wellness/week
+2026-05-11 17:26:59 
+2026-05-11 17:27:00 GET 500 https://wellness-foods-1076775857511.asia-south2.run.app/api/bundles
+2026-05-11 17:27:00 
+2026-05-11 17:27:00 
+2026-05-11 17:27:00 
+2026-05-11 17:27:01 GET 304 https://wellness-foods-1076775857511.asia-south2.run.app/api/wellness/week
+2026-05-11 17:27:01 GET 500 https://wellness-foods-1076775857511.asia-south2.run.app/api/challenges
+2026-05-11 17:27:01 
+2026-05-11 17:27:01 
+2026-05-11 17:27:01 
+2026-05-11 17:27:30 
+2026-05-11 17:28:00 
+2026-05-11 17:28:59 GET 200 https://wellness-foods-1076775857511.asia-south2.run.app/api/healthz
+2026-05-11 17:28:59 
+2026-05-11 17:28:59 GET 200 https://wellness-foods-1076775857511.asia-south2.run.app/api/wellness/week
+2026-05-11 17:28:59 
+2026-05-11 17:29:00 GET 500 https://wellness-foods-1076775857511.asia-south2.run.app/api/menu/public
+2026-05-11 17:29:00 
+2026-05-11 17:29:00 
+2026-05-11 17:29:00 GET 500 https://wellness-foods-1076775857511.asia-south2.run.app/api/bundles
+2026-05-11 17:29:00 
+2026-05-11 17:29:00 
+2026-05-11 17:29:00 GET 500 https://wellness-foods-1076775857511.asia-south2.run.app/api/challenges
+2026-05-11 17:29:00 
+2026-05-11 17:29:00 
+2026-05-11 17:30:18 
+2026-05-11 17:30:18 
+2026-05-11 17:31:30 
+2026-05-11 17:31:30 
+2026-05-11 17:31:30 
+2026-05-11 17:31:31 
+2026-05-11 17:31:32 
+2026-05-11 17:31:32 
+chandanrathore8@cloudshell:~ (omnismtp)$ 
