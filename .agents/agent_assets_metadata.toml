@@ -1,0 +1,8 @@
+uploads = []
+generated = []
+
+[[outputs]]
+id = "3CeIo0J0yp16hR0GTyCzs"
+uri = "file://.local/tanmatra-audit.md"
+type = "text"
+title = "Tanmatra Audit (80 findings)"
