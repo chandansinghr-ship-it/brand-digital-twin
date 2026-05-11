@@ -1,0 +1,77 @@
+// Enhanced Menu Card Component
+components/MenuCard.tsx
+
+import { motion } from "framer-motion";
+import { Sparkle } from "@phosphor-icons/react";
+
+export function MenuCard({ dish, index }) {
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 12 }}
+      whileInView={{ opacity: 1, y: 0 }}
+      transition={{ delay: index * 0.05, duration: 0.3 }}
+      whileHover={{ y: -6, transition: { duration: 0.2 } }}
+      className="group relative overflow-hidden rounded-xl bg-clinical-surface border border-clinical-slate/20 hover:border-clinical-gold/40 transition-colors"
+    >
+      {/* Hero Image with Overlay */}
+      <div className="relative h-48 overflow-hidden bg-clinical-surface-elevated">
+        <img 
+          src={dish.image} 
+          alt={dish.name}
+          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 ease-out"
+        />
+        {/* Gradient overlay on hover */}
+        <div className="absolute inset-0 bg-gradient-to-t from-clinical-dark via-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+        
+        {/* Badge - Kitchen type */}
+        <div className="absolute top-3 right-3">
+          <span className="inline-block px-3 py-1 rounded-full text-[11px] font-medium text-clinical-gold bg-clinical-gold/10 border border-clinical-gold/30">
+            {dish.kitchen}
+          </span>
+        </div>
+
+        {/* Icon highlight (appears on hover) */}
+        <motion.div 
+          initial={{ scale: 0, opacity: 0 }}
+          whileHover={{ scale: 1, opacity: 1 }}
+          className="absolute bottom-3 right-3 p-2 rounded-lg bg-clinical-gold/20 border border-clinical-gold/40"
+        >
+          <Sparkle className="w-4 h-4 text-clinical-gold" weight="fill" />
+        </motion.div>
+      </div>
+
+      {/* Content */}
+      <div className="p-4 space-y-3">
+        <div>
+          <h3 className="text-clinical-h4 text-white group-hover:text-clinical-gold transition-colors">
+            {dish.name}
+          </h3>
+          <p className="text-body-sm text-clinical-zinc mt-1 line-clamp-2">
+            {dish.description}
+          </p>
+        </div>
+
+        {/* Macros - Minimal, elegant */}
+        <div className="flex items-center justify-between pt-2 border-t border-clinical-slate/30">
+          <div className="flex gap-3 text-[11px] font-medium text-clinical-label">
+            <span className="text-clinical-gold">{dish.calories} kcal</span>
+            <span className="text-clinical-blue">{dish.protein}p</span>
+            <span className="text-clinical-sage">{dish.carbs}c</span>
+          </div>
+          <span className="text-body-sm text-clinical-gold font-semibold">
+            ₹{dish.price}
+          </span>
+        </div>
+
+        {/* CTA - Grows on hover */}
+        <motion.button
+          whileHover={{ scale: 1.02 }}
+          whileTap={{ scale: 0.98 }}
+          className="w-full py-2.5 rounded-lg bg-clinical-gold/10 text-clinical-gold border border-clinical-gold/30 text-body font-medium hover:bg-clinical-gold hover:text-clinical-dark transition-colors duration-200"
+        >
+          Add to cart
+        </motion.button>
+      </div>
+    </motion.div>
+  );
+}

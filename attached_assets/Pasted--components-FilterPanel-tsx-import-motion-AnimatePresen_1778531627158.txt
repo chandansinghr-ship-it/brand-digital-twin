@@ -1,0 +1,96 @@
+// components/FilterPanel.tsx
+
+import { motion, AnimatePresence } from "framer-motion";
+import { ChevronDown } from "@phosphor-icons/react";
+
+export function FilterSection({ 
+  title, 
+  icon: Icon, 
+  items, 
+  isExpanded, 
+  onToggle 
+}) {
+  return (
+    <motion.div className="border-b border-clinical-slate/20 overflow-hidden">
+      {/* Accordion Header */}
+      <motion.button
+        onClick={onToggle}
+        className="w-full flex items-center justify-between py-3 px-4 hover:bg-clinical-surface-elevated/50 transition-colors group"
+      >
+        <div className="flex items-center gap-2">
+          {Icon && <Icon className="w-4 h-4 text-clinical-gold/60" weight="duotone" />}
+          <span className="text-body-sm font-semibold text-white">{title}</span>
+        </div>
+        <motion.div
+          animate={{ rotate: isExpanded ? 180 : 0 }}
+          transition={{ duration: 0.2 }}
+        >
+          <ChevronDown className="w-4 h-4 text-clinical-slate" />
+        </motion.div>
+      </motion.button>
+
+      {/* Filter Options */}
+      <AnimatePresence>
+        {isExpanded && (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: "auto" }}
+            exit={{ opacity: 0, height: 0 }}
+            transition={{ duration: 0.2 }}
+            className="px-4 pb-3 space-y-2 bg-clinical-surface-elevated/30"
+          >
+            {items.map((item) => (
+              <motion.label
+                key={item.id}
+                whileHover={{ x: 2 }}
+                className="flex items-center gap-2 cursor-pointer group"
+              >
+                <input
+                  type="checkbox"
+                  checked={item.checked}
+                  onChange={item.onChange}
+                  className="w-4 h-4 rounded border border-clinical-gold/30 accent-clinical-gold"
+                />
+                <span className="text-body-sm text-clinical-zinc group-hover:text-white transition-colors">
+                  {item.label}
+                </span>
+                {item.count !== undefined && (
+                  <span className="ml-auto text-caption text-clinical-slate group-hover:text-clinical-zinc transition-colors">
+                    ({item.count})
+                  </span>
+                )}
+              </motion.label>
+            ))}
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </motion.div>
+  );
+}
+
+// Filter Pills with Clear Button
+export function ActiveFilters({ filters, onClear }) {
+  return (
+    <div className="flex flex-wrap gap-2 p-3 bg-clinical-gold/5 border border-clinical-gold/20 rounded-lg">
+      <AnimatePresence>
+        {filters.map((f) => (
+          <motion.div
+            key={f.id}
+            initial={{ scale: 0.8, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            exit={{ scale: 0.8, opacity: 0 }}
+            className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-clinical-gold/15 border border-clinical-gold/40"
+          >
+            <span className="text-body-sm text-clinical-gold font-medium">{f.label}</span>
+            <button
+              onClick={() => onClear(f.id)}
+              className="text-clinical-gold/60 hover:text-clinical-gold transition-colors"
+            >
+              ✕
+            </button>
+          </motion.div>
+        ))}
+      </AnimatePresence>
+    </div>
+  );
+}

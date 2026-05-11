@@ -1,0 +1,114 @@
+// pages/Checkout.tsx
+
+export function CheckoutFlow() {
+  const [step, setStep] = useState(1); // 1: Review, 2: Address, 3: Payment
+
+  return (
+    <div className="min-h-screen bg-clinical-dark py-12">
+      <div className="max-w-2xl mx-auto px-6">
+        {/* Progress Indicator */}
+        <motion.div className="mb-12">
+          <div className="flex items-center justify-between mb-4">
+            {[1, 2, 3].map((s) => (
+              <motion.div
+                key={s}
+                className={`flex-1 h-1 rounded-full transition-colors ${
+                  s <= step ? "bg-clinical-gold" : "bg-clinical-slate/30"
+                }`}
+              >
+                <motion.div
+                  initial={{ width: 0 }}
+                  animate={{ width: s <= step ? "100%" : 0 }}
+                  transition={{ duration: 0.5 }}
+                  className="h-full bg-clinical-gold rounded-full"
+                />
+              </motion.div>
+            ))}
+          </div>
+          <div className="flex items-center justify-between text-caption text-clinical-zinc">
+            <span>Order Review</span>
+            <span>Delivery</span>
+            <span>Payment</span>
+          </div>
+        </motion.div>
+
+        {/* Step Content */}
+        <AnimatePresence mode="wait">
+          {step === 1 && <CheckoutReview onNext={() => setStep(2)} />}
+          {step === 2 && <CheckoutAddress onNext={() => setStep(3)} />}
+          {step === 3 && <CheckoutPayment />}
+        </AnimatePresence>
+      </div>
+    </div>
+  );
+}
+
+function CheckoutReview({ onNext }) {
+  const cart = useCart();
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: -20 }}
+      className="space-y-4"
+    >
+      <div className="space-y-3">
+        {cart.items.map((item, idx) => (
+          <motion.div
+            key={item.id}
+            initial={{ opacity: 0, x: -20 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ delay: idx * 0.05 }}
+            className="flex items-center gap-4 p-4 rounded-xl bg-clinical-surface border border-clinical-slate/20 hover:border-clinical-gold/30 transition-colors group"
+          >
+            <img src={item.image} alt={item.name} className="w-20 h-20 rounded-lg object-cover" />
+            <div className="flex-1">
+              <p className="text-body font-medium text-white">{item.name}</p>
+              <p className="text-body-sm text-clinical-zinc">{item.qty} × ₹{item.price}</p>
+            </div>
+            <div className="text-clinical-h4 text-clinical-gold font-bold">
+              ₹{item.price * item.qty}
+            </div>
+          </motion.div>
+        ))}
+      </div>
+
+      {/* Order Summary Card */}
+      <motion.div
+        initial={{ opacity: 0, scale: 0.95 }}
+        animate={{ opacity: 1, scale: 1 }}
+        transition={{ delay: 0.2 }}
+        className="p-6 rounded-xl bg-gradient-to-br from-clinical-gold/10 to-clinical-blue/5 border border-clinical-gold/30"
+      >
+        <div className="space-y-2 mb-4 pb-4 border-b border-clinical-slate/30">
+          <div className="flex justify-between text-body-sm">
+            <span className="text-clinical-zinc">Subtotal</span>
+            <span className="text-white font-medium">₹{cart.subtotal}</span>
+          </div>
+          <div className="flex justify-between text-body-sm">
+            <span className="text-clinical-zinc">Delivery</span>
+            <span className="text-white font-medium">₹{cart.delivery}</span>
+          </div>
+          <div className="flex justify-between text-body-sm">
+            <span className="text-clinical-zinc">Tax</span>
+            <span className="text-white font-medium">₹{cart.tax}</span>
+          </div>
+        </div>
+        <div className="flex justify-between items-center">
+          <span className="text-clinical-h3 text-clinical-gold font-bold">Total</span>
+          <span className="text-clinical-h2 text-clinical-gold font-bold">₹{cart.total}</span>
+        </div>
+      </motion.div>
+
+      <motion.button
+        whileHover={{ scale: 1.02 }}
+        whileTap={{ scale: 0.98 }}
+        onClick={onNext}
+        className="w-full py-4 rounded-xl bg-clinical-gold text-clinical-dark text-body-lg font-bold hover:bg-clinical-gold/90 transition-colors shadow-lg"
+      >
+        Proceed to delivery
+      </motion.button>
+    </motion.div>
+  );
+}

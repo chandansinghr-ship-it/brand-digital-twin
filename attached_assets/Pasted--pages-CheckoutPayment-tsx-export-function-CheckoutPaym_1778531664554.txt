@@ -1,0 +1,140 @@
+// pages/CheckoutPayment.tsx
+
+export function CheckoutPayment() {
+  const [method, setMethod] = useState("upi");
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      className="space-y-6"
+    >
+      {/* Security Badge */}
+      <motion.div
+        initial={{ opacity: 0, scale: 0.9 }}
+        animate={{ opacity: 1, scale: 1 }}
+        className="flex items-center justify-center gap-2 p-3 rounded-lg bg-clinical-sage/10 border border-clinical-sage/30"
+      >
+        <svg className="w-4 h-4 text-clinical-sage" fill="currentColor" viewBox="0 0 20 20">
+          <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" />
+        </svg>
+        <span className="text-body-sm text-clinical-sage font-medium">
+          Secured with SSL encryption
+        </span>
+      </motion.div>
+
+      {/* Payment Methods */}
+      <div className="space-y-3">
+        {[
+          { id: "upi", label: "UPI", icon: "₹" },
+          { id: "card", label: "Credit/Debit Card", icon: "💳" },
+          { id: "wallet", label: "Digital Wallet", icon: "👛" },
+        ].map((m, idx) => (
+          <motion.label
+            key={m.id}
+            initial={{ opacity: 0, x: -20 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ delay: idx * 0.1 }}
+            className={`relative flex items-center gap-4 p-4 rounded-xl border-2 cursor-pointer transition-all ${
+              method === m.id
+                ? "border-clinical-gold bg-clinical-gold/10"
+                : "border-clinical-slate/30 bg-clinical-surface hover:border-clinical-gold/50"
+            }`}
+          >
+            <input
+              type="radio"
+              value={m.id}
+              checked={method === m.id}
+              onChange={(e) => setMethod(e.target.value)}
+              className="w-5 h-5 accent-clinical-gold"
+            />
+            <span className="text-2xl">{m.icon}</span>
+            <span className="text-body font-medium text-white">{m.label}</span>
+            {method === m.id && (
+              <motion.div
+                initial={{ scale: 0 }}
+                animate={{ scale: 1 }}
+                className="ml-auto text-clinical-gold"
+              >
+                ✓
+              </motion.div>
+            )}
+          </motion.label>
+        ))}
+      </div>
+
+      {/* Dynamic Form based on method */}
+      <AnimatePresence>
+        {method === "upi" && <UPIForm />}
+        {method === "card" && <CardForm />}
+        {method === "wallet" && <WalletForm />}
+      </AnimatePresence>
+
+      {/* Final CTA */}
+      <motion.div className="space-y-3 pt-4 border-t border-clinical-slate/30">
+        <motion.button
+          whileHover={{ scale: 1.02 }}
+          whileTap={{ scale: 0.98 }}
+          className="w-full py-4 rounded-xl bg-gradient-to-r from-clinical-gold to-clinical-gold/80 text-clinical-dark text-body-lg font-bold hover:shadow-lg transition-all"
+        >
+          Confirm & Pay
+        </motion.button>
+        <p className="text-center text-body-sm text-clinical-zinc">
+          By proceeding, you agree to our <a href="#" className="text-clinical-gold hover:underline">terms</a>
+        </p>
+      </motion.div>
+    </motion.div>
+  );
+}
+
+// Micro-component: UPI Input with validation feedback
+function UPIForm() {
+  const [upiId, setUpiId] = useState("");
+  const [isValid, setIsValid] = useState(null);
+
+  const validateUPI = (val) => {
+    const isValid = /^[a-zA-Z0-9._-]+@[a-zA-Z0-9]{3,}$/.test(val);
+    setIsValid(isValid);
+    return isValid;
+  };
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: -10 }}
+      className="space-y-3"
+    >
+      <label className="block text-body-sm font-medium text-white mb-2">
+        Enter UPI ID
+      </label>
+      <div className="relative">
+        <input
+          type="text"
+          placeholder="yourname@upi"
+          value={upiId}
+          onChange={(e) => setUpiId(e.target.value)}
+          onBlur={() => validateUPI(upiId)}
+          className={`w-full px-4 py-3 rounded-lg bg-clinical-surface border-2 text-white placeholder-clinical-slate transition-colors ${
+            isValid === null
+              ? "border-clinical-slate/30 focus:border-clinical-gold/50"
+              : isValid
+              ? "border-clinical-sage/50 bg-clinical-sage/5"
+              : "border-destructive/50 bg-destructive/5"
+          } focus:outline-none`}
+        />
+        {isValid !== null && (
+          <motion.div
+            initial={{ scale: 0 }}
+            animate={{ scale: 1 }}
+            className={`absolute right-3 top-1/2 -translate-y-1/2 text-lg ${
+              isValid ? "text-clinical-sage" : "text-destructive"
+            }`}
+          >
+            {isValid ? "✓" : "✗"}
+          </motion.div>
+        )}
+      </div>
+    </motion.div>
+  );
+}
