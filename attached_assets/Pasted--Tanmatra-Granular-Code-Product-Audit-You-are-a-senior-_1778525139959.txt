@@ -1,0 +1,127 @@
+ Tanmatra Granular Code & Product Audit
+You are a senior staff engineer auditing Tanmatra, a clinical-grade therapeutic meal-delivery monorepo at /path/to/Wellness-Foods/. The product offers RD-verified meals, a metabolic assessment, cohort challenges, and Wellness / Performance / Clinical nutritional protocols.
+
+Repo layout (pnpm workspace):
+
+artifacts/tanmatra/ — customer web app (React 19 + Vite + Tailwind v4 + react-router)
+artifacts/api-server/ — Express 5 + Drizzle + BullMQ + Gemini + Socket.IO
+artifacts/tanmatra-mobile/ — Expo mobile app
+artifacts/mockup-sandbox/ — design-only canvas
+lib/db/ — Drizzle schema
+lib/api-spec/ — OpenAPI + Orval-generated clients
+lib/api-zod/, lib/api-client-react/, lib/menu-catalog/, lib/integrations-gemini-ai/
+Your job
+Produce a granular, file:line-cited audit covering every dimension below. Do NOT produce a generic checklist. Every finding must reference a specific file and line that you actually read. If you didn't read it, don't cite it.
+
+Methodology (non-negotiable)
+Read before you cite. Use grep, find, then Read on full files for the areas you're flagging. Snippet-based reading misses context.
+No hallucinated findings. If you cannot point at a line, you do not have a finding.
+No padding. "Consider adding tests" without naming which untested function is not a finding.
+Don't repeat findings across dimensions. Pick the primary lens; cross-reference if useful.
+Quote the offending code (one line, max 80 chars) when the finding is non-obvious.
+Verify before claiming. If you suspect a bug, trace it from caller → callee → effect. If you can't, mark it Suspected — needs runtime verification.
+Output format
+## <Severity> <Dimension> — <One-line title>
+**File:** `path/to/file.ts:42-58`
+**Issue:** <1-2 sentences>
+**Why it matters:** <impact: user, security, cost, reliability, etc.>
+**Fix:** <concrete diff sketch or 2-line pseudocode>
+**Confidence:** Verified | Suspected | Conjecture
+Severities:
+
+Critical — data loss, auth bypass, PII leak, payment failure, prod outage path
+High — clinically wrong (allergen leak, dose math), GDPR/HIPAA-relevant, broken core flow, silent corruption
+Medium — UX abandonment, perf regression >2x, missing test for security-critical path
+Low — readability, minor a11y, naming, mild perf
+Nit — opinion-grade
+Group findings by severity, then by dimension. Cap total findings at 80. If you have more, surface the worst 80 and note "N more skipped in <dimension>".
+
+Dimensions (audit each)
+Security
+AuthN: session lookup, cookie attrs (httpOnly/secure/sameSite), token-in-Authorization, session fixation, session timing.
+AuthZ: every router.* in artifacts/api-server/src/routes/ — does it gate writes? Does it check ownership before returning resources? Cross-tenant leak via :id params?
+CSRF: state-changing endpoints under cookie auth.
+Injection: SQL (Drizzle sql template strings with interpolation), prompt injection (any user string reaching Gemini), HTML (dangerouslySetInnerHTML), command (child_process / spawn).
+File upload: multer config, mime sniffing, max size, sharp safety, path traversal.
+Secrets: any committed .env, hardcoded keys/tokens, secrets in client bundle (VITE_*).
+PII in logs: phone E.164, OTP codes, emails, payment refs in pino output — check lib/sms.ts, lib/auth.ts, route handlers.
+Rate limiting: which endpoints have it, which should but don't (especially AI + auth + analytics/sql).
+Socket.IO: room scoping by ownership, CORS, anonymous-allowed events.
+Admin gating: hardcoded user-id allowlists vs DB-backed roles.
+Clinical & regulatory
+Allergen handling: every dish display + cart + checkout path. Is allergen mismatch surfaced? Blocked from purchase?
+Medical claims: scan copy for unsupported clinical claims ("clinically proven", "treats", "cures").
+RD verification: the rdVerified flag — is it actually wired through, or just shown?
+FSSAI / ISO 22000 claims: where shown, can they be substantiated?
+Data retention: wellness logs, health data — is there a retention policy / export / delete-account path?
+HealthKit / Health Connect (artifacts/tanmatra-mobile/lib/activity.ts): permission strings, scope minimization.
+Data integrity
+FK constraints + indexes on lib/db/src/schema/*.ts. List columns that should have a .references() but don't.
+Race conditions: cart checkout (slot reservation), OTP verify, loyalty redemption, group orders.
+Transactions: multi-step writes that aren't in db.transaction(...).
+JSONB shape validation: any column typed jsonb().$type<...>() whose payload isn't Zod-validated on insert.
+Soft delete vs hard delete: where is each used, and is hard delete appropriate for a wellness/medical audit log?
+API correctness
+Every route in artifacts/api-server/src/routes/: does it Zod-parse req.body / req.query / req.params?
+Response shape: matches the Zod/OpenAPI schema, or drifts?
+Error responses: structured { error, code } or string mess?
+OpenAPI vs implementation drift in lib/api-spec/openapi.yaml.
+Reliability & ops
+Express error handler placement, graceful shutdown, SIGTERM drain.
+BullMQ: retries, removeOnFail caps, DLQ, concurrency, worker.close.
+External calls (Gemini, Twilio, GCS, Razorpay): timeouts, retries, circuit breakers.
+Idempotency keys on payment + order creation.
+Health endpoints + readiness probes.
+Performance
+DB: missing indexes; N+1 queries (look for .map(async d => db.select(...)) patterns); unbounded LIMIT-less queries.
+Frontend bundle: top 10 largest deps; eager imports that should be React.lazy; image sizes; font loading; render-blocking CSS.
+React: unnecessary re-renders (large context values, inline objects in deps); useEffect for derived state; missing keys; missing useMemo on expensive computations.
+Frontend correctness & a11y
+Forms: every input has a <Label>, error states announced, focus management on dialog open/close.
+Keyboard: tabIndex, focus traps in dialogs, escape handlers.
+Color contrast on text-clinical-zinc / text-clinical-zinc/70 against bg-clinical-dark.
+target="_blank" + rel.
+dangerouslySetInnerHTML usage.
+Error boundaries: is there even one? What happens when a route throws?
+Loading & empty states: every useQuery consumer — does it handle isLoading + isError, or just data ?? []?
+Mobile UX
+Touch targets ≥44×44px.
+Viewport meta + dynamic vh on iOS.
+Bottom-nav overlap with sticky bars.
+Tap-to-zoom suppressed appropriately (or not at all).
+Network resilience: SW offline page, retry UI on 5xx.
+SEO & meta
+index.html: title, description, OG, Twitter card, canonical, favicon, theme-color.
+robots.txt + sitemap.xml (do they exist?).
+Structured data (Restaurant, MenuItem, Product) — present? Valid?
+AI safety
+Every agent route (coachAgent, cmsAgent, opsAgent, supportAgent, forecasting/agent): auth, rate limit, per-user cost cap, prompt-injection mitigation, refusal handling, max-tokens, timeout.
+Sources of grounding (RAG) — are they user-controllable in a way that lets a user smuggle instructions?
+Logging of prompts/responses — PII risk?
+Build & deploy
+Dockerfile: non-root user, multi-stage, layer caching, lock pinning.
+.dockerignore + .gitignore completeness.
+CI: typecheck + test + build + audit on PR.
+Migrations: are they committed? Do they match the schema?
+Cloud Run env vars actually needed by the running app — any missing or undocumented?
+Dependencies
+Dead deps (declared but unused in src).
+Severe CVEs (run pnpm audit mentally — note known-bad versions).
+Catalog vs per-package version drift.
+Code quality
+any / @ts-ignore / as unknown as hotspots (count + top 5 worst).
+Dead code (exported functions never imported).
+Inconsistent error handling (throw new Error vs return tuple vs return { error }).
+Anti-patterns to refuse
+"Consider X" findings with no concrete instance.
+"Add tests" without naming an untested function.
+Vibes-based perf claims without a measurement or a code smell.
+Repeating well-known best practices ("use TypeScript strict mode") without showing where it's violated.
+Findings against node_modules/, generated files, or *.test.ts fixtures.
+Final deliverable
+A single markdown report. After the body, end with:
+
+Top 10 immediate fixes — punch list, ranked.
+Top 5 architectural risks — things that will hurt at 10x scale.
+Top 3 things this audit could NOT verify without runtime access — explicit unknowns.
+Begin by listing the 10 highest-leverage files you intend to read, then read them, then write the report.
