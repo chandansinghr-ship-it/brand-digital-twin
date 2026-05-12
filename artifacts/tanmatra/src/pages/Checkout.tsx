@@ -63,7 +63,9 @@ import { evaluateDishForPreferences } from "@/lib/preferencesMatch";
 import { getDishById } from "@/lib/menuData";
 import {
   dishMatchesDietOrder,
+  parseSafetyBlock,
   useClinicalMode,
+  type ServerSafetyConflict,
 } from "@/lib/clinicalDiet";
 import PatientContextStrip from "@/components/clinical/PatientContextStrip";
 import ConflictsPanel from "@/components/clinical/ConflictsPanel";
@@ -85,6 +87,12 @@ export default function Checkout() {
   // after dismissing the confirm dialog and the message stays visible
   // until they edit the cart and retry. Cleared on every new submit.
   const [serverAllergenError, setServerAllergenError] = useState<string | null>(null);
+  // Structured per-item conflicts from the 422 safety_block payload, so
+  // the ConflictsPanel can render the same Remove/Replace row format
+  // regardless of whether the gate was tripped client-side or server-side.
+  const [serverConflicts, setServerConflicts] = useState<
+    ServerSafetyConflict[] | null
+  >(null);
 
   // Mirror of the Cart-side confirm-block. The Cart already disables its
   // "Proceed to Checkout" CTA, but a user can deep-link to /checkout (e.g.
@@ -423,6 +431,7 @@ export default function Checkout() {
     // Clear any prior server-side block so a fresh attempt isn't shown
     // wearing the previous failure's red panel.
     setServerAllergenError(null);
+    setServerConflicts(null);
     setIsProcessing(true);
     // (Removed an artificial 1.5s setTimeout that delayed every order
     // for no functional reason. Server timing already drives the spinner.)
@@ -598,10 +607,15 @@ export default function Checkout() {
         // Server-side patient-safety gate (task #3) refused the order.
         // Pin a red panel at the top of the page and scroll to it so the
         // clinician sees the exact reason instead of a fleeting toast.
-        const detail = msg.replace(/^\d{3}:\s*/, "");
+        const parsed = parseSafetyBlock(msg);
+        const fallback = msg.replace(/^\d{3}:\s*/, "");
         setServerAllergenError(
-          detail || "Order blocked by patient-safety guard. Review flagged items.",
+          parsed
+            ? `Server patient-safety gate refused ${parsed.conflicts.length} item${parsed.conflicts.length === 1 ? "" : "s"}. Remove or replace to continue.`
+            : fallback ||
+                "Order blocked by patient-safety guard. Review flagged items.",
         );
+        setServerConflicts(parsed?.conflicts ?? null);
         document
           .getElementById("checkout-server-block")
           ?.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -739,6 +753,7 @@ export default function Checkout() {
         <ConflictsPanel
           panelId="checkout-server-block"
           serverMessage={serverAllergenError}
+          serverConflicts={serverConflicts}
         />
       </div>
       <div className="lg:col-span-3 space-y-5">

@@ -30,6 +30,7 @@ import { ShieldAlert, Sparkles, AlertCircle, Clock } from "lucide-react";
 import { fulfillmentApi, type DeliverySlotOption } from "@/lib/fulfillmentApi";
 import { useEffect } from "react";
 import {
+  clinicalCategoryLabel,
   dishMatchesDietOrder,
   useClinicalMode,
 } from "@/lib/clinicalDiet";
@@ -270,7 +271,22 @@ export default function Cart() {
                             {item.name}
                           </h3>
                         </Link>
-                        <p className="text-[10px] text-clinical-zinc capitalize mt-0.5">{item.kitchen}</p>
+                        <p className="text-[10px] text-clinical-zinc capitalize mt-0.5">
+                          {(() => {
+                            const dish = getDishById(item.dishId);
+                            // Clinical mode: replace consumer kitchen brand
+                            // with EHR category vocabulary so the line item
+                            // reads "Composite plate" / "Soup" instead of
+                            // "earth-kitchen" while a clinician is verifying.
+                            if (clinicalMode && dish) {
+                              return clinicalCategoryLabel(
+                                dish.category,
+                                dish.category,
+                              );
+                            }
+                            return item.kitchen;
+                          })()}
+                        </p>
                       </div>
                       <Button
                         size="icon"

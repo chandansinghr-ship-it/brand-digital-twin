@@ -11,6 +11,7 @@ import MacroOverlay from "@/components/dish/MacroOverlay";
 import NutritionLabelModal from "@/components/dish/NutritionLabelModal";
 import DishNutritionCard from "@/components/dish/DishNutritionCard";
 import { buildNutritionLabel } from "@/lib/nutritionLabel";
+import { clinicalCategoryLabel, useClinicalMode } from "@/lib/clinicalDiet";
 import WhyThisMealPanel from "@/components/dish/WhyThisMealPanel";
 import CoachAgentWidget from "@/components/ai/CoachAgent";
 import DishReviews from "@/components/dish/DishReviews";
@@ -57,6 +58,7 @@ export default function Dish() {
   const { isPremium } = usePremiumStatus();
   const premiumSlugs = usePremiumSlugs();
   const { dishes: catalogDishes } = useMenuCatalog();
+  const { enabled: clinicalMode } = useClinicalMode();
   const meal = useMemo(() => {
     if (!slug) return undefined;
     return catalogDishes.find((d) => d.slug === slug) ?? getDishBySlug(slug);
@@ -270,7 +272,9 @@ export default function Dish() {
                 className="border-clinical-slate/40 text-clinical-zinc bg-[#050505]/60 backdrop-blur-sm capitalize"
               >
                 <ChefHat className="w-3 h-3 mr-1" />
-                {meal.kitchen}
+                {clinicalMode
+                  ? clinicalCategoryLabel(meal.category, meal.kitchen)
+                  : meal.kitchen}
               </Badge>
             </div>
 

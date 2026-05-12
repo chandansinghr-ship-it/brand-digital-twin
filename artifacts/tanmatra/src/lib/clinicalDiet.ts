@@ -374,6 +374,78 @@ export function buildMedicalAlerts(
   return out.slice(0, 3);
 }
 
+/**
+ * Marketing → EHR category label override. Used by Dish detail and Cart
+ * line items in clinical mode so a diner facing screen does not show
+ * consumer copy like "Power Bowls" or "Comfort" while a clinician is
+ * verifying a tray.
+ */
+export const CATEGORY_EHR_LABEL: Record<string, string> = {
+  bowls: "Composite plate",
+  mains: "Main course",
+  thalis: "Composite plate",
+  sides: "Side dish",
+  beverages: "Beverage",
+  desserts: "Dessert",
+  soups: "Soup",
+  salads: "Salad",
+  breakfast: "Breakfast",
+};
+
+export function clinicalCategoryLabel(
+  category: string,
+  fallback: string,
+): string {
+  return CATEGORY_EHR_LABEL[category] ?? fallback;
+}
+
+/**
+ * Structured server safety-block payload (mirrored from
+ * /orders/finalize 422 → `blocked` rows). Decoupled from the server
+ * type to keep the client free of api-server imports.
+ */
+export interface ServerSafetyConflict {
+  dishId: number;
+  dishName: string;
+  reasons: Array<{ code: string; detail?: string }>;
+}
+
+export function parseSafetyBlock(
+  errorMessage: string,
+): { conflicts: ServerSafetyConflict[]; primaryCode: string | null } | null {
+  // Error messages from loyaltyApi take the shape `${status}: ${body}`.
+  const idx = errorMessage.indexOf(":");
+  if (idx < 0) return null;
+  const body = errorMessage.slice(idx + 1).trim();
+  if (!body.startsWith("{")) return null;
+  try {
+    const parsed = JSON.parse(body) as {
+      blocked?: Array<{
+        dishId?: number;
+        dishName?: string;
+        reasons?: Array<{ code?: string; detail?: string }>;
+      }>;
+      code?: string;
+    };
+    if (!Array.isArray(parsed.blocked)) return null;
+    return {
+      primaryCode: typeof parsed.code === "string" ? parsed.code : null,
+      conflicts: parsed.blocked.map((b) => ({
+        dishId: typeof b.dishId === "number" ? b.dishId : -1,
+        dishName: typeof b.dishName === "string" ? b.dishName : "Unknown dish",
+        reasons: Array.isArray(b.reasons)
+          ? b.reasons.map((r) => ({
+              code: typeof r.code === "string" ? r.code : "safety_block",
+              detail: typeof r.detail === "string" ? r.detail : undefined,
+            }))
+          : [],
+      })),
+    };
+  } catch {
+    return null;
+  }
+}
+
 export interface RecentMeal {
   orderId: string;
   /** Display string, e.g. "Tue 12:40" — short and tabular. */

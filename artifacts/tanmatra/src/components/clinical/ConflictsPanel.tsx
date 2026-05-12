@@ -5,7 +5,11 @@ import { useCart } from "@/lib/cartContext";
 import { usePreferences } from "@/lib/preferencesContext";
 import { getDishById } from "@/lib/menuData";
 import { evaluateDishForPreferences, findSmartSwap } from "@/lib/preferencesMatch";
-import { dishMatchesDietOrder, useClinicalMode } from "@/lib/clinicalDiet";
+import {
+  dishMatchesDietOrder,
+  useClinicalMode,
+  type ServerSafetyConflict,
+} from "@/lib/clinicalDiet";
 
 interface ConflictRow {
   lineId: string;
@@ -29,9 +33,12 @@ interface ConflictRow {
  */
 export default function ConflictsPanel({
   serverMessage,
+  serverConflicts,
   panelId,
 }: {
   serverMessage?: string | null;
+  /** Structured per-item conflicts from the server's 422 safety_block. */
+  serverConflicts?: ServerSafetyConflict[] | null;
   panelId?: string;
 }) {
   const navigate = useNavigate();
@@ -71,6 +78,36 @@ export default function ConflictsPanel({
           swapName: swap?.name ?? null,
         });
       }
+    }
+  }
+
+  // Layer the server's structured 422 rows on top of client-detected
+  // conflicts. Server is authoritative — if it flagged a dish the client
+  // missed (e.g. preferences just changed on another device) we still
+  // show a row so the user has a Remove path. We dedupe by lineId so we
+  // don't render the same dish twice when both gates flagged it.
+  if (serverConflicts && serverConflicts.length > 0) {
+    const flaggedLineIds = new Set(rows.map((r) => r.lineId));
+    for (const sc of serverConflicts) {
+      const line = items.find((it) => it.dishId === sc.dishId);
+      if (!line || flaggedLineIds.has(line.lineId)) continue;
+      const codes = sc.reasons.map((r) => r.code);
+      const isAllergen = codes.some((c) => /allerg/i.test(c));
+      const detail =
+        sc.reasons
+          .map((r) => r.detail ?? r.code.replace(/_/g, " "))
+          .join("; ") || "Server patient-safety gate flagged this item.";
+      const dish = getDishById(sc.dishId);
+      const swap =
+        dish && preferences ? findSmartSwap(dish, preferences) : null;
+      rows.push({
+        lineId: line.lineId,
+        dishName: sc.dishName,
+        reason: detail,
+        severity: isAllergen ? "allergen" : "diet",
+        swapSlug: swap?.slug ?? null,
+        swapName: swap?.name ?? null,
+      });
     }
   }
 
