@@ -90,13 +90,16 @@ export default function Checkout() {
   const [isCustomTip, setIsCustomTip] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
-  // Holds the Idempotency-Key for the in-flight finalize attempt.
-  // Minted on first click and reused on any subsequent click made
-  // before a terminal result, so a user-driven retry after a
-  // timeout/network blip hits the server's replay cache instead of
-  // creating a second order. Cleared on terminal success so the
-  // next checkout intent gets its own key.
-  const idempotencyRef = useRef<string | null>(null);
+  // Holds the Idempotency-Key AND the orderId for the in-flight
+  // finalize attempt. Both must be reused across retries so the
+  // request body hashes identically and the server replays its
+  // cached response instead of returning 409 idempotency_key_mismatch.
+  // Minted on first click; cleared on terminal success or on
+  // user-correctable failures (slot full, missing pickup, premium
+  // gate, auth) where the next click is a different intent.
+  const submitAttemptRef = useRef<{ key: string; orderId: string } | null>(
+    null,
+  );
   const [creditBalance, setCreditBalance] = useState(0);
   const [applyCredits, setApplyCredits] = useState(true);
   const [preorderTomorrow, setPreorderTomorrow] = useState(false);
@@ -368,7 +371,18 @@ export default function Checkout() {
     // (Removed an artificial 1.5s setTimeout that delayed every order
     // for no functional reason. Server timing already drives the spinner.)
 
-    const orderId = generateOrderId();
+    // Pin orderId together with the idempotency key for the lifetime
+    // of this submit attempt. If the user clicks again after a
+    // transient failure, both the key AND the orderId are reused so
+    // the server hashes the same body and replays its cached result.
+    if (!submitAttemptRef.current) {
+      const newOrderId = generateOrderId();
+      submitAttemptRef.current = {
+        key: submitOrderIdempotencyKey(newOrderId),
+        orderId: newOrderId,
+      };
+    }
+    const orderId = submitAttemptRef.current.orderId;
     const placedAt = new Date().toISOString();
     // Dynamic ETA from server (kitchen queue + rider load + distance + time-of-day).
     // Falls back to legacy 25-min static if the model errors or is disabled.
@@ -408,8 +422,7 @@ export default function Checkout() {
         // Same key for every retry of THIS submit attempt; the server
         // dedupes via its idempotency_keys cache, so a network blip or
         // 5xx-then-retry won't double-charge the customer.
-        idempotencyKey: (idempotencyRef.current ??=
-          submitOrderIdempotencyKey(orderId)),
+        idempotencyKey: submitAttemptRef.current.key,
         orderId,
         items: items.map((it) => ({
           id: it.dishId,
@@ -548,6 +561,18 @@ export default function Checkout() {
       } else {
         toast.error("Could not finalize order — please try again");
       }
+      // User-correctable failure (bad slot, missing pickup, premium
+      // gate, auth, validation): the user will edit the form before
+      // retrying, so the body will change. Drop the pinned attempt
+      // so the next click mints a fresh key+orderId and avoids a
+      // 409 idempotency_key_mismatch from the server.
+      // Genuine transient failures (network errors, 5xx) throw
+      // without a status prefix and are handled by the generic
+      // toast above; we KEEP the pinned attempt in that case so a
+      // retry hits the server's replay cache. Detect by status≥400.
+      if (status >= 400) {
+        submitAttemptRef.current = null;
+      }
       setIsProcessing(false);
       return;
     }
@@ -617,7 +642,7 @@ export default function Checkout() {
     }
 
     // Terminal success — next checkout is a new intent.
-    idempotencyRef.current = null;
+    submitAttemptRef.current = null;
     clear();
     setIsProcessing(false);
     setConfirmOpen(false);

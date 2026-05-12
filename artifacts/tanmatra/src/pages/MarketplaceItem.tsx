@@ -112,6 +112,14 @@ export default function MarketplaceItemPage() {
       } else {
         toast.error("Could not place order — please try again");
       }
+      // 4xx-style failures (auth, out of stock, validation) need a
+      // fresh key on the next click because the user will edit qty
+      // / delivery mode / address, changing the body. Network/5xx
+      // throws have no status digits, keep the key so a retry hits
+      // the server's replay cache.
+      if (/\b[45]\d{2}\b/.test(msg) || msg.includes("out of stock")) {
+        idempotencyRef.current = null;
+      }
     } finally {
       setSubmitting(false);
     }
