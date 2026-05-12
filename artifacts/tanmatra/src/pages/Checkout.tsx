@@ -601,16 +601,26 @@ export default function Checkout() {
           action: { label: "Choose pickup", onClick: scrollToFulfillment },
         });
       } else if (
+        // Server-authoritative patient-safety gate (task #3). We treat any
+        // 422 whose body parses to a structured safety_block payload as
+        // a safety rejection — keyword regex on the message is too narrow
+        // (would miss generic `safety_block` / NPO / diet codes) and the
+        // server is the source of truth here.
         status === 422 &&
-        /allergen|diet[_ ]order|allergen_block/i.test(msg)
+        (() => {
+          const parsed = parseSafetyBlock(msg);
+          if (parsed && (parsed.conflicts.length > 0 || parsed.primaryCode)) {
+            return true;
+          }
+          return /allergen|diet[_ ]order|safety_block/i.test(msg);
+        })()
       ) {
-        // Server-side patient-safety gate (task #3) refused the order.
         // Pin a red panel at the top of the page and scroll to it so the
         // clinician sees the exact reason instead of a fleeting toast.
         const parsed = parseSafetyBlock(msg);
         const fallback = msg.replace(/^\d{3}:\s*/, "");
         setServerAllergenError(
-          parsed
+          parsed && parsed.conflicts.length > 0
             ? `Server patient-safety gate refused ${parsed.conflicts.length} item${parsed.conflicts.length === 1 ? "" : "s"}. Remove or replace to continue.`
             : fallback ||
                 "Order blocked by patient-safety guard. Review flagged items.",

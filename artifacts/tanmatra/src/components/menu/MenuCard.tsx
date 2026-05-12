@@ -15,6 +15,7 @@ import {
   CATEGORY_LABELS,
   type DishData,
 } from "@/lib/menuData";
+import { clinicalCategoryLabel, useClinicalMode } from "@/lib/clinicalDiet";
 import type { DishMatchResult } from "@/lib/preferencesMatch";
 import { findSmartSwap } from "@/lib/preferencesMatch";
 import type { UserPreferences } from "@/lib/preferencesApi";
@@ -47,6 +48,13 @@ export default function MenuCard({
 }: MenuCardProps) {
   const isPremiumOnly = premiumSlugs.has(item.slug);
   const showPremiumGate = isPremiumOnly && !isPremium;
+  const { enabled: clinicalMode } = useClinicalMode();
+  // In clinical mode the body line under each card swaps the consumer
+  // category label ("Power Bowls") for EHR vocabulary ("Composite plate")
+  // and drops the kitchen brand entirely so the card reads like a tray.
+  const categoryLine = clinicalMode
+    ? clinicalCategoryLabel(item.category, CATEGORY_LABELS[item.category])
+    : `${CATEGORY_LABELS[item.category]} · ${item.kitchen}`;
 
   return (
     <motion.article
@@ -161,7 +169,7 @@ export default function MenuCard({
         </div>
 
         <div className="text-[10px] uppercase tracking-[0.12em] text-clinical-zinc font-semibold">
-          {CATEGORY_LABELS[item.category]} · {item.kitchen}
+          {categoryLine}
         </div>
 
         {preferences &&
