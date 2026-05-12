@@ -15,7 +15,7 @@ import {
   clinicalModeStore,
   useClinicalMode,
 } from "@/lib/clinicalDiet";
-import { usePreferences } from "@/lib/preferencesContext";
+import { useActivePatient } from "@/lib/patientContext";
 import { useOrders } from "@/lib/ordersContext";
 
 /**
@@ -32,15 +32,15 @@ import { useOrders } from "@/lib/ordersContext";
  *   • last-3 meals with timestamp and clinical stage
  */
 export default function PatientContextStrip() {
-  const { enabled, patient, dietOrderId } = useClinicalMode();
-  const { preferences } = usePreferences();
+  const { enabled } = useClinicalMode();
+  const patient = useActivePatient();
   const { orders } = useOrders();
   const [open, setOpen] = useState(true);
 
   if (!enabled) return null;
 
-  const dietOrder = DIET_ORDER_BY_ID.get(dietOrderId);
-  const alerts = buildMedicalAlerts(preferences?.allergens, dietOrderId);
+  const dietOrder = DIET_ORDER_BY_ID.get(patient.dietOrderId);
+  const alerts = buildMedicalAlerts(patient.allergens, patient.dietOrderId);
   const recent = buildRecentMeals(orders);
 
   return (

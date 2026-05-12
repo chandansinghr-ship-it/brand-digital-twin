@@ -3,6 +3,7 @@ import { AlertTriangle, X, ArrowRightLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useCart } from "@/lib/cartContext";
 import { usePreferences } from "@/lib/preferencesContext";
+import { useActivePatient } from "@/lib/patientContext";
 import { getDishById } from "@/lib/menuData";
 import { evaluateDishForPreferences, findSmartSwap } from "@/lib/preferencesMatch";
 import {
@@ -43,14 +44,19 @@ export default function ConflictsPanel({
 }) {
   const navigate = useNavigate();
   const { items, removeItem } = useCart();
+  // Allergen evaluation reads from the active-patient bridge (today
+  // backed by user preferences; swappable for a real roster API in
+  // task #14) rather than from preferences directly.
+  const patient = useActivePatient();
   const { preferences } = usePreferences();
-  const { enabled: clinicalMode, dietOrderId } = useClinicalMode();
+  const { enabled: clinicalMode } = useClinicalMode();
+  const dietOrderId = patient.dietOrderId;
 
   const rows: ConflictRow[] = [];
   for (const it of items) {
     const dish = getDishById(it.dishId);
     if (!dish) continue;
-    if (preferences) {
+    if (patient.allergens.length > 0 && preferences) {
       const m = evaluateDishForPreferences(dish, preferences);
       if (m.matchedAllergens.length > 0) {
         const swap = findSmartSwap(dish, preferences);
