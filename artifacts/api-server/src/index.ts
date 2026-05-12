@@ -20,6 +20,7 @@ import { purgeExpiredSessions } from "./lib/auth";
 import { sweepExpiredIdempotencyKeys } from "./middlewares/idempotency";
 import { sweepOrphanSlotReservations } from "./routes/fulfillment";
 import { drainOpsAuditOutbox } from "./lib/opsAudit";
+import { pool, overridePool } from "@workspace/db";
 
 const rawPort = process.env["PORT"];
 
@@ -181,6 +182,24 @@ async function shutdown(signal: NodeJS.Signals): Promise<void> {
  clearInterval(purgeTimer);
  clearInterval(slotReclaimTimer);
  clearInterval(opsAuditOutboxTimer);
+
+ // Drain one final tick of the outbox so override actions taken in
+ // the last 500 ms still land in ops_actions before we close pools.
+ try {
+   await drainOpsAuditOutbox(OPS_AUDIT_DRAIN_BATCH);
+ } catch (err) {
+   logger.error({ err }, "final drainOpsAuditOutbox failed");
+ }
+
+ // Close both pools so we don't leak DB connections on rollout. The
+ // override pool is small (default 4) but still counts against the
+ // server's max_connections budget.
+ try {
+   await Promise.all([overridePool.end(), pool.end()]);
+ } catch (err) {
+   logger.error({ err }, "pool shutdown failed");
+ }
+
  logger.info("shutdown complete");
  process.exit(0);
 }
