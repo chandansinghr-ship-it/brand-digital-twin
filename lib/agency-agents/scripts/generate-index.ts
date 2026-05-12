@@ -61,15 +61,40 @@ function titleFromBody(body: string): string | undefined {
 }
 
 function shortDescription(body: string): string {
-  // First non-empty paragraph after the first H1, stripped of markdown
-  // emphasis. Capped so card UIs stay tidy.
+  // First prose paragraph in the body, stripped of markdown emphasis.
+  // Skips headings, blockquotes, fenced code, list/table-only blocks.
+  // Capped so card UIs stay tidy.
   const lines = body.split(/\r?\n/);
+  const isProseLine = (l: string) => {
+    const t = l.trim();
+    if (t === "") return false;
+    if (t.startsWith("#")) return false; // heading
+    if (t.startsWith(">")) return false; // blockquote
+    if (t.startsWith("```") || t.startsWith("~~~")) return false; // fence
+    if (t.startsWith("|")) return false; // table row
+    if (/^[-*+]\s/.test(t)) return false; // bullet list
+    if (/^\d+\.\s/.test(t)) return false; // numbered list
+    if (t.startsWith("---") || t.startsWith("***")) return false;
+    return true;
+  };
   let i = 0;
-  while (i < lines.length && !lines[i].startsWith("# ")) i++;
-  i++;
-  while (i < lines.length && lines[i].trim() === "") i++;
+  let inFence = false;
+  while (i < lines.length) {
+    const t = lines[i].trim();
+    if (t.startsWith("```") || t.startsWith("~~~")) {
+      inFence = !inFence;
+      i++;
+      continue;
+    }
+    if (inFence) {
+      i++;
+      continue;
+    }
+    if (isProseLine(lines[i])) break;
+    i++;
+  }
   const buf: string[] = [];
-  while (i < lines.length && lines[i].trim() !== "") {
+  while (i < lines.length && lines[i].trim() !== "" && isProseLine(lines[i])) {
     buf.push(lines[i]);
     i++;
   }
@@ -80,6 +105,7 @@ function shortDescription(body: string): string {
     .replace(/`([^`]+)`/g, "$1")
     .replace(/\s+/g, " ")
     .trim();
+  if (!para) return "";
   if (para.length <= 240) return para;
   return para.slice(0, 237).trimEnd() + "…";
 }
