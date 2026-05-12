@@ -1,14 +1,13 @@
-name: Deploy frontend to Firebase Hosting
+# Superseded by .github/workflows/deploy.yml, which deploys the
+# api-server (Cloud Run) and the frontend (Firebase Hosting) together
+# and chains the frontend behind a successful backend rollout.
+#
+# Kept as a manual-dispatch-only workflow so we can still trigger a
+# frontend-only redeploy from the Actions UI if Cloud Run is healthy
+# and we just want to reship the SPA.
+name: Deploy frontend to Firebase Hosting (manual)
 
 on:
-  push:
-    branches: [main]
-    paths:
-      - "artifacts/tanmatra/**"
-      - "lib/**"
-      - "pnpm-lock.yaml"
-      - "pnpm-workspace.yaml"
-      - ".github/workflows/firebase-hosting.yml"
   workflow_dispatch: {}
 
 jobs:

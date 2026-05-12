@@ -1,0 +1,130 @@
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch: {}
+
+# Don't let two pushes to main race each other into Cloud Run / Firebase.
+concurrency:
+  group: deploy-main
+  cancel-in-progress: false
+
+jobs:
+  # Detect which surfaces this push touched so we don't redeploy unchanged
+  # services. Outputs are read by the deploy jobs below via `needs`.
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      api: ${{ steps.filter.outputs.api }}
+      web: ${{ steps.filter.outputs.web }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            api:
+              - 'artifacts/api-server/**'
+              - 'lib/**'
+              - 'Dockerfile'
+              - 'pnpm-lock.yaml'
+              - 'pnpm-workspace.yaml'
+              - '.github/workflows/deploy.yml'
+            web:
+              - 'artifacts/tanmatra/**'
+              - 'lib/**'
+              - 'pnpm-lock.yaml'
+              - 'pnpm-workspace.yaml'
+              - '.github/workflows/deploy.yml'
+
+  # Build the api-server Docker image with Cloud Build, then roll the
+  # `wellness-foods` Cloud Run service. Runs only when backend-relevant
+  # files changed.
+  cloud-run:
+    needs: changes
+    if: needs.changes.outputs.api == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    env:
+      GCP_PROJECT: omnismtp
+      GCP_REGION: asia-south2
+      SERVICE: wellness-foods
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - name: Set up gcloud
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Build image with Cloud Build
+        run: |
+          gcloud builds submit \
+            --tag gcr.io/${GCP_PROJECT}/${SERVICE}:${{ github.sha }} \
+            --project ${GCP_PROJECT}
+
+      - name: Deploy to Cloud Run
+        run: |
+          gcloud run deploy ${SERVICE} \
+            --image gcr.io/${GCP_PROJECT}/${SERVICE}:${{ github.sha }} \
+            --region ${GCP_REGION} \
+            --project ${GCP_PROJECT} \
+            --quiet
+
+      - name: Smoke-test /api/healthz
+        run: |
+          URL=$(gcloud run services describe ${SERVICE} \
+            --region ${GCP_REGION} --project ${GCP_PROJECT} \
+            --format='value(status.url)')
+          echo "Service URL: $URL"
+          for i in 1 2 3 4 5; do
+            if curl -sf "$URL/api/healthz" >/dev/null; then
+              echo "healthz OK"; exit 0
+            fi
+            echo "healthz attempt $i failed, retrying..."; sleep 5
+          done
+          echo "healthz never returned 200"; exit 1
+
+  # Build the SPA and deploy to Firebase Hosting. Waits for cloud-run so
+  # the new admin login page never goes live before the new login API
+  # exists. If cloud-run was skipped (frontend-only push), we still run.
+  firebase:
+    needs: [changes, cloud-run]
+    if: |
+      always() &&
+      needs.changes.outputs.web == 'true' &&
+      (needs.cloud-run.result == 'success' || needs.cloud-run.result == 'skipped')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build tanmatra
+        run: pnpm --filter @workspace/tanmatra run build
+        env:
+          NODE_ENV: production
+
+      - name: Deploy to Firebase Hosting
+        uses: FirebaseExtended/action-hosting-deploy@v0
+        with:
+          repoToken: ${{ secrets.GITHUB_TOKEN }}
+          firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_TANMATRA_1D763 }}
+          projectId: tanmatra-1d763
+          channelId: live
+          entryPoint: artifacts/tanmatra
