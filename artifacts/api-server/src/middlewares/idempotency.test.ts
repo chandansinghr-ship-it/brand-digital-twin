@@ -194,10 +194,12 @@ test("happy path: handler runs once and the row is stamped with the response", a
     );
   assert.ok(row);
   assert.equal(row!.statusCode, 201);
-  assert.deepEqual(
-    (row!.responseBody as { serverOrderId: string }).serverOrderId,
-    r.json.serverOrderId,
-  );
+  // Stored as raw JSON text — parsing must round-trip to the same
+  // shape the client received.
+  const parsed = JSON.parse(row!.responseBody as string) as {
+    serverOrderId: string;
+  };
+  assert.equal(parsed.serverOrderId, r.json.serverOrderId);
 });
 
 test("retry-after-timeout replay returns the original response byte-for-byte and does not re-run the handler", async () => {

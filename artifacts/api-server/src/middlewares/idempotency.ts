@@ -58,16 +58,20 @@ function isExpired(row: { expiresAt: Date }): boolean {
  * Send a previously cached response. We always emit JSON because every
  * route protected by this middleware speaks JSON; if a future route
  * needs to cache a non-JSON body, extend the schema with a content-
- * type column rather than guessing here.
+ * type column rather than guessing here. We replay the EXACT serialized
+ * bytes the original handler produced — not a re-serialization of a
+ * parsed object — so byte-level equivalence holds (matters for clients
+ * that hash response bodies).
  */
 function replay(
   res: Response,
-  row: { statusCode: number | null; responseBody: unknown },
+  row: { statusCode: number | null; responseBody: string | null },
 ): void {
   res
     .status(row.statusCode ?? 500)
     .setHeader("Idempotent-Replay", "true")
-    .json(row.responseBody);
+    .type("application/json")
+    .send(row.responseBody ?? "null");
 }
 
 async function loadRow(userId: string, key: string) {
@@ -217,6 +221,11 @@ async function runIdempotency(
     if (captured) return res; // shouldn't happen, but be safe
     captured = true;
     const status = res.statusCode || 200;
+    // Serialize ONCE here so the bytes we cache are identical to the
+    // bytes we ultimately send on the wire (and that any retry will
+    // get back). Re-serializing inside replay() via res.json could
+    // reorder keys after a jsonb roundtrip.
+    const serialized = JSON.stringify(body);
     // Schedule persist-then-send. We deliberately do not await inside
     // the synchronous res.json shim; we kick off the async work and
     // return res to satisfy the express signature, then send the real
@@ -225,7 +234,7 @@ async function runIdempotency(
       try {
         await db
           .update(idempotencyKeysTable)
-          .set({ statusCode: status, responseBody: body as object })
+          .set({ statusCode: status, responseBody: serialized })
           .where(
             and(
               eq(idempotencyKeysTable.userId, userId),
@@ -235,7 +244,10 @@ async function runIdempotency(
       } catch (err) {
         req.log?.error?.({ err, key }, "idempotency persist failed");
       }
-      originalJson(body);
+      // Send the same string we cached so winner + losers see the
+      // same bytes byte-for-byte.
+      res.type("application/json").send(serialized);
+      void originalJson; // kept for the signature reference; not used
     })();
     return res;
   };

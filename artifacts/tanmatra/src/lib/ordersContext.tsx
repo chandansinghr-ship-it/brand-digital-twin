@@ -96,31 +96,19 @@ export function generateOrderId(): string {
 }
 
 /**
- * Returns the server-side `Idempotency-Key` for a given client orderId,
- * generating + persisting one in sessionStorage on first call so that
- * any retry of the SAME submit attempt — including a soft refresh
- * mid-flight — replays the same key and hits the server's cached
- * response (no duplicate order, no duplicate charge). A new orderId
- * (i.e. a fresh "Place order" click after a hard failure) gets a new
- * key, which is the correct intent. Falls back to a per-call key if
- * sessionStorage is unavailable so SSR / private-mode browsers still
- * benefit from server-side single-flight semantics.
+ * Mints a fresh `Idempotency-Key` for ONE order-finalize submit
+ * attempt. Call this once per "Place order" click and reuse the
+ * returned key only across retries of THAT in-flight request
+ * (transient 5xx, fetch timeout). A subsequent click is a new
+ * intent and must get a new key, otherwise the server would replay
+ * the cached response and hide a real duplicate. Stateless on
+ * purpose — sessionStorage persistence keyed by orderId would
+ * collapse two intentional placements into one.
  */
-export function submitOrderIdempotencyKey(orderId: string): string {
-  const storageKey = `idem:order:${orderId}`;
-  try {
-    const existing = sessionStorage.getItem(storageKey);
-    if (existing) return existing;
-    const fresh = (typeof crypto !== "undefined" && crypto.randomUUID
-      ? crypto.randomUUID()
-      : `idem-${Date.now()}-${Math.random().toString(36).slice(2)}`);
-    sessionStorage.setItem(storageKey, fresh);
-    return fresh;
-  } catch {
-    return typeof crypto !== "undefined" && crypto.randomUUID
-      ? crypto.randomUUID()
-      : `idem-${Date.now()}-${Math.random().toString(36).slice(2)}`;
-  }
+export function submitOrderIdempotencyKey(_orderId: string): string {
+  return typeof crypto !== "undefined" && crypto.randomUUID
+    ? crypto.randomUUID()
+    : `idem-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 }
 
 export function formatRelativeTime(iso: string): string {

@@ -3,9 +3,9 @@ import {
   check,
   index,
   integer,
-  jsonb,
   pgTable,
   primaryKey,
+  text,
   timestamp,
   varchar,
 } from "drizzle-orm/pg-core";
@@ -36,7 +36,11 @@ export const idempotencyKeysTable = pgTable(
     key: varchar("key", { length: 128 }).notNull(),
     requestHash: varchar("request_hash", { length: 64 }).notNull(),
     statusCode: integer("status_code"),
-    responseBody: jsonb("response_body"),
+    // Raw JSON-serialized response bytes. Stored as text (not jsonb)
+    // so a replay returns the EXACT bytes the original handler sent —
+    // jsonb roundtrips through Postgres can reorder keys, which would
+    // break clients that hash response bodies (signed receipts, etc).
+    responseBody: text("response_body"),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),

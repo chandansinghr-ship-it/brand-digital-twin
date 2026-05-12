@@ -68,13 +68,7 @@ export default function MarketplaceItemPage() {
     setSubmitting(true);
     try {
       const r = await marketplaceApi.checkout({
-        idempotencyKey: marketplaceCheckoutIdempotencyKey({
-          itemId: item.id,
-          qty,
-          deliveryMode,
-          bundleWithOrderId:
-            deliveryMode === "bundle_with_meal" ? bundleOrderId : null,
-        }),
+        idempotencyKey: marketplaceCheckoutIdempotencyKey(),
         items: [{ itemId: item.id, qty }],
         deliveryMode,
         bundleWithOrderId:

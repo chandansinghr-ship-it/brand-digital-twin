@@ -26,6 +26,7 @@ import type {
   DishRationaleEnvelope,
   DishRationaleRequest,
   DishReviewInput,
+  FinalizeOrderRequest,
   GenerateMealPlan201,
   GetChallenge200,
   GetMealPlan200,
@@ -42,9 +43,12 @@ import type {
   ListRecipesParams,
   ListTeamProfiles200,
   ListTeamProfilesParams,
+  MarketplaceCheckoutRequest,
+  MarketplaceCheckoutResult,
   MealPlanGenerateRequest,
   MealPlanSettingsInput,
   OkEnvelope,
+  OrderFinalizeResult,
   PostToChallenge200,
   PreferencesEnvelope,
   PreferencesEnvelopeRequired,
@@ -88,10 +92,15 @@ export const getFinalizeOrderUrl = () => {
   return `/api/orders/finalize`;
 };
 
-export const finalizeOrder = async (options?: RequestInit): Promise<void> => {
-  return customFetch<void>(getFinalizeOrderUrl(), {
+export const finalizeOrder = async (
+  finalizeOrderRequest: FinalizeOrderRequest,
+  options?: RequestInit,
+): Promise<OrderFinalizeResult> => {
+  return customFetch<OrderFinalizeResult>(getFinalizeOrderUrl(), {
     ...options,
     method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(finalizeOrderRequest),
   });
 };
 
@@ -102,14 +111,14 @@ export const getFinalizeOrderMutationOptions = <
   mutation?: UseMutationOptions<
     Awaited<ReturnType<typeof finalizeOrder>>,
     TError,
-    void,
+    { data: BodyType<FinalizeOrderRequest> },
     TContext
   >;
   request?: SecondParameter<typeof customFetch>;
 }): UseMutationOptions<
   Awaited<ReturnType<typeof finalizeOrder>>,
   TError,
-  void,
+  { data: BodyType<FinalizeOrderRequest> },
   TContext
 > => {
   const mutationKey = ["finalizeOrder"];
@@ -123,9 +132,11 @@ export const getFinalizeOrderMutationOptions = <
 
   const mutationFn: MutationFunction<
     Awaited<ReturnType<typeof finalizeOrder>>,
-    void
-  > = () => {
-    return finalizeOrder(requestOptions);
+    { data: BodyType<FinalizeOrderRequest> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return finalizeOrder(data, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
@@ -134,7 +145,7 @@ export const getFinalizeOrderMutationOptions = <
 export type FinalizeOrderMutationResult = NonNullable<
   Awaited<ReturnType<typeof finalizeOrder>>
 >;
-
+export type FinalizeOrderMutationBody = BodyType<FinalizeOrderRequest>;
 export type FinalizeOrderMutationError = ErrorType<void>;
 
 /**
@@ -150,14 +161,14 @@ export const useFinalizeOrder = <
   mutation?: UseMutationOptions<
     Awaited<ReturnType<typeof finalizeOrder>>,
     TError,
-    void,
+    { data: BodyType<FinalizeOrderRequest> },
     TContext
   >;
   request?: SecondParameter<typeof customFetch>;
 }): UseMutationResult<
   Awaited<ReturnType<typeof finalizeOrder>>,
   TError,
-  void,
+  { data: BodyType<FinalizeOrderRequest> },
   TContext
 > => {
   return useMutation(getFinalizeOrderMutationOptions(options));
@@ -174,11 +185,14 @@ export const getMarketplaceCheckoutUrl = () => {
 };
 
 export const marketplaceCheckout = async (
+  marketplaceCheckoutRequest: MarketplaceCheckoutRequest,
   options?: RequestInit,
-): Promise<void> => {
-  return customFetch<void>(getMarketplaceCheckoutUrl(), {
+): Promise<MarketplaceCheckoutResult> => {
+  return customFetch<MarketplaceCheckoutResult>(getMarketplaceCheckoutUrl(), {
     ...options,
     method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(marketplaceCheckoutRequest),
   });
 };
 
@@ -189,14 +203,14 @@ export const getMarketplaceCheckoutMutationOptions = <
   mutation?: UseMutationOptions<
     Awaited<ReturnType<typeof marketplaceCheckout>>,
     TError,
-    void,
+    { data: BodyType<MarketplaceCheckoutRequest> },
     TContext
   >;
   request?: SecondParameter<typeof customFetch>;
 }): UseMutationOptions<
   Awaited<ReturnType<typeof marketplaceCheckout>>,
   TError,
-  void,
+  { data: BodyType<MarketplaceCheckoutRequest> },
   TContext
 > => {
   const mutationKey = ["marketplaceCheckout"];
@@ -210,9 +224,11 @@ export const getMarketplaceCheckoutMutationOptions = <
 
   const mutationFn: MutationFunction<
     Awaited<ReturnType<typeof marketplaceCheckout>>,
-    void
-  > = () => {
-    return marketplaceCheckout(requestOptions);
+    { data: BodyType<MarketplaceCheckoutRequest> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return marketplaceCheckout(data, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
@@ -221,7 +237,8 @@ export const getMarketplaceCheckoutMutationOptions = <
 export type MarketplaceCheckoutMutationResult = NonNullable<
   Awaited<ReturnType<typeof marketplaceCheckout>>
 >;
-
+export type MarketplaceCheckoutMutationBody =
+  BodyType<MarketplaceCheckoutRequest>;
 export type MarketplaceCheckoutMutationError = ErrorType<void>;
 
 /**
@@ -237,14 +254,14 @@ export const useMarketplaceCheckout = <
   mutation?: UseMutationOptions<
     Awaited<ReturnType<typeof marketplaceCheckout>>,
     TError,
-    void,
+    { data: BodyType<MarketplaceCheckoutRequest> },
     TContext
   >;
   request?: SecondParameter<typeof customFetch>;
 }): UseMutationResult<
   Awaited<ReturnType<typeof marketplaceCheckout>>,
   TError,
-  void,
+  { data: BodyType<MarketplaceCheckoutRequest> },
   TContext
 > => {
   return useMutation(getMarketplaceCheckoutMutationOptions(options));

@@ -45,11 +45,19 @@ paths:
         the `Idempotency-Key` header.
       parameters:
         - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/FinalizeOrderRequest" }
       responses:
         "200":
           description: |
             Order persisted (or cached response replayed for a retry of
             the same key + body). Replays carry `Idempotent-Replay: true`.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/OrderFinalizeResult" }
         "400": { description: Invalid payload or missing/invalid Idempotency-Key }
         "401": { description: Unauthorized }
         "409": { description: Idempotency-Key reused with a different body }
@@ -63,11 +71,19 @@ paths:
         customer or double-decrement stock.
       parameters:
         - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/MarketplaceCheckoutRequest" }
       responses:
         "200":
           description: |
             Order placed (or cached response replayed). Replays carry
             `Idempotent-Replay: true`.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/MarketplaceCheckoutResult" }
         "400": { description: Invalid payload or missing/invalid Idempotency-Key }
         "401": { description: Unauthorized }
         "409": { description: Idempotency-Key reused with a different body }
@@ -983,6 +999,73 @@ components:
         back to OPS_USER_IDS / CATALOG_USER_IDS allowlist matching
         when the caller has a valid session cookie.
   schemas:
+    FinalizeOrderRequest:
+      type: object
+      required: [orderId, items]
+      additionalProperties: true
+      properties:
+        orderId: { type: string, description: Client-generated order id }
+        items:
+          type: array
+          items:
+            type: object
+            required: [id, name, qty, price]
+            properties:
+              id: { type: integer }
+              name: { type: string }
+              qty: { type: integer, minimum: 1 }
+              price: { type: integer, description: Per-unit price in paise }
+        applyCreditsPaise: { type: integer, nullable: true }
+        scheduledFor: { type: string, format: date-time, nullable: true }
+        bundleSlugs: { type: array, items: { type: string } }
+        fulfillmentType: { type: string, enum: [delivery, pickup] }
+        deliverySlotId: { type: integer, nullable: true }
+        pickupLocationId: { type: integer, nullable: true }
+        ecoPackagingOptIn: { type: boolean }
+        deliveryInstructions: { type: string, nullable: true }
+    OrderFinalizeResult:
+      type: object
+      required: [ok]
+      additionalProperties: true
+      properties:
+        ok: { type: boolean }
+        serverOrderId: { type: integer }
+        finalTotalPaise: { type: integer }
+        creditsRedeemedPaise: { type: integer }
+        referralAwarded: { type: boolean }
+    MarketplaceCheckoutRequest:
+      type: object
+      required: [items, deliveryMode]
+      properties:
+        items:
+          type: array
+          minItems: 1
+          items:
+            type: object
+            required: [itemId, qty]
+            properties:
+              itemId: { type: integer }
+              qty: { type: integer, minimum: 1 }
+        deliveryMode: { type: string, enum: [ship, bundle_with_meal] }
+        bundleWithOrderId: { type: integer, nullable: true }
+        address:
+          type: object
+          properties:
+            label: { type: string }
+            line: { type: string }
+            city: { type: string }
+            pincode: { type: string }
+            phone: { type: string }
+    MarketplaceCheckoutResult:
+      type: object
+      required: [order]
+      properties:
+        order:
+          type: object
+          additionalProperties: true
+          required: [id]
+          properties:
+            id: { type: integer }
     MealPlanSlot:
       type: string
       enum: [breakfast, lunch, dinner]

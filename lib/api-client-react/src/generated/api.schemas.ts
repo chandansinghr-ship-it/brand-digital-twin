@@ -5,6 +5,86 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+export type FinalizeOrderRequestItemsItem = {
+  id: number;
+  name: string;
+  /** @minimum 1 */
+  qty: number;
+  /** Per-unit price in paise */
+  price: number;
+};
+
+export type FinalizeOrderRequestFulfillmentType =
+  (typeof FinalizeOrderRequestFulfillmentType)[keyof typeof FinalizeOrderRequestFulfillmentType];
+
+export const FinalizeOrderRequestFulfillmentType = {
+  delivery: "delivery",
+  pickup: "pickup",
+} as const;
+
+export interface FinalizeOrderRequest {
+  /** Client-generated order id */
+  orderId: string;
+  items: FinalizeOrderRequestItemsItem[];
+  applyCreditsPaise?: number | null;
+  scheduledFor?: string | null;
+  bundleSlugs?: string[];
+  fulfillmentType?: FinalizeOrderRequestFulfillmentType;
+  deliverySlotId?: number | null;
+  pickupLocationId?: number | null;
+  ecoPackagingOptIn?: boolean;
+  deliveryInstructions?: string | null;
+  [key: string]: unknown;
+}
+
+export interface OrderFinalizeResult {
+  ok: boolean;
+  serverOrderId?: number;
+  finalTotalPaise?: number;
+  creditsRedeemedPaise?: number;
+  referralAwarded?: boolean;
+  [key: string]: unknown;
+}
+
+export type MarketplaceCheckoutRequestItemsItem = {
+  itemId: number;
+  /** @minimum 1 */
+  qty: number;
+};
+
+export type MarketplaceCheckoutRequestDeliveryMode =
+  (typeof MarketplaceCheckoutRequestDeliveryMode)[keyof typeof MarketplaceCheckoutRequestDeliveryMode];
+
+export const MarketplaceCheckoutRequestDeliveryMode = {
+  ship: "ship",
+  bundle_with_meal: "bundle_with_meal",
+} as const;
+
+export type MarketplaceCheckoutRequestAddress = {
+  label?: string;
+  line?: string;
+  city?: string;
+  pincode?: string;
+  phone?: string;
+};
+
+export interface MarketplaceCheckoutRequest {
+  /** @minItems 1 */
+  items: MarketplaceCheckoutRequestItemsItem[];
+  deliveryMode: MarketplaceCheckoutRequestDeliveryMode;
+  bundleWithOrderId?: number | null;
+  address?: MarketplaceCheckoutRequestAddress;
+}
+
+export type MarketplaceCheckoutResultOrder = {
+  id: number;
+  [key: string]: unknown;
+};
+
+export interface MarketplaceCheckoutResult {
+  order: MarketplaceCheckoutResultOrder;
+}
+
 export type MealPlanSlot = (typeof MealPlanSlot)[keyof typeof MealPlanSlot];
 
 export const MealPlanSlot = {

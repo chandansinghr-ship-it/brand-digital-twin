@@ -182,31 +182,21 @@ export const marketplaceApi = {
 };
 
 /**
- * Returns a stable `Idempotency-Key` for a marketplace checkout,
- * keyed off (itemId, qty, deliveryMode, bundleOrderId). Two clicks
- * of the same Buy button with the same options reuse the same key
- * (so the server collapses them to one order); changing the qty or
- * delivery mode produces a new key (a genuinely different intent).
+ * Mints a fresh `Idempotency-Key` for ONE marketplace checkout submit
+ * attempt. Call this exactly once per "Buy" click and reuse the
+ * returned key only across retries of that same in-flight request
+ * (e.g. a transient 5xx → fetch retry). A new click is a new intent
+ * and gets a new key, so it correctly creates a new order.
+ *
+ * Deliberately does NOT persist to sessionStorage: persisting would
+ * collapse two intentional purchases of the same item into one order
+ * (the server would replay the cached response). Surviving a soft
+ * refresh mid-flight is intentionally NOT supported here — a refresh
+ * mid-purchase is a new intent, and the user gets to decide whether
+ * to click Buy again.
  */
-export function marketplaceCheckoutIdempotencyKey(args: {
-  itemId: number;
-  qty: number;
-  deliveryMode: "ship" | "bundle_with_meal";
-  bundleWithOrderId?: number | null;
-}): string {
-  const fingerprint = `${args.itemId}:${args.qty}:${args.deliveryMode}:${args.bundleWithOrderId ?? "none"}`;
-  const storageKey = `idem:mkt:${fingerprint}`;
-  const mint = () =>
-    typeof crypto !== "undefined" && crypto.randomUUID
-      ? crypto.randomUUID()
-      : `idem-${Date.now()}-${Math.random().toString(36).slice(2)}`;
-  try {
-    const existing = sessionStorage.getItem(storageKey);
-    if (existing) return existing;
-    const fresh = mint();
-    sessionStorage.setItem(storageKey, fresh);
-    return fresh;
-  } catch {
-    return mint();
-  }
+export function marketplaceCheckoutIdempotencyKey(): string {
+  return typeof crypto !== "undefined" && crypto.randomUUID
+    ? crypto.randomUUID()
+    : `idem-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 }

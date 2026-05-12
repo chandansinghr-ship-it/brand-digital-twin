@@ -26,6 +26,34 @@ export const FinalizeOrderHeader = zod.object({
     ),
 });
 
+export const FinalizeOrderBody = zod.object({
+  orderId: zod.string().describe("Client-generated order id"),
+  items: zod.array(
+    zod.object({
+      id: zod.number(),
+      name: zod.string(),
+      qty: zod.number().min(1),
+      price: zod.number().describe("Per-unit price in paise"),
+    }),
+  ),
+  applyCreditsPaise: zod.number().nullish(),
+  scheduledFor: zod.coerce.date().nullish(),
+  bundleSlugs: zod.array(zod.string()).optional(),
+  fulfillmentType: zod.enum(["delivery", "pickup"]).optional(),
+  deliverySlotId: zod.number().nullish(),
+  pickupLocationId: zod.number().nullish(),
+  ecoPackagingOptIn: zod.boolean().optional(),
+  deliveryInstructions: zod.string().nullish(),
+});
+
+export const FinalizeOrderResponse = zod.object({
+  ok: zod.boolean(),
+  serverOrderId: zod.number().optional(),
+  finalTotalPaise: zod.number().optional(),
+  creditsRedeemedPaise: zod.number().optional(),
+  referralAwarded: zod.boolean().optional(),
+});
+
 /**
  * @summary Place a marketplace order. Server-managed idempotency is
 REQUIRED so that a retried POST does not double-charge the
@@ -43,6 +71,34 @@ export const MarketplaceCheckoutHeader = zod.object({
     .describe(
       "Required server-managed idempotency token. 8–128 characters,\nurl-safe alphabet `[A-Za-z0-9._-:]`. Reuse the same value for\nevery retry of the SAME submit attempt; pick a fresh value\n(e.g. crypto.randomUUID()) for each NEW user-initiated submit.\n",
     ),
+});
+
+export const MarketplaceCheckoutBody = zod.object({
+  items: zod
+    .array(
+      zod.object({
+        itemId: zod.number(),
+        qty: zod.number().min(1),
+      }),
+    )
+    .min(1),
+  deliveryMode: zod.enum(["ship", "bundle_with_meal"]),
+  bundleWithOrderId: zod.number().nullish(),
+  address: zod
+    .object({
+      label: zod.string().optional(),
+      line: zod.string().optional(),
+      city: zod.string().optional(),
+      pincode: zod.string().optional(),
+      phone: zod.string().optional(),
+    })
+    .optional(),
+});
+
+export const MarketplaceCheckoutResponse = zod.object({
+  order: zod.object({
+    id: zod.number(),
+  }),
 });
 
 /**
