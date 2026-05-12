@@ -6,6 +6,7 @@ import pinoHttp from "pino-http";
 import router from "./routes";
 import { logger } from "./lib/logger";
 import { authMiddleware } from "./middlewares/authMiddleware";
+import { adminSessionShim } from "./lib/adminSessionShim";
 
 const app: Express = express();
 
@@ -118,6 +119,13 @@ app.use((err: unknown, _req: Request, res: Response, next: NextFunction) => {
 });
 
 app.use(authMiddleware);
+
+// Mirror the new signed-cookie admin session into the legacy
+// `req.session.isAdmin` flag so endpoints written before the cookie-
+// based admin login (aiRuns, community, challenges, b2bPlanner, …)
+// honor admins who logged in through POST /admin/login. See
+// lib/adminSessionShim.ts for the full rationale.
+app.use(adminSessionShim);
 
 app.use("/api", router);
 
