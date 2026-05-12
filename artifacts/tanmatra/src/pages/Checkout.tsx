@@ -19,7 +19,7 @@ import {
 import { toast } from "sonner";
 import { formatPrice } from "@/lib/api/adapter";
 import { useCart, FREE_DELIVERY_THRESHOLD, DELIVERY_FEE } from "@/lib/cartContext";
-import { useOrders, generateOrderId } from "@/lib/ordersContext";
+import { useOrders, generateOrderId, submitOrderIdempotencyKey } from "@/lib/ordersContext";
 import { loyaltyApi } from "@/lib/loyaltyApi";
 import { corporateApi, type CompanySubsidy } from "@/lib/corporateApi";
 import {
@@ -398,6 +398,10 @@ export default function Checkout() {
     let serverOrderIdFromFinalize: number | undefined;
     try {
       const out = await loyaltyApi.finalizeOrder({
+        // Same key for every retry of THIS submit attempt; the server
+        // dedupes via its idempotency_keys cache, so a network blip or
+        // 5xx-then-retry won't double-charge the customer.
+        idempotencyKey: submitOrderIdempotencyKey(orderId),
         orderId,
         items: items.map((it) => ({
           id: it.dishId,

@@ -1,6 +1,7 @@
 import { randomBytes } from "node:crypto";
 import { Router, type IRouter, type Request, type Response } from "express";
 import { requireAuthUser as requireAuth } from "../middlewares/requireAuth";
+import { idempotencyMiddleware } from "../middlewares/idempotency";
 import { and, desc, eq } from "drizzle-orm";
 import { z } from "zod/v4";
 import {
@@ -265,7 +266,7 @@ const finalizeOrderSchema = z.object({
   deliveryInstructions: z.string().max(512).nullable().optional(),
 });
 
-router.post("/orders/finalize", async (req: Request, res: Response) => {
+router.post("/orders/finalize", idempotencyMiddleware, async (req: Request, res: Response) => {
   const userId = requireAuth(req, res);
   if (!userId) return;
   const parsed = finalizeOrderSchema.safeParse(req.body);
