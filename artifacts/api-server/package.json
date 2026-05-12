@@ -13,6 +13,8 @@
     "test:bundles": "node --test --import tsx ./src/lib/loyaltyEngine.bundles.test.ts",
     "test:group-orders": "node --test --import tsx ./src/routes/groupOrders.test.ts",
     "test": "node --test --import tsx \"./src/**/*.test.ts\"",
+    "test:bulkhead": "node --test --import tsx ./src/lib/dispatch.bulkhead.test.ts",
+    "loadtest:override": "node ./scripts/loadtest-override.mjs",
     "evals:menu-copy": "tsx ./src/lib/menuCopy.eval.ts",
     "build": "node ./build.mjs",
     "start": "node --enable-source-maps ./dist/index.mjs",

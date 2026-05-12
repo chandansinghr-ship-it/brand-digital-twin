@@ -360,7 +360,12 @@ router.post(
       notes: parsed.data.notes,
     });
     if (!out.ok) {
-      res.status(409).json(out);
+      // Task #7: lock_busy means the auto-dispatcher held the row long
+      // enough to exhaust the NOWAIT retry budget. Surface as 503 so
+      // clients (UI / monitor) can retry distinctly from a 409
+      // "rider unavailable" type business conflict.
+      const status = out.code === "lock_busy" ? 503 : 409;
+      res.status(status).json(out);
       return;
     }
     res.json(out);

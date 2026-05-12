@@ -1,0 +1,135 @@
+#!/usr/bin/env node
+/**
+ * Task #7 smoke load test for the Manual-Mode bulkhead.
+ *
+ * Pegs the server with N concurrent auto-dispatcher runs while firing
+ * a parallel stream of /delivery/dispatch/override requests, then
+ * asserts override p95 latency < 2_000 ms.
+ *
+ * This is the in-repo CI-smoke version. Run a heavier soak test out
+ * of band when validating production capacity.
+ *
+ * Usage:
+ *   BASE_URL=http://localhost:8080 OPS_TOKEN=... \
+ *     node ./scripts/loadtest-override.mjs --orders 20 --duration-ms 8000
+ *
+ * Env / flags:
+ *   BASE_URL          (default http://localhost:8080)
+ *   OPS_TOKEN         required if the route is locked behind ops gate
+ *   --orders N        number of orders to seed (default 20)
+ *   --duration-ms M   how long to run the dispatcher contention loop
+ *   --p95-budget-ms B SLO assertion (default 2000)
+ */
+import { performance } from "node:perf_hooks";
+
+const args = new Map();
+for (let i = 2; i < process.argv.length; i += 2) {
+  args.set(process.argv[i].replace(/^--/, ""), process.argv[i + 1]);
+}
+const BASE = process.env.BASE_URL ?? "http://localhost:8080";
+const OPS_TOKEN = process.env.OPS_TOKEN ?? "";
+const N = Number(args.get("orders") ?? 20);
+const DURATION_MS = Number(args.get("duration-ms") ?? 8_000);
+const P95_BUDGET = Number(args.get("p95-budget-ms") ?? 2_000);
+
+const headers = {
+  "content-type": "application/json",
+  ...(OPS_TOKEN ? { authorization: `Bearer ${OPS_TOKEN}` } : {}),
+};
+
+async function fireOverride(orderId, riderId) {
+  const t0 = performance.now();
+  let status = 0;
+  let body = null;
+  try {
+    const r = await fetch(`${BASE}/delivery/dispatch/override`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ orderId, riderId, notes: "loadtest" }),
+    });
+    status = r.status;
+    body = await r.json().catch(() => null);
+  } catch (err) {
+    status = -1;
+    body = { error: String(err) };
+  }
+  return { latencyMs: performance.now() - t0, status, body };
+}
+
+async function fireDispatcher() {
+  // Pegs the auto-dispatcher path; should NOT block override.
+  try {
+    await fetch(`${BASE}/delivery/dispatch/run`, {
+      method: "POST",
+      headers,
+    });
+  } catch {
+    /* ignore */
+  }
+}
+
+async function main() {
+  const ordersIds = (process.env.ORDER_IDS ?? "")
+    .split(",")
+    .map((s) => Number(s))
+    .filter((n) => Number.isFinite(n) && n > 0);
+  const riderId = Number(process.env.RIDER_ID ?? 1);
+  if (ordersIds.length === 0) {
+    console.error(
+      "Set ORDER_IDS=1,2,3 (and RIDER_ID) to point at seeded test orders.",
+    );
+    process.exit(2);
+  }
+  console.log(
+    `[loadtest] base=${BASE} orders=${ordersIds.length} duration=${DURATION_MS}ms p95Budget=${P95_BUDGET}ms`,
+  );
+
+  let stop = false;
+  const dispatcherLoop = (async () => {
+    while (!stop) {
+      await Promise.all(Array.from({ length: 4 }, fireDispatcher));
+      await new Promise((r) => setTimeout(r, 25));
+    }
+  })();
+
+  const samples = [];
+  const overrideLoop = (async () => {
+    while (!stop) {
+      const orderId = ordersIds[Math.floor(Math.random() * ordersIds.length)];
+      const s = await fireOverride(orderId, riderId);
+      samples.push(s);
+    }
+  })();
+
+  await new Promise((r) => setTimeout(r, DURATION_MS));
+  stop = true;
+  await Promise.all([dispatcherLoop, overrideLoop]);
+
+  const lats = samples.map((s) => s.latencyMs).sort((a, b) => a - b);
+  const pct = (p) => lats[Math.min(lats.length - 1, Math.floor(lats.length * p))];
+  const counts = samples.reduce((acc, s) => {
+    acc[s.status] = (acc[s.status] ?? 0) + 1;
+    return acc;
+  }, {});
+  const summary = {
+    samples: samples.length,
+    p50: Math.round(pct(0.5)),
+    p95: Math.round(pct(0.95)),
+    p99: Math.round(pct(0.99)),
+    max: Math.round(lats[lats.length - 1] ?? 0),
+    statusCounts: counts,
+  };
+  console.log("[loadtest]", JSON.stringify(summary, null, 2));
+  if (summary.p95 > P95_BUDGET) {
+    console.error(
+      `[loadtest] FAIL: override p95=${summary.p95}ms exceeded ${P95_BUDGET}ms`,
+    );
+    process.exit(1);
+  }
+  console.log(`[loadtest] PASS: p95 ${summary.p95}ms <= ${P95_BUDGET}ms`);
+}
+
+main().catch((err) => {
+  console.error(err);
+  process.exit(1);
+});

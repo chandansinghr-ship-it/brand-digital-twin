@@ -1,5 +1,6 @@
 import {
   db,
+  overrideDb,
   ordersTable,
   ridersTable,
   deliveryEventsTable,
@@ -8,8 +9,9 @@ import {
   type Rider,
 } from "@workspace/db";
 import { and, asc, desc, eq, gte, inArray, isNull, lte, sql } from "drizzle-orm";
+import { randomUUID } from "node:crypto";
 import { logger } from "./logger";
-import { recordOpsAction } from "./opsAudit";
+import { recordOpsAction, enqueueOpsAuditOutbox } from "./opsAudit";
 import { emitDeliveryEvent } from "./realtime";
 
 export const DISPATCH_MODEL_VERSION = "v1-heuristic";
@@ -442,18 +444,28 @@ export async function dispatchOrder(
   // 3. Persist assignment + audit trail under a row lock so concurrent
   //    dispatchers (queue worker + manual API call) don't double-assign.
   const txResult = await db.transaction(async (tx) => {
+    // Task #7 bulkhead: the auto-dispatcher uses SKIP LOCKED so it
+    // never queues behind a clinical override that holds the row lock.
+    // If another tx already holds the row, the SELECT returns zero
+    // rows and we report `lock_busy` — the dispatch loop treats that
+    // like "already assigned" and moves on (the next loop iteration
+    // will re-pick the order if it's still pending).
     const lockedRows = await tx.execute<{
       id: number;
       rider_id: number | null;
       status: string;
     }>(
       sql`select id, rider_id, status from ${ordersTable}
-          where id = ${orderId} for update`,
+          where id = ${orderId} for update skip locked`,
     );
     const locked = (lockedRows.rows ?? lockedRows)[0] as
       | { id: number; rider_id: number | null; status: string }
       | undefined;
-    if (!locked) return { ok: false as const, reason: "order not found" };
+    if (!locked) {
+      // Two cases collapse here: row truly missing, or row locked by
+      // the override path. Both mean "don't assign in this pass".
+      return { ok: false as const, reason: "lock_busy" };
+    }
     if (locked.rider_id != null) {
       return {
         ok: false as const,
@@ -819,38 +831,130 @@ export async function setOrderPriority(args: {
   });
 }
 
+// Task #7 bulkhead — total wall-clock budget for the NOWAIT retry loop.
+// Kept WELL under the 2 s SLO so even with the maximum number of
+// retries the override responds inside the SLO. Each attempt that
+// fails with `lock_not_available` (Postgres SQLSTATE 55P03) waits a
+// short, jittered backoff and retries.
+const OVERRIDE_NOWAIT_TOTAL_BUDGET_MS = 500;
+const OVERRIDE_NOWAIT_BASE_BACKOFF_MS = 30;
+const OVERRIDE_NOWAIT_MAX_BACKOFF_MS = 120;
+
+function isLockNotAvailable(err: unknown): boolean {
+  // Postgres throws SQLSTATE 55P03 ("lock_not_available") when a
+  // FOR UPDATE NOWAIT can't acquire. node-postgres surfaces it as
+  // err.code === '55P03', but drizzle re-wraps the error as a
+  // DrizzleQueryError with the original on `.cause` — so we walk
+  // the cause chain. Match defensively on the message text too.
+  let cur: unknown = err;
+  for (let depth = 0; depth < 5 && cur; depth++) {
+    if (typeof cur !== "object") return false;
+    const e = cur as { code?: string; message?: string; cause?: unknown };
+    if (e.code === "55P03") return true;
+    if (
+      typeof e.message === "string" &&
+      /lock_not_available|could not obtain lock/i.test(e.message)
+    ) {
+      return true;
+    }
+    cur = e.cause;
+  }
+  return false;
+}
+
 export async function overrideAssignment(args: {
   orderId: number;
   riderId: number;
   operatorId: string;
   notes?: string;
-}): Promise<{ ok: boolean; reason?: string; decisionId?: number }> {
-  const [order] = await db
+}): Promise<{
+  ok: boolean;
+  reason?: string;
+  code?: "lock_busy" | "rider_unavailable" | "not_found";
+  decisionId?: number;
+}> {
+  // Read order + rider from the OVERRIDE pool so even pre-flight reads
+  // can't queue behind the main pool's saturated dispatch traffic.
+  const [order] = await overrideDb
     .select()
     .from(ordersTable)
     .where(eq(ordersTable.id, args.orderId))
     .limit(1);
-  if (!order) return { ok: false, reason: "order not found" };
-  const [rider] = await db
+  if (!order) return { ok: false, reason: "order not found", code: "not_found" };
+  const [rider] = await overrideDb
     .select()
     .from(ridersTable)
     .where(eq(ridersTable.id, args.riderId))
     .limit(1);
-  if (!rider) return { ok: false, reason: "rider not found" };
+  if (!rider) return { ok: false, reason: "rider not found", code: "not_found" };
   if (rider.status !== "online")
-    return { ok: false, reason: `rider is ${rider.status}` };
+    return {
+      ok: false,
+      reason: `rider is ${rider.status}`,
+      code: "rider_unavailable",
+    };
 
   const drop = orderDropLatLng(order);
   const chosen = scoreRiderForOrder(rider, drop);
 
-  const decisionId = await db.transaction(async (tx) => {
+  // Retry loop wrapping the whole transaction. We retry the WHOLE tx,
+  // not just the lock acquisition, because once `for update nowait`
+  // throws Postgres has already aborted the surrounding tx.
+  const startedAt = Date.now();
+  let attempt = 0;
+  let lastLockErr: unknown = null;
+  while (Date.now() - startedAt < OVERRIDE_NOWAIT_TOTAL_BUDGET_MS) {
+    attempt += 1;
+    try {
+      const decisionId = await runOverrideTx(args, rider, chosen);
+      emitDeliveryEvent(args.orderId, {
+        event: "rider_assigned",
+        riderId: rider.id,
+        riderName: rider.name,
+        override: true,
+      });
+      return { ok: true, decisionId: decisionId ?? undefined };
+    } catch (err) {
+      if (!isLockNotAvailable(err)) throw err;
+      lastLockErr = err;
+      // Jittered exponential-ish backoff, but capped tight.
+      const backoff = Math.min(
+        OVERRIDE_NOWAIT_MAX_BACKOFF_MS,
+        OVERRIDE_NOWAIT_BASE_BACKOFF_MS * 2 ** (attempt - 1),
+      );
+      const jitter = Math.floor(Math.random() * (backoff / 2));
+      await new Promise((r) => setTimeout(r, backoff + jitter));
+    }
+  }
+  logger.warn(
+    { orderId: args.orderId, attempts: attempt, lastLockErr },
+    "override_lock_busy: NOWAIT budget exhausted",
+  );
+  return {
+    ok: false,
+    reason: "lock_busy",
+    code: "lock_busy",
+  };
+}
+
+async function runOverrideTx(
+  args: {
+    orderId: number;
+    riderId: number;
+    operatorId: string;
+    notes?: string;
+  },
+  rider: Rider,
+  chosen: ReturnType<typeof scoreRiderForOrder>,
+): Promise<number | null> {
+  return overrideDb.transaction(async (tx) => {
     const lockedRows = await tx.execute<{
       id: number;
       rider_id: number | null;
       status: string;
     }>(
       sql`select id, rider_id, status from ${ordersTable}
-          where id = ${args.orderId} for update`,
+          where id = ${args.orderId} for update nowait`,
     );
     const locked = (lockedRows.rows ?? lockedRows)[0] as
       | { id: number; rider_id: number | null; status: string }
@@ -902,7 +1006,14 @@ export async function overrideAssignment(args: {
         notes: args.notes ?? null,
       })
       .returning({ id: dispatchDecisionsTable.id });
-    await recordOpsAction(
+    // Task #7 bulkhead: enqueue audit to the outbox in the SAME tx
+    // so the override commits atomically with its audit intent, but
+    // the actual `ops_actions` insert happens off the critical path
+    // by the background drain worker. The dedupe key is stable per
+    // (action, operator, order) so a route-level retry collapses to
+    // one outbox row.
+    const dedupeKey = `override_dispatch:${args.operatorId}:${args.orderId}:${randomUUID()}`;
+    await enqueueOpsAuditOutbox(
       {
         operatorId: args.operatorId,
         agent: "ops_console",
@@ -914,17 +1025,10 @@ export async function overrideAssignment(args: {
         reasoning: args.notes ?? "manual override",
       },
       tx,
+      dedupeKey,
     );
     return row?.id ?? null;
   });
-
-  emitDeliveryEvent(args.orderId, {
-    event: "rider_assigned",
-    riderId: rider.id,
-    riderName: rider.name,
-    override: true,
-  });
-  return { ok: true, decisionId: decisionId ?? undefined };
 }
 
 // ─── Reporting ─────────────────────────────────────────────────────────────

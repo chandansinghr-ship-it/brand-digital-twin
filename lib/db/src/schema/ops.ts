@@ -50,3 +50,37 @@ export const opsActionsTable = pgTable(
 
 export type OpsAction = typeof opsActionsTable.$inferSelect;
 export type InsertOpsAction = typeof opsActionsTable.$inferInsert;
+
+// Task #7: outbox for the Manual-Mode bulkhead. Override (and any other
+// latency-critical staff path) writes a single row here inside its own
+// transaction; a background worker drains rows into `ops_actions`. This
+// keeps audit-log writes off the override critical path.
+//
+// `dedupeKey` is producer-side dedupe: if a caller retries, only one
+// row materialises. The drain worker uses FOR UPDATE SKIP LOCKED + a
+// single-tx insert-then-mark-processed for consumer-side dedupe, so
+// the pair gives at-least-once-with-dedupe == effectively-exactly-once.
+export const opsAuditOutboxTable = pgTable(
+  "ops_audit_outbox",
+  {
+    id: serial("id").primaryKey(),
+    dedupeKey: varchar("dedupe_key", { length: 128 }).notNull().unique(),
+    payload: jsonb("payload").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    processedAt: timestamp("processed_at", { withTimezone: true }),
+    attempts: serial("attempts"),
+    lastError: text("last_error"),
+  },
+  (table) => [
+    // Drain worker query: find unprocessed rows, oldest first.
+    index("idx_ops_audit_outbox_unprocessed").on(
+      table.processedAt,
+      table.createdAt,
+    ),
+  ],
+);
+
+export type OpsAuditOutbox = typeof opsAuditOutboxTable.$inferSelect;
+export type InsertOpsAuditOutbox = typeof opsAuditOutboxTable.$inferInsert;

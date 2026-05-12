@@ -19,6 +19,7 @@ import { purgeExpiredRateLimits } from "./lib/rateLimit";
 import { purgeExpiredSessions } from "./lib/auth";
 import { sweepExpiredIdempotencyKeys } from "./middlewares/idempotency";
 import { sweepOrphanSlotReservations } from "./routes/fulfillment";
+import { drainOpsAuditOutbox } from "./lib/opsAudit";
 
 const rawPort = process.env["PORT"];
 
@@ -118,6 +119,27 @@ const slotReclaimTimer = setInterval(() => {
 }, SLOT_RECLAIM_INTERVAL_MS);
 slotReclaimTimer.unref();
 
+// Task #7 bulkhead: drain the ops_audit_outbox at a fast cadence so
+// staff override actions show up in the audit trail within a couple
+// of seconds even though they were committed off the critical path.
+// SKIP LOCKED inside the drainer means a second pod is safe; failures
+// per-row are caught and recorded inside the worker.
+const OPS_AUDIT_DRAIN_INTERVAL_MS = 500;
+const OPS_AUDIT_DRAIN_BATCH = 50;
+let opsAuditDrainInFlight = false;
+const opsAuditOutboxTimer = setInterval(() => {
+ if (opsAuditDrainInFlight) return;
+ opsAuditDrainInFlight = true;
+ drainOpsAuditOutbox(OPS_AUDIT_DRAIN_BATCH)
+ .catch((err) =>
+ logger.error({ err }, "drainOpsAuditOutbox failed"),
+ )
+ .finally(() => {
+ opsAuditDrainInFlight = false;
+ });
+}, OPS_AUDIT_DRAIN_INTERVAL_MS);
+opsAuditOutboxTimer.unref();
+
 // --- Process-level safety nets ---------------------------------------------
 process.on("unhandledRejection", (reason) => {
  logger.error({ reason }, "unhandledRejection");
@@ -158,6 +180,7 @@ async function shutdown(signal: NodeJS.Signals): Promise<void> {
  }
  clearInterval(purgeTimer);
  clearInterval(slotReclaimTimer);
+ clearInterval(opsAuditOutboxTimer);
  logger.info("shutdown complete");
  process.exit(0);
 }
