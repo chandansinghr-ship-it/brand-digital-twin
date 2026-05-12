@@ -15,7 +15,11 @@
  *
  * Env / flags:
  *   BASE_URL          (default http://localhost:8080)
- *   OPS_TOKEN         required if the route is locked behind ops gate
+ *   RD_ADMIN_TOKEN    sent as `x-admin-token` to satisfy isOpsRequest()
+ *                     (this matches the server's adminGate.ts contract)
+ *   OPS_TOKEN         legacy alias for RD_ADMIN_TOKEN (also accepted)
+ *   ORDER_IDS         comma-separated list of seeded order ids
+ *   RIDER_ID          rider id for override (default 1)
  *   --orders N        number of orders to seed (default 20)
  *   --duration-ms M   how long to run the dispatcher contention loop
  *   --p95-budget-ms B SLO assertion (default 2000)
@@ -27,14 +31,26 @@ for (let i = 2; i < process.argv.length; i += 2) {
   args.set(process.argv[i].replace(/^--/, ""), process.argv[i + 1]);
 }
 const BASE = process.env.BASE_URL ?? "http://localhost:8080";
-const OPS_TOKEN = process.env.OPS_TOKEN ?? "";
+// Server-side ops gate (adminGate.ts) checks `x-admin-token` against
+// process.env.RD_ADMIN_TOKEN. We deliberately do NOT send a Bearer
+// token: bearer maps to a session SID lookup, which would defeat the
+// bulkhead by routing through the main DB pool's session store.
+const ADMIN_TOKEN =
+  process.env.RD_ADMIN_TOKEN ?? process.env.OPS_TOKEN ?? "";
 const N = Number(args.get("orders") ?? 20);
 const DURATION_MS = Number(args.get("duration-ms") ?? 8_000);
 const P95_BUDGET = Number(args.get("p95-budget-ms") ?? 2_000);
 
+if (!ADMIN_TOKEN) {
+  console.error(
+    "[loadtest] FAIL: set RD_ADMIN_TOKEN (or OPS_TOKEN) — required for isOpsRequest()",
+  );
+  process.exit(2);
+}
+
 const headers = {
   "content-type": "application/json",
-  ...(OPS_TOKEN ? { authorization: `Bearer ${OPS_TOKEN}` } : {}),
+  "x-admin-token": ADMIN_TOKEN,
 };
 
 async function fireOverride(orderId, riderId) {
