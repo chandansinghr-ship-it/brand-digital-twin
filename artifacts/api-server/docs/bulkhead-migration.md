@@ -33,16 +33,22 @@ requires a **full** unique index (not partial — Postgres cannot
 target a partial unique with `ON CONFLICT`).
 
 ```sql
+-- Schema keeps dedupe_key NULLABLE so legacy `recordOpsAction()`
+-- callers (non-outbox paths) can still insert without supplying a
+-- key. Postgres treats NULL as distinct in unique constraints, so
+-- a regular UNIQUE on the nullable column does the right thing
+-- and `ON CONFLICT (dedupe_key)` works for outbox-driven inserts.
 ALTER TABLE ops_actions
-  ADD COLUMN IF NOT EXISTS dedupe_key TEXT;
--- backfill existing rows so the unique index can be created
-UPDATE ops_actions SET dedupe_key = 'legacy:' || id::text
-  WHERE dedupe_key IS NULL;
-ALTER TABLE ops_actions
-  ALTER COLUMN dedupe_key SET NOT NULL;
+  ADD COLUMN IF NOT EXISTS dedupe_key VARCHAR(128);
 CREATE UNIQUE INDEX CONCURRENTLY IF NOT EXISTS ops_actions_dedupe_key_uq
   ON ops_actions (dedupe_key);
 ```
+
+> **Note on nullability**: an earlier draft of this doc proposed
+> backfilling and `SET NOT NULL`. We dropped that because it would
+> break legacy non-outbox callers. The schema in
+> `lib/db/src/schema/ops.ts` is the source of truth and matches the
+> SQL above.
 
 `CREATE INDEX CONCURRENTLY` cannot run inside a transaction; in
 managed Postgres providers run it as a standalone statement and

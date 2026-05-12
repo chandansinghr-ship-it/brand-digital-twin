@@ -73,7 +73,7 @@ export async function authMiddleware(
     ? await getSession(sid, sessionDb)
     : await getSession(sid);
   if (!session?.user?.id) {
-    await clearSession(res, sid);
+    await clearSession(res, sid, sessionDb);
     next();
     return;
   }

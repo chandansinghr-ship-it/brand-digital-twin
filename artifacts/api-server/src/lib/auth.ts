@@ -78,8 +78,9 @@ export async function deleteSession(
 export async function clearSession(
   res: Response,
   sid?: string,
+  dbInstance: DrizzleDb = db,
 ): Promise<void> {
-  if (sid) await deleteSession(sid);
+  if (sid) await deleteSession(sid, dbInstance);
   res.clearCookie(SESSION_COOKIE, { path: "/" });
 }
 
