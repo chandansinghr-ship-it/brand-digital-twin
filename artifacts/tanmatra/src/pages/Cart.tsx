@@ -29,11 +29,17 @@ import { getDishById, useMenuCatalog } from "@/lib/menuData";
 import { ShieldAlert, Sparkles, AlertCircle, Clock } from "lucide-react";
 import { fulfillmentApi, type DeliverySlotOption } from "@/lib/fulfillmentApi";
 import { useEffect } from "react";
+import {
+  dishMatchesDietOrder,
+  useClinicalMode,
+} from "@/lib/clinicalDiet";
+import PatientContextStrip from "@/components/clinical/PatientContextStrip";
 
 export default function Cart() {
   const navigate = useNavigate();
   const { items, updateQty, removeItem, subtotal, totalQuantity } = useCart();
   const { preferences } = usePreferences();
+  const { enabled: clinicalMode, dietOrderId } = useClinicalMode();
   // Hydrate the runtime menu cache so getDishById reflects CMS edits.
   useMenuCatalog();
 
@@ -68,21 +74,29 @@ export default function Cart() {
         warnings: string[];
         blocked: boolean;
         matchedAllergens: string[];
+        dietConflictReason: string | null;
         swapSlug: string | null;
         swapName: string | null;
       }
     >();
-    if (!preferences) return out;
     for (const item of items) {
       const dish = getDishById(item.dishId);
       if (!dish) continue;
-      const m = evaluateDishForPreferences(dish, preferences);
-      if (m.warnings.length === 0 && !m.blocked) continue;
-      const swap = findSmartSwap(dish, preferences);
+      const m = preferences
+        ? evaluateDishForPreferences(dish, preferences)
+        : null;
+      const dietConflict = clinicalMode
+        ? dishMatchesDietOrder(dish, dietOrderId)
+        : null;
+      const hasPrefSignal =
+        m !== null && (m.warnings.length > 0 || m.blocked);
+      if (!hasPrefSignal && !dietConflict) continue;
+      const swap = preferences ? findSmartSwap(dish, preferences) : null;
       out.set(item.lineId, {
-        warnings: m.warnings,
-        blocked: m.blocked,
-        matchedAllergens: m.matchedAllergens,
+        warnings: m?.warnings ?? [],
+        blocked: m?.blocked ?? false,
+        matchedAllergens: m?.matchedAllergens ?? [],
+        dietConflictReason: dietConflict?.reason ?? null,
         swapSlug: swap?.slug ?? null,
         swapName: swap?.name ?? null,
       });
@@ -93,6 +107,20 @@ export default function Cart() {
   const allergenCount = Array.from(conflictMap.values()).filter(
     (c) => c.matchedAllergens.length > 0,
   ).length;
+  const dietConflictCount = Array.from(conflictMap.values()).filter(
+    (c) => c.dietConflictReason !== null,
+  ).length;
+  // Confirm-Order is hard-blocked whenever any line item carries an allergen
+  // hit OR conflicts with the patient's active diet order. There is NO UI
+  // bypass — the user must remove the offending items (or, separately, an
+  // RD must override server-side, which is task #7).
+  const checkoutBlocked = allergenCount > 0 || dietConflictCount > 0;
+  const blockReason =
+    allergenCount > 0
+      ? `${allergenCount} allergen conflict${allergenCount === 1 ? "" : "s"} — remove flagged item${allergenCount === 1 ? "" : "s"} to continue.`
+      : dietConflictCount > 0
+        ? `${dietConflictCount} item${dietConflictCount === 1 ? "" : "s"} conflict with the active diet order — remove to continue.`
+        : null;
 
   const deliveryFee = subtotal >= FREE_DELIVERY_THRESHOLD ? 0 : DELIVERY_FEE;
   const total = subtotal + deliveryFee;
@@ -131,6 +159,9 @@ export default function Cart() {
 
   return (
     <div className="max-w-5xl mx-auto p-4 pb-40 lg:pb-4 grid grid-cols-1 lg:grid-cols-3 gap-6 animate-in fade-in duration-500">
+      <div className="lg:col-span-3">
+        <PatientContextStrip />
+      </div>
       <div className="lg:col-span-2 space-y-4">
         <div className="flex items-center justify-between">
           <div>
@@ -304,13 +335,15 @@ export default function Cart() {
                     {conflictMap.get(item.lineId) && (() => {
                       const c = conflictMap.get(item.lineId)!;
                       const hasAllergen = c.matchedAllergens.length > 0;
+                      const hasDietConflict = c.dietConflictReason !== null;
+                      const isHard = hasAllergen || hasDietConflict;
                       // Allergen mismatches get a louder treatment than
                       // preference warnings — different border/icon/badge —
                       // so users can't miss a clinically-significant flag
                       // among generic "this is high-spice" notes.
                       return (
                       <div className={`mt-2 rounded-lg border p-2.5 space-y-2 ${
-                        hasAllergen
+                        isHard
                           ? "border-red-500/50 bg-red-500/10"
                           : "border-orange-500/30 bg-orange-500/5"
                       }`}>
@@ -325,13 +358,24 @@ export default function Cart() {
                             </span>
                           </div>
                         )}
+                        {hasDietConflict && (
+                          <div className="flex items-center gap-1.5">
+                            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider bg-red-500/20 text-red-300 border border-red-500/40">
+                              <AlertCircle className="w-2.5 h-2.5" aria-hidden="true" />
+                              Diet order
+                            </span>
+                            <span className="text-[11px] text-red-300 font-semibold">
+                              {c.dietConflictReason}
+                            </span>
+                          </div>
+                        )}
                         {c.warnings
                           .filter((w) => !hasAllergen || !w.toLowerCase().includes("allergens"))
                           .map((w, i) => (
                             <div
                               key={i}
                               className={`flex items-start gap-1.5 text-[11px] ${
-                                hasAllergen ? "text-red-200" : "text-orange-400"
+                                isHard ? "text-red-200" : "text-orange-400"
                               }`}
                             >
                               <ShieldAlert className="w-3.5 h-3.5 mt-0.5 shrink-0" />
@@ -421,11 +465,20 @@ export default function Cart() {
 
             <Button
               onClick={() => navigate("/checkout")}
-              className="w-full bg-clinical-gold text-[#050505] hover:bg-clinical-gold/90 font-semibold h-11 shadow-clinical gap-2"
+              disabled={checkoutBlocked}
+              className="w-full bg-clinical-gold text-[#050505] hover:bg-clinical-gold/90 font-semibold h-11 shadow-clinical gap-2 disabled:opacity-40 disabled:cursor-not-allowed disabled:bg-clinical-slate/40 disabled:text-clinical-zinc disabled:shadow-none"
             >
               Proceed to Checkout
               <ArrowRight className="w-4 h-4" />
             </Button>
+            {checkoutBlocked && blockReason && (
+              <p
+                role="alert"
+                className="text-[11px] text-red-300 text-center leading-snug"
+              >
+                {blockReason}
+              </p>
+            )}
 
             <StartGroupOrderButton />
 
@@ -459,9 +512,11 @@ export default function Cart() {
           </div>
           <Button
             onClick={() => navigate("/checkout")}
-            className="h-12 px-5 bg-clinical-gold text-[#050505] hover:bg-clinical-gold/90 font-semibold gap-2 shrink-0"
+            disabled={checkoutBlocked}
+            className="h-12 px-5 bg-clinical-gold text-[#050505] hover:bg-clinical-gold/90 font-semibold gap-2 shrink-0 disabled:opacity-40 disabled:cursor-not-allowed disabled:bg-clinical-slate/40 disabled:text-clinical-zinc"
+            title={checkoutBlocked ? blockReason ?? undefined : undefined}
           >
-            Checkout
+            {checkoutBlocked ? "Blocked" : "Checkout"}
             <ArrowRight className="w-4 h-4" />
           </Button>
         </div>

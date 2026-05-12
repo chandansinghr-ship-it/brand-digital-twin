@@ -31,6 +31,13 @@ import {
   type Lifestyle,
 } from "@/lib/dishEnrichment";
 import {
+  DIET_ORDER_BY_ID,
+  LIFESTYLE_EHR_LABEL,
+  dishMatchesDietOrder,
+  useClinicalMode,
+} from "@/lib/clinicalDiet";
+import PatientContextStrip from "@/components/clinical/PatientContextStrip";
+import {
   PROTOCOLS,
   PROTOCOL_LABELS,
   PROTOCOL_TAGLINES,
@@ -119,6 +126,8 @@ export default function Menu() {
     : null;
   const { data: bundles } = useBundles();
   const { dishes: catalogDishes } = useMenuCatalog();
+  const { enabled: clinicalMode, dietOrderId } = useClinicalMode();
+  const dietOrder = DIET_ORDER_BY_ID.get(dietOrderId);
 
   const handleQuickAdd = (e: React.MouseEvent, item: DishData) => {
     e.preventDefault();
@@ -218,13 +227,20 @@ export default function Menu() {
       if (diet === "nonveg" && d.isVeg) return false;
       if (!matchesLifestyle(d, lifestyle)) return false;
       if (activeProtocol && !matchesProtocol(d, activeProtocol)) return false;
+      // Clinical-mode diet-order filter — out-of-diet items are hidden from
+      // the menu entirely so the patient can't add them in the first place.
+      // The cart still renders a per-line block for items added before the
+      // diet order was changed.
+      if (clinicalMode && dishMatchesDietOrder(d, dietOrderId) !== null) {
+        return false;
+      }
       if (q && !d.name.toLowerCase().includes(q) && !d.description.toLowerCase().includes(q))
         return false;
       return true;
     });
     const ranked = rankDishesForPreferences(baseList, preferences);
     return hideBlocked ? ranked.filter((r) => !r.match.blocked) : ranked;
-  }, [kitchen, category, diet, lifestyle, query, preferences, hideBlocked, catalogDishes, activeProtocol]);
+  }, [kitchen, category, diet, lifestyle, query, preferences, hideBlocked, catalogDishes, activeProtocol, clinicalMode, dietOrderId]);
 
   const blockedCount = useMemo(() => {
     if (!preferences) return 0;
@@ -262,6 +278,17 @@ export default function Menu() {
 
   return (
     <div className="max-w-7xl mx-auto px-4 py-6 space-y-8">
+      <PatientContextStrip />
+
+      {clinicalMode && dietOrder && (
+        <div className="rounded-lg border border-clinical-gold/30 bg-clinical-gold/5 px-3 py-2 text-[11px] text-clinical-zinc flex items-start gap-2">
+          <span className="text-clinical-gold font-semibold uppercase tracking-[0.14em] text-[10px] shrink-0">
+            {dietOrder.short}
+          </span>
+          <span>{dietOrder.description}</span>
+        </div>
+      )}
+
       <div className="space-y-1">
         <h1 className="font-serif text-3xl sm:text-4xl font-semibold tracking-tight text-white">
           {activeProtocol
@@ -564,13 +591,19 @@ export default function Menu() {
         </div>
       </div>
 
-      {/* Lifestyle filter chips */}
+      {/* Lifestyle / EHR-diet chips. Clinical mode swaps the marketing
+          copy ("Heart Healthy", "Silver Vitality") for hospital vocabulary
+          ("Cardiac", "Soft") without altering the underlying matcher. */}
       <div className="space-y-2">
         <p className="text-[10px] uppercase tracking-[0.18em] text-clinical-zinc font-semibold">
-          Lifestyle
+          {clinicalMode ? "Therapeutic diet" : "Lifestyle"}
         </p>
         <div className="flex flex-wrap gap-2">
-          {LIFESTYLE_TABS.map(({ value, label, icon: Icon }) => {
+          {LIFESTYLE_TABS.map(({ value, label: marketingLabel, icon: Icon }) => {
+            const label =
+              clinicalMode && value !== "all"
+                ? LIFESTYLE_EHR_LABEL[value] ?? marketingLabel
+                : marketingLabel;
             const active = lifestyle === value;
             return (
               <button
@@ -722,7 +755,9 @@ export default function Menu() {
           if (lifestyle !== "all") {
             list.push({
               id: "lifestyle",
-              label: LIFESTYLE_LABELS[lifestyle],
+              label: clinicalMode
+                ? LIFESTYLE_EHR_LABEL[lifestyle] ?? LIFESTYLE_LABELS[lifestyle]
+                : LIFESTYLE_LABELS[lifestyle],
               onClear: () => setLifestyle("all"),
             });
           }

@@ -1,0 +1,301 @@
+// Task #10 — Clinical terminology, allergen confirm-block & patient context.
+//
+// EHR-aligned diet orders and a tiny clinical-mode store that the Menu, Cart
+// and Checkout surfaces consult to (a) replace marketing copy with hospital
+// vocabulary, (b) filter dishes by the patient's diet order, and (c) gate
+// confirm-order on diet/allergen conflicts.
+//
+// Out of scope (intentionally): server-side enforcement (already handled by
+// the finalize gate in task #3), the override-with-RD-signature flow (task
+// #7), persistent patient roster (task #14 deferred), localization.
+
+import { useEffect, useSyncExternalStore } from "react";
+import type { DishData } from "@workspace/menu-catalog";
+
+export type DietOrderId =
+  | "regular"
+  | "npo"
+  | "clear_liquid"
+  | "full_liquid"
+  | "soft"
+  | "low_sodium"
+  | "renal"
+  | "diabetic_carb"
+  | "cardiac"
+  | "neutropenic";
+
+export interface DietOrder {
+  id: DietOrderId;
+  label: string;
+  short: string;
+  description: string;
+}
+
+export const DIET_ORDERS: DietOrder[] = [
+  {
+    id: "regular",
+    label: "Regular",
+    short: "Regular",
+    description: "No restrictions — full menu.",
+  },
+  {
+    id: "npo",
+    label: "NPO (Nil Per Os)",
+    short: "NPO",
+    description: "Nothing by mouth. No items may be ordered.",
+  },
+  {
+    id: "clear_liquid",
+    label: "Clear Liquid",
+    short: "Clear Liquid",
+    description: "Transparent fluids only — beverages.",
+  },
+  {
+    id: "full_liquid",
+    label: "Full Liquid",
+    short: "Full Liquid",
+    description: "Liquids and strained soups, no solids.",
+  },
+  {
+    id: "soft",
+    label: "Soft",
+    short: "Soft",
+    description: "Easy-to-chew items: soups, bowls, breakfast, salads.",
+  },
+  {
+    id: "low_sodium",
+    label: "Low Sodium",
+    short: "Low Na",
+    description: "Avoid high-sodium and high-fat dishes (≤18g fat).",
+  },
+  {
+    id: "renal",
+    label: "Renal",
+    short: "Renal",
+    description: "Lower-protein, lower-fat picks for impaired renal function.",
+  },
+  {
+    id: "diabetic_carb",
+    label: "Diabetic-Consistent Carbohydrate",
+    short: "Diabetic-CCHO",
+    description: "Low glycaemic index, sugar ≤10g per serving.",
+  },
+  {
+    id: "cardiac",
+    label: "Cardiac",
+    short: "Cardiac",
+    description: "Heart-healthy: low-to-moderate fat, low sugar, low GI.",
+  },
+  {
+    id: "neutropenic",
+    label: "Neutropenic",
+    short: "Neutropenic",
+    description: "Cooked items only — no raw salads.",
+  },
+];
+
+export const DIET_ORDER_BY_ID = new Map(DIET_ORDERS.map((d) => [d.id, d]));
+
+// Replace the consumer "Lifestyle" tabs with EHR vocabulary when clinical
+// mode is on. The semantic mapping is intentionally loose — the underlying
+// matchesLifestyle() heuristic doesn't change, only the label the clinician
+// sees on the chip. (A separate engineering follow-up is tracked to add
+// proper sodium/potassium/protein attributes to DishData.)
+export const LIFESTYLE_EHR_LABEL: Record<string, string> = {
+  "heart-healthy": "Cardiac",
+  "diabetes-management": "Diabetic-CCHO",
+  "silver-vitality": "Soft",
+  "fitness-gains": "High Protein",
+  "junior-explorers": "Paediatric",
+};
+
+// ---------------------------------------------------------------------------
+// dish ↔ diet-order compatibility (client-side advisory; the server's
+// finalize gate is the authoritative patient-safety boundary)
+// ---------------------------------------------------------------------------
+
+export interface DietOrderConflict {
+  dietOrderId: DietOrderId;
+  dietOrderLabel: string;
+  reason: string;
+}
+
+export function dishMatchesDietOrder(
+  dish: DishData,
+  dietOrderId: DietOrderId,
+): DietOrderConflict | null {
+  const order = DIET_ORDER_BY_ID.get(dietOrderId);
+  if (!order) return null;
+  const sugar = parseFloat(dish.sugarPerServing) || 0;
+  const cat = dish.category;
+  const violation = (reason: string): DietOrderConflict => ({
+    dietOrderId,
+    dietOrderLabel: order.label,
+    reason,
+  });
+  switch (dietOrderId) {
+    case "regular":
+      return null;
+    case "npo":
+      return violation("NPO ordered — no items may be served.");
+    case "clear_liquid":
+      return cat === "beverages"
+        ? null
+        : violation("Clear-liquid diet — beverages only.");
+    case "full_liquid":
+      return cat === "beverages" || cat === "soups"
+        ? null
+        : violation("Full-liquid diet — beverages and strained soups only.");
+    case "soft": {
+      const softCats = new Set(["soups", "bowls", "breakfast", "salads"]);
+      return softCats.has(cat)
+        ? null
+        : violation("Soft diet — choose soups, bowls, breakfast or salads.");
+    }
+    case "low_sodium":
+      return dish.macros.fat > 18 || sugar > 12
+        ? violation("Exceeds low-sodium guard (high-fat or high-sugar).")
+        : null;
+    case "renal":
+      return dish.macros.protein > 22 || dish.macros.fat > 18
+        ? violation("Renal diet — exceeds protein or fat caps.")
+        : null;
+    case "diabetic_carb":
+      return dish.glycaemicIndex === "high" || sugar > 10
+        ? violation("Diabetic-CCHO — high GI or sugar > 10g.")
+        : null;
+    case "cardiac":
+      return dish.glycaemicIndex === "high" ||
+        dish.macros.fat > 18 ||
+        sugar > 12
+        ? violation("Cardiac diet — exceeds fat, sugar or GI guard.")
+        : null;
+    case "neutropenic":
+      return cat === "salads"
+        ? violation("Neutropenic diet — raw salads not permitted.")
+        : null;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// clinical-mode store (vanilla, useSyncExternalStore-friendly, SSR-safe)
+//
+// Persisted in localStorage so a clinician's diet-order picker survives a
+// reload mid-session. The store is intentionally global rather than React
+// context-based so non-React modules (e.g. cart-conflict helpers) can read
+// the active diet order without prop-drilling.
+// ---------------------------------------------------------------------------
+
+const STORAGE_KEY = "tanmatra:clinical-mode:v1";
+
+export interface PatientContext {
+  name: string;
+  mrn: string;
+  // The patient's room/bed string is non-essential for the strip itself but
+  // useful in dispatch / nurse-tablet contexts; kept here so a single shape
+  // survives localStorage round-trips.
+  room?: string;
+}
+
+export interface ClinicalModeState {
+  enabled: boolean;
+  dietOrderId: DietOrderId;
+  patient: PatientContext;
+}
+
+const DEFAULT_PATIENT: PatientContext = {
+  name: "Demo Patient",
+  mrn: "MRN-000042",
+  room: "Ward 3 · Bed 12",
+};
+
+const DEFAULT_STATE: ClinicalModeState = {
+  enabled: false,
+  dietOrderId: "regular",
+  patient: DEFAULT_PATIENT,
+};
+
+function loadState(): ClinicalModeState {
+  if (typeof window === "undefined") return DEFAULT_STATE;
+  try {
+    const raw = window.localStorage.getItem(STORAGE_KEY);
+    if (!raw) return DEFAULT_STATE;
+    const parsed = JSON.parse(raw) as Partial<ClinicalModeState>;
+    return {
+      enabled: Boolean(parsed.enabled),
+      dietOrderId:
+        parsed.dietOrderId && DIET_ORDER_BY_ID.has(parsed.dietOrderId)
+          ? parsed.dietOrderId
+          : "regular",
+      patient: {
+        ...DEFAULT_PATIENT,
+        ...(parsed.patient ?? {}),
+      },
+    };
+  } catch {
+    return DEFAULT_STATE;
+  }
+}
+
+let currentState: ClinicalModeState = loadState();
+const listeners = new Set<() => void>();
+
+function persist() {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(currentState));
+  } catch {
+    /* quota / private mode — strip silently degrades to in-memory only */
+  }
+}
+
+function notify() {
+  for (const fn of listeners) fn();
+}
+
+function setState(patch: Partial<ClinicalModeState>) {
+  currentState = { ...currentState, ...patch };
+  persist();
+  notify();
+}
+
+export const clinicalModeStore = {
+  get: (): ClinicalModeState => currentState,
+  enable() {
+    if (currentState.enabled) return;
+    setState({ enabled: true });
+  },
+  disable() {
+    if (!currentState.enabled) return;
+    setState({ enabled: false });
+  },
+  setDietOrder(id: DietOrderId) {
+    if (!DIET_ORDER_BY_ID.has(id)) return;
+    if (currentState.dietOrderId === id) return;
+    setState({ dietOrderId: id });
+  },
+  setPatient(patient: PatientContext) {
+    setState({ patient });
+  },
+  subscribe(fn: () => void) {
+    listeners.add(fn);
+    return () => listeners.delete(fn);
+  },
+};
+
+export function useClinicalMode(): ClinicalModeState {
+  return useSyncExternalStore(
+    clinicalModeStore.subscribe,
+    clinicalModeStore.get,
+    () => DEFAULT_STATE,
+  );
+}
+
+// Auto-enable clinical mode for the lifetime of the /clinical page (and
+// keep it on after the user navigates away — the strip itself exposes an
+// "Exit clinical mode" affordance).
+export function useEnableClinicalMode() {
+  useEffect(() => {
+    clinicalModeStore.enable();
+  }, []);
+}

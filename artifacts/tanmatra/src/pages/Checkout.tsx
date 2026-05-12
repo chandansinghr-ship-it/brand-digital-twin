@@ -58,6 +58,14 @@ import {
 } from "lucide-react";
 
 import { addressesApi, type UserAddress } from "@/lib/userAddressesApi";
+import { usePreferences } from "@/lib/preferencesContext";
+import { evaluateDishForPreferences } from "@/lib/preferencesMatch";
+import { getDishById } from "@/lib/menuData";
+import {
+  dishMatchesDietOrder,
+  useClinicalMode,
+} from "@/lib/clinicalDiet";
+import PatientContextStrip from "@/components/clinical/PatientContextStrip";
 
 // Order matters — the first preset is what users see "first" and most
 // successful tip UIs lead with a positive amount instead of zero, so
@@ -69,6 +77,50 @@ export default function Checkout() {
   const navigate = useNavigate();
   const { items, bundleSlugs, subtotal, clear } = useCart();
   const { addOrder } = useOrders();
+  const { preferences } = usePreferences();
+  const { enabled: clinicalMode, dietOrderId } = useClinicalMode();
+  // Server-side allergen rejection from /orders/finalize. Surfaced as a
+  // pinned red panel above the form (NOT a toast) so the user can see it
+  // after dismissing the confirm dialog and the message stays visible
+  // until they edit the cart and retry. Cleared on every new submit.
+  const [serverAllergenError, setServerAllergenError] = useState<string | null>(null);
+
+  // Mirror of the Cart-side confirm-block. The Cart already disables its
+  // "Proceed to Checkout" CTA, but a user can deep-link to /checkout (e.g.
+  // back-button after editing prefs) so we re-evaluate here as the last
+  // client-side gate before hitting Razorpay. The server's finalize call
+  // is still the authoritative boundary — see task #3.
+  const cartConflicts = (() => {
+    let allergens = 0;
+    let diet = 0;
+    const reasons: string[] = [];
+    for (const it of items) {
+      const dish = getDishById(it.dishId);
+      if (!dish) continue;
+      if (preferences) {
+        const m = evaluateDishForPreferences(dish, preferences);
+        if (m.matchedAllergens.length > 0) {
+          allergens += 1;
+          reasons.push(`${dish.name} — contains ${m.matchedAllergens.join(", ")}`);
+        }
+      }
+      if (clinicalMode) {
+        const c = dishMatchesDietOrder(dish, dietOrderId);
+        if (c) {
+          diet += 1;
+          reasons.push(`${dish.name} — ${c.reason}`);
+        }
+      }
+    }
+    return { allergens, diet, reasons };
+  })();
+  const checkoutBlocked =
+    cartConflicts.allergens > 0 || cartConflicts.diet > 0;
+  const checkoutBlockedReason = checkoutBlocked
+    ? cartConflicts.allergens > 0
+      ? `${cartConflicts.allergens} allergen conflict${cartConflicts.allergens === 1 ? "" : "s"} in cart — review and remove flagged items.`
+      : `${cartConflicts.diet} item${cartConflicts.diet === 1 ? "" : "s"} conflict with the active diet order.`
+    : null;
   const [savedAddresses, setSavedAddresses] = useState<UserAddress[]>([]);
   const [selectedAddress, setSelectedAddress] = useState<string>("");
   const [savingAddress, setSavingAddress] = useState(false);
@@ -367,6 +419,9 @@ export default function Checkout() {
       setConfirmOpen(false);
       return;
     }
+    // Clear any prior server-side block so a fresh attempt isn't shown
+    // wearing the previous failure's red panel.
+    setServerAllergenError(null);
     setIsProcessing(true);
     // (Removed an artificial 1.5s setTimeout that delayed every order
     // for no functional reason. Server timing already drives the spinner.)
@@ -535,6 +590,22 @@ export default function Checkout() {
         toast.error("Please choose a pickup partner to continue", {
           action: { label: "Choose pickup", onClick: scrollToFulfillment },
         });
+      } else if (
+        status === 422 &&
+        /allergen|diet[_ ]order|allergen_block/i.test(msg)
+      ) {
+        // Server-side patient-safety gate (task #3) refused the order.
+        // Pin a red panel at the top of the page and scroll to it so the
+        // clinician sees the exact reason instead of a fleeting toast.
+        const detail = msg.replace(/^\d{3}:\s*/, "");
+        setServerAllergenError(
+          detail || "Order blocked by patient-safety guard. Review flagged items.",
+        );
+        document
+          .getElementById("checkout-server-block")
+          ?.scrollIntoView({ behavior: "smooth", block: "start" });
+        toast.error("Order blocked — patient-safety conflict");
+        setConfirmOpen(false);
       } else if (status === 401) {
         // Session expired mid-checkout. Cart is preserved in localStorage
         // (Zustand persist key tanmatra:cart:v1), so /login?next=/checkout
@@ -662,6 +733,38 @@ export default function Checkout() {
 
   return (
     <div className="max-w-4xl mx-auto p-4 pb-40 lg:pb-4 grid grid-cols-1 lg:grid-cols-5 gap-6 animate-in fade-in duration-500">
+      <div className="lg:col-span-5">
+        <PatientContextStrip />
+      </div>
+      {(serverAllergenError || (checkoutBlocked && checkoutBlockedReason)) && (
+        <div
+          id="checkout-server-block"
+          role="alert"
+          className="lg:col-span-5 rounded-xl border border-red-500/50 bg-red-500/10 px-4 py-3 space-y-1"
+        >
+          <p className="text-[10px] uppercase tracking-[0.16em] font-semibold text-red-300 flex items-center gap-1">
+            <AlertTriangle className="w-3.5 h-3.5" aria-hidden />
+            Order blocked
+          </p>
+          <p className="text-sm text-red-200">
+            {serverAllergenError ?? checkoutBlockedReason}
+          </p>
+          {cartConflicts.reasons.length > 0 && (
+            <ul className="list-disc list-inside text-[11px] text-red-200/90 space-y-0.5">
+              {cartConflicts.reasons.slice(0, 5).map((r, i) => (
+                <li key={i}>{r}</li>
+              ))}
+            </ul>
+          )}
+          <p className="text-[11px] text-red-200/80 pt-1">
+            Edit your{" "}
+            <Link to="/cart" className="underline">
+              cart
+            </Link>{" "}
+            to remove flagged items, then return to checkout.
+          </p>
+        </div>
+      )}
       <div className="lg:col-span-3 space-y-5">
         <CheckoutStepper
           current={stepperStep}
@@ -1431,10 +1534,14 @@ export default function Checkout() {
 
             <Button
               onClick={() => setConfirmOpen(true)}
-              className="hidden lg:flex w-full bg-clinical-gold text-[#050505] hover:bg-clinical-gold/90 font-semibold h-11 shadow-clinical gap-2"
+              disabled={checkoutBlocked}
+              className="hidden lg:flex w-full bg-clinical-gold text-[#050505] hover:bg-clinical-gold/90 font-semibold h-11 shadow-clinical gap-2 disabled:opacity-40 disabled:cursor-not-allowed disabled:bg-clinical-slate/40 disabled:text-clinical-zinc disabled:shadow-none"
+              title={checkoutBlocked ? checkoutBlockedReason ?? undefined : undefined}
             >
               <CreditCard className="w-4 h-4" />
-              Review & Pay {formatPrice(razorpayTotal)}
+              {checkoutBlocked
+                ? "Blocked by patient safety"
+                : `Review & Pay ${formatPrice(razorpayTotal)}`}
             </Button>
 
             <p className="text-[9px] text-clinical-zinc text-center flex items-center justify-center gap-1">
@@ -1515,10 +1622,12 @@ export default function Checkout() {
             </CollapsibleTrigger>
             <Button
               onClick={() => setConfirmOpen(true)}
-              className="h-12 px-4 bg-clinical-gold text-[#050505] hover:bg-clinical-gold/90 font-semibold gap-2 shrink-0"
+              disabled={checkoutBlocked}
+              className="h-12 px-4 bg-clinical-gold text-[#050505] hover:bg-clinical-gold/90 font-semibold gap-2 shrink-0 disabled:opacity-40 disabled:cursor-not-allowed disabled:bg-clinical-slate/40 disabled:text-clinical-zinc"
+              title={checkoutBlocked ? checkoutBlockedReason ?? undefined : undefined}
             >
               <CreditCard className="w-4 h-4" />
-              Review & Pay
+              {checkoutBlocked ? "Blocked" : "Review & Pay"}
             </Button>
           </div>
         </div>
@@ -1571,10 +1680,12 @@ export default function Checkout() {
             </Button>
             <Button
               onClick={handleConfirmedPayment}
-              disabled={isProcessing}
-              className="bg-clinical-gold text-[#050505] hover:bg-clinical-gold/90 font-semibold gap-2"
+              disabled={isProcessing || checkoutBlocked}
+              className="bg-clinical-gold text-[#050505] hover:bg-clinical-gold/90 font-semibold gap-2 disabled:opacity-40 disabled:cursor-not-allowed disabled:bg-clinical-slate/40 disabled:text-clinical-zinc"
             >
-              {isProcessing ? "Processing…" : (
+              {isProcessing ? "Processing…" : checkoutBlocked ? (
+                "Blocked by patient safety"
+              ) : (
                 <>
                   <CreditCard className="w-4 h-4" />
                   Confirm & Pay {formatPrice(razorpayTotal)}

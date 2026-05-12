@@ -1,4 +1,5 @@
 import { useMemo } from "react";
+import { useEnableClinicalMode } from "@/lib/clinicalDiet";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import MacroOverlay from "@/components/dish/MacroOverlay";
@@ -39,6 +40,11 @@ function lowestSugar(dishes: DishData[], limit: number): DishData[] {
 }
 
 export default function Clinical() {
+  // Visiting the Clinical surface flips the global clinical-mode flag on so
+  // that Menu / Cart / Checkout render the PatientContextStrip and enforce
+  // the diet-order + allergen confirm-block. Stays on until the user
+  // explicitly exits via the strip's affordance.
+  useEnableClinicalMode();
   const { dishes } = useMenuCatalog();
   const qualifying = useMemo(
     () => dishesForProtocol(dishes, "clinical"),
