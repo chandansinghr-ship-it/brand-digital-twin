@@ -439,6 +439,19 @@ export default function Checkout() {
           }
         }
       }
+      // ───────────────────────────────────────────────────────────────
+      // C3 (UX audit P0) — DEFERRED: real Razorpay handoff not yet wired.
+      // Today the order is "completed" the moment finalizeOrder() returns,
+      // i.e. payment is implicitly trusted (the UI shows "Razorpay secure"
+      // but no /payments/razorpay/order or signature verification runs).
+      // To enable: provision RAZORPAY_KEY_ID + RAZORPAY_KEY_SECRET, add
+      // POST /payments/razorpay/order (server creates Razorpay order from
+      // razorpayTotal), open checkout.js modal here, then POST
+      // /payments/razorpay/verify (HMAC-SHA256(orderId|paymentId, secret)
+      // === signature) BEFORE accepting the order. Until then, branding-
+      // only copy is intentionally retained per product decision.
+      // ───────────────────────────────────────────────────────────────
+
       // Add delivery + tip on top of the server-validated meal total. The
       // server's finalPaise already nets out bundle, pickup, preorder, and
       // credit redemptions (see loyaltyEngine.finalizeOrder), so we must
