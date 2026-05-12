@@ -1,0 +1,31 @@
+kind = "web"
+previewPath = "/agents/"
+title = "Agency Agents Browser"
+version = "1.0.0"
+id = "artifacts/agents"
+router = "path"
+
+[[integratedSkills]]
+name = "react-vite"
+version = "1.0.0"
+
+[[services]]
+name = "web"
+paths = [ "/agents/" ]
+localPort = 20788
+
+[services.development]
+run = "pnpm --filter @workspace/agents run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/agents", "run", "build" ]
+publicDir = "artifacts/agents/dist/public"
+serve = "static"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "20788"
+BASE_PATH = "/agents/"

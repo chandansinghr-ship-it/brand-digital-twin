@@ -14,6 +14,9 @@
     },
     {
       "path": "./lib/menu-catalog"
+    },
+    {
+      "path": "./lib/agency-agents"
     }
   ]
 }
