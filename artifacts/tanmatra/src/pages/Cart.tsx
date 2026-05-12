@@ -242,7 +242,7 @@ export default function Cart() {
             <Card key={item.lineId} className="bg-clinical-surface border-clinical-slate/20 overflow-hidden">
               <CardContent className="p-0">
                 <div className="flex gap-4">
-                  <Link to={`/dish/${item.slug}`} className="shrink-0 w-28 h-28 sm:w-32 sm:h-32">
+                  <Link to={`/dish/${item.slug}`} className="shrink-0 w-28 h-28 sm:w-32 sm:h-32 clinical-decorative">
                     <img
                       src={item.image}
                       alt={item.name}

@@ -101,8 +101,33 @@ const ALERTS = [
 
 function AlertPaletteGrid() {
   const bg = "#050505";
+  // Automated AAA assertion — every text token must clear ≥7:1 on the
+  // clinical-dark background. If a future palette tweak silently breaks
+  // contrast, this banner flips to a loud red FAIL row that shows up in
+  // any visual regression sweep of /__styleguide.
+  const textRatios = ALERTS.map((a) => ({
+    token: a.token,
+    ratio: contrast(a.text, bg),
+  }));
+  const failures = textRatios.filter((r) => r.ratio < 7);
+  const allPass = failures.length === 0;
   return (
     <div className="space-y-4">
+      <div
+        role="status"
+        aria-live="polite"
+        className={`rounded-md border px-3 py-2 text-[12px] font-mono ${
+          allPass
+            ? "alert-safe-bg alert-safe-border alert-safe-text"
+            : "alert-allergen-bg alert-allergen-border alert-allergen-text"
+        }`}
+      >
+        {allPass
+          ? `AAA assertion: PASS · ${textRatios.length}/${textRatios.length} text tokens ≥ 7:1 on #050505`
+          : `AAA assertion: FAIL · ${failures
+              .map((f) => `${f.token} (${f.ratio.toFixed(2)}:1)`)
+              .join(", ")}`}
+      </div>
       <p className="text-body-sm text-clinical-zinc">
         Each alert has an accent (chip background, border) and a text variant
         tuned for ≥7:1 contrast on the clinical-dark background. The ratios

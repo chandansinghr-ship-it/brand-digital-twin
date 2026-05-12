@@ -408,18 +408,18 @@ export default function Track() {
 
       {/* Rider card — only after ready */}
       {showRiderCard ? (
-        <Card className="border-l-4 border-l-[#6BA3C8]">
+        <Card className="border-l-4 alert-info-border">
           <CardHeader className="pb-3">
             <CardTitle className="text-sm flex items-center gap-2">
-              <Bike className="w-4 h-4 text-[#6BA3C8]" />
+              <Bike className="w-4 h-4 alert-info-text" />
               Delivery Partner
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-full bg-[#6BA3C8]/10 flex items-center justify-center">
-                  <User className="w-5 h-5 text-[#6BA3C8]" />
+                <div className="w-10 h-10 rounded-full alert-info-bg flex items-center justify-center clinical-decorative">
+                  <User className="w-5 h-5 alert-info-text" />
                 </div>
                 <div>
                   <p className="font-medium text-white">
@@ -564,7 +564,7 @@ export default function Track() {
         <CardContent className="space-y-2">
           {order.items.map((item) => (
             <div key={item.lineId} className="flex items-center gap-3 text-xs">
-              <img src={item.image} alt={item.name} className="w-10 h-10 rounded object-cover border border-clinical-slate/20" />
+              <img src={item.image} alt={item.name} className="w-10 h-10 rounded object-cover border border-clinical-slate/20 clinical-decorative" />
               <div className="flex-1 min-w-0">
                 <p className="text-white truncate">{item.name}</p>
                 <p className="text-[10px] text-clinical-zinc">Qty: {item.quantity}</p>

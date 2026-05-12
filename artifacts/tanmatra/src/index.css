@@ -208,6 +208,49 @@
     background-image: none !important;
   }
 
+  /* Theme-token overrides — when the clinical theme is active, push
+     surfaces darker and zinc lighter so chrome/text/border meet AAA
+     consistently across screens (not only the alert palette). This
+     promotes `theme-clinical` from a behavior tweak into a real token
+     layer; existing `text-clinical-zinc` / `bg-clinical-surface*`
+     consumers re-render with the AAA-friendly values automatically. */
+  .theme-clinical {
+    --color-clinical-zinc: #D4D4D8;          /* lighter — AAA on dark */
+    --color-clinical-surface: #06060A;        /* darker chrome */
+    --color-clinical-surface-elevated: #0C0C10;
+    --color-clinical-slate: #4B5563;          /* visible borders */
+  }
+
+  /* Hide decorative imagery / avatars on clinical surfaces. Mark any
+     non-functional image, brand glyph, or avatar holder with the
+     `clinical-decorative` class and it disappears under the clinical
+     theme without removing it from the default theme. */
+  .theme-clinical .clinical-decorative {
+    display: none !important;
+  }
+
+  /* Type-ramp enforcement — collapse heading/body/caption sizes to a
+     single ramp under the clinical theme. Pages declaring ad-hoc
+     `text-2xl` / `text-xl` headings get normalized to clinical-h2 / h3
+     so the EHR surface reads as one ramp regardless of the original
+     marketing-page sizing. */
+  .theme-clinical h1 { font-size: 1.875rem !important; line-height: 1.2 !important; font-weight: 600 !important; letter-spacing: -0.02em !important; }
+  .theme-clinical h2 { font-size: 1.25rem !important;  line-height: 1.3 !important; font-weight: 600 !important; letter-spacing: -0.01em !important; }
+  .theme-clinical h3 { font-size: 1rem !important;     line-height: 1.35 !important; font-weight: 600 !important; }
+  .theme-clinical p, .theme-clinical li, .theme-clinical span:not([class*="text-["]) {
+    /* leave token-driven sizes alone but suppress oversized ad-hoc */
+  }
+  .theme-clinical [class*="text-3xl"],
+  .theme-clinical [class*="text-4xl"],
+  .theme-clinical [class*="text-5xl"] {
+    font-size: 1.875rem !important;
+    line-height: 1.2 !important;
+  }
+  .theme-clinical [class*="text-2xl"] {
+    font-size: 1.25rem !important;
+    line-height: 1.3 !important;
+  }
+
   /* Reduced motion respect */
   @media (prefers-reduced-motion: reduce) {
     *, *::before, *::after {
