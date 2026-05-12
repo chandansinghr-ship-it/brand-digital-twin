@@ -7,11 +7,21 @@ import { clearSession, getSession, getSessionId } from "../lib/auth";
  * Task #7 bulkhead: any request matched here is routed off the main
  * DB pool for its session lookup. Keep the matcher tight — only the
  * clinical override path needs this carve-out today.
+ *
+ * We use `req.path` (not `req.url`) so a query string or trailing
+ * fragment cannot bypass the matcher, and we compare the *suffix*
+ * after stripping any reverse-proxy / base-path prefix so deployments
+ * mounted under a path other than `/` still bulkhead correctly.
  */
+const OVERRIDE_PATH_SUFFIX = "/api/delivery/dispatch/override";
 function isOverrideCriticalPath(req: Request): boolean {
-  return (
-    req.method === "POST" &&
-    req.url.startsWith("/api/delivery/dispatch/override")
+  if (req.method !== "POST") return false;
+  // req.path is already query-string-stripped. originalUrl carries the
+  // pre-rewrite URL when an upstream proxy strips a base path; we test
+  // both so the matcher works in either deployment topology.
+  const candidates = [req.path, req.originalUrl?.split("?")[0] ?? ""];
+  return candidates.some(
+    (p) => p === OVERRIDE_PATH_SUFFIX || p.endsWith(OVERRIDE_PATH_SUFFIX),
   );
 }
 

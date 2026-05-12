@@ -134,6 +134,16 @@ const OPS_AUDIT_CLAIM_LEASE_SECONDS = 30;
  *   Lease expiry. Rows whose `claimed_at < now() - lease` are eligible
  *     for re-claim, so a crashed drainer cannot strand work indefinitely.
  *
+ *   Ordering contract — BEST-EFFORT, NOT STRICT. Phase A claims rows
+ *     in `created_at asc` order, but per-row transactions can commit
+ *     in any order, and concurrent drainers can interleave commits.
+ *     Audit consumers MUST NOT rely on `ops_actions.id` order for a
+ *     happens-before relationship between two override events; use
+ *     the source field (`params`) to reconstruct logical order. If a
+ *     future requirement demands strict ordering, switch to a single
+ *     drainer + per-row tx (still safe), or partition by aggregate
+ *     id and serialize within partition.
+ *
  * Postgres correctness note: a statement error aborts the surrounding
  * transaction. Per-row tx is therefore mandatory — the previous batch-tx
  * implementation (rolled back here) rolled back the whole batch when one
@@ -217,6 +227,23 @@ export async function drainOpsAuditOutbox(limit = 50): Promise<number> {
         { err, outboxId: r.id, dedupeKey: r.dedupe_key },
         "ops_audit_outbox row drain failed; siblings unaffected",
       );
+      // Operator alert hook. Anything emitted at logger.error with the
+      // alert=true shape is forwarded to the on-call channel by the
+      // platform's log router (see lib/logger.ts). We escalate every
+      // 25 cumulative drain failures so an operator sees a single
+      // page per outage rather than one per row, and so that a slow
+      // poison-row leak is visible without spamming a healthy fleet.
+      if (opsAuditOutboxDrainFailuresTotal % 25 === 0) {
+        logger.error(
+          {
+            alert: true,
+            metric: "ops_audit_outbox_drain_failures_total",
+            value: opsAuditOutboxDrainFailuresTotal,
+            sample: { outboxId: r.id, dedupeKey: r.dedupe_key, msg },
+          },
+          "ALERT ops_audit_outbox: cumulative drain failures threshold crossed",
+        );
+      }
     }
   }
   opsAuditOutboxDrainedTotal += drained;
