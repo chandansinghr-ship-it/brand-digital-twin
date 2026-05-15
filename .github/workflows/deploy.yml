@@ -90,15 +90,23 @@ jobs:
           done
           echo "healthz never returned 200"; exit 1
 
-  # Build the SPA and deploy to Firebase Hosting. Waits for cloud-run so
-  # the new admin login page never goes live before the new login API
-  # exists. If cloud-run was skipped (frontend-only push), we still run.
+  # Build the SPA and deploy to Firebase Hosting.
+  #
+  # Previously this job waited on `cloud-run` so the new admin login page
+  # never went live before the new login API. We've moved the actual API
+  # deploy to a Cloud Build trigger that watches GitHub directly (the
+  # GH Actions cloud-run job below is now a redundant smoke path that
+  # often fails), so blocking firebase on it would mean the frontend
+  # never ships. Decoupled — firebase now runs on every push that
+  # touches web-relevant paths, regardless of cloud-run's result.
+  #
+  # Risk accepted: a frontend that references a not-yet-deployed API
+  # endpoint will see 404s until the trigger-driven Cloud Run rollout
+  # finishes (typically <5 min). Re-couple if this becomes a real
+  # incident pattern.
   firebase:
-    needs: [changes, cloud-run]
-    if: |
-      always() &&
-      needs.changes.outputs.web == 'true' &&
-      (needs.cloud-run.result == 'success' || needs.cloud-run.result == 'skipped')
+    needs: [changes]
+    if: needs.changes.outputs.web == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
