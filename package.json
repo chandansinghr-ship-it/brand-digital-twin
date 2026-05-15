@@ -102,5 +102,6 @@
       "rollup>@rollup/rollup-win32-x64-gnu": "-",
       "rollup>@rollup/rollup-win32-x64-msvc": "-"
     }
-  }
+  },
+  "packageManager": "pnpm@9.15.5"
 }
