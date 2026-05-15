@@ -25,9 +25,14 @@ RUN pnpm install --frozen-lockfile --ignore-scripts
 # Build the api-server bundle (esbuild → dist/index.mjs)
 RUN pnpm --filter @workspace/api-server run build
 
-# Flatten the workspace package and create isolated production node_modules
-# CHANGED: Added --ignore-scripts to bypass the failing preinstall check
-RUN pnpm deploy --filter @workspace/api-server --prod /app/isolated --legacy --ignore-scripts
+# Flatten the workspace package and create isolated production node_modules.
+# Note: pnpm 9 doesn't have a --legacy flag (it's pnpm 10+ only). With
+# packageManager pinned to pnpm@9.15.5 in package.json, the default
+# behavior IS the legacy behavior, so the flag is unnecessary.
+# --ignore-scripts bypasses the workspace's `preinstall` check which
+# enforces pnpm by reading $npm_config_user_agent — pnpm-from-corepack
+# sets this correctly so it'd pass anyway, but explicit is safer.
+RUN pnpm deploy --filter @workspace/api-server --prod /app/isolated --ignore-scripts
 
 # ---- runner ---------------------------------------------------------------
 FROM node:24-slim AS runner
