@@ -26,8 +26,9 @@ import {
   findSmartSwap,
 } from "@/lib/preferencesMatch";
 import { getDishById, useMenuCatalog } from "@/lib/menuData";
-import { ShieldAlert, Sparkles, AlertCircle, Clock } from "lucide-react";
+import { ShieldAlert, Sparkles, AlertCircle, Clock, UserCircle } from "lucide-react";
 import { fulfillmentApi, type DeliverySlotOption } from "@/lib/fulfillmentApi";
+import { apiPath } from "@/lib/apiBase";
 import { useEffect } from "react";
 import {
   clinicalCategoryLabel,
@@ -49,6 +50,23 @@ export default function Cart() {
   // fulfillment commitment BEFORE checkout instead of discovering it at
   // payment time. Per UX audit Journey-B finding 1.
   const [nextSlot, setNextSlot] = useState<DeliverySlotOption | null>(null);
+  // Probe auth state so we can hint to anonymous users BEFORE they
+  // navigate to /checkout and discover the login wall mid-flow.
+  // Per UX audit P0 #15. Doesn't gate — just foreshadows.
+  const [isAuthed, setIsAuthed] = useState<boolean | null>(null);
+  useEffect(() => {
+    let alive = true;
+    void fetch(apiPath("/auth/me"), { credentials: "include" })
+      .then((r) => {
+        if (alive) setIsAuthed(r.ok);
+      })
+      .catch(() => {
+        if (alive) setIsAuthed(false);
+      });
+    return () => {
+      alive = false;
+    };
+  }, []);
   useEffect(() => {
     let alive = true;
     void fulfillmentApi
@@ -478,12 +496,27 @@ export default function Cart() {
               </div>
             )}
 
+            {isAuthed === false && (
+              <Link
+                to="/login?next=/checkout"
+                className="block rounded-md border border-clinical-gold/30 bg-clinical-gold/5 px-3 py-2 text-[11px] text-clinical-zinc hover:bg-clinical-gold/10"
+              >
+                <span className="flex items-center gap-2">
+                  <UserCircle className="w-3.5 h-3.5 text-clinical-gold shrink-0" />
+                  <span className="flex-1">
+                    <span className="text-white font-medium">Sign in</span> to save
+                    your address and reorder faster — or continue as guest below.
+                  </span>
+                </span>
+              </Link>
+            )}
+
             <Button
               onClick={() => navigate("/checkout")}
               disabled={checkoutBlocked}
               className="w-full bg-clinical-gold text-[#050505] hover:bg-clinical-gold/90 font-semibold h-11 shadow-clinical gap-2 disabled:opacity-40 disabled:cursor-not-allowed disabled:bg-clinical-slate/40 disabled:text-clinical-zinc disabled:shadow-none"
             >
-              Proceed to Checkout
+              {isAuthed === false ? "Continue as guest" : "Proceed to Checkout"}
               <ArrowRight className="w-4 h-4" />
             </Button>
             {checkoutBlocked && blockReason && (

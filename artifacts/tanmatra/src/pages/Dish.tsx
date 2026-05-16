@@ -336,7 +336,7 @@ export default function Dish() {
               <Badge variant="outline" className="border-clinical-slate/30 text-clinical-zinc text-[10px]">
                 Sugar: {meal.sugarPerServing}
               </Badge>
-              {meal.allergens.length > 0 ? (
+              {meal.allergens.length > 0 &&
                 meal.allergens.map((a) => (
                   <Badge
                     key={a}
@@ -345,12 +345,43 @@ export default function Dish() {
                   >
                     Allergen: {a}
                   </Badge>
-                ))
+                ))}
+              {/* No "No common allergens" green badge — that wording
+                  reads as a contamination guarantee we can't make.
+                  FSSAI Schedule II declared allergens vs. shared-
+                  kitchen cross-contact statement are surfaced as a
+                  paragraph block below, not as an absolute badge. */}
+            </div>
+
+            {/* Allergen disclosure block — FSSAI Schedule II expects an
+                explicit declaration plus a cross-contact statement.
+                Replaces the previous "No common allergens" green badge
+                which is dangerously absolute for clinical-protocol
+                customers (e.g. anaphylactic peanut allergy). */}
+            <div className="mt-3 rounded-md border border-clinical-slate/20 bg-clinical-surface-elevated/50 px-3 py-2 text-[11px] text-clinical-zinc leading-relaxed space-y-1">
+              {meal.allergens.length > 0 ? (
+                <p>
+                  <span className="text-orange-400 font-semibold">Contains:</span>{" "}
+                  {meal.allergens.join(", ")}.
+                </p>
               ) : (
-                <Badge variant="outline" className="border-green-500/30 text-green-400 text-[10px]">
-                  No common allergens
-                </Badge>
+                <p>
+                  <span className="text-white font-semibold">No declared allergens</span>{" "}
+                  from the FSSAI Schedule II list in this dish&apos;s recipe.
+                </p>
               )}
+              <p className="text-clinical-zinc/80">
+                Cross-contact: prepared in a kitchen that handles dairy,
+                eggs, nuts, peanuts, soy, gluten, fish and shellfish.
+                Severe-allergy customers, please email{" "}
+                <a
+                  href="mailto:care@tanmatra.food"
+                  className="text-clinical-gold hover:underline"
+                >
+                  care@tanmatra.food
+                </a>{" "}
+                before ordering.
+              </p>
             </div>
           </div>
 

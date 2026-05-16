@@ -432,11 +432,32 @@ export default function Track() {
                   </p>
                 </div>
               </div>
-              {order.status !== "delivered" && (
-                <Button size="sm" variant="outline" className="gap-1">
-                  <Phone className="w-3 h-3" />
-                  Call
-                </Button>
+              {/* Rider contact — tel: + WhatsApp deep-links. Render
+                  only when backend has populated rider info; otherwise
+                  the button is hidden (no dead-end disabled state).
+                  Indian customers expect both a phone call AND a
+                  WhatsApp option for last-mile direction. */}
+              {order.status !== "delivered" && order.riderPhone && (
+                <div className="flex gap-1.5">
+                  <a
+                    href={`tel:${order.riderPhone}`}
+                    className="inline-flex items-center justify-center gap-1 min-h-9 px-3 rounded-md border border-clinical-slate/40 text-xs text-clinical-zinc hover:text-white hover:border-clinical-gold/40"
+                    aria-label={`Call rider${order.riderName ? " " + order.riderName : ""}`}
+                  >
+                    <Phone className="w-3 h-3" />
+                    Call
+                  </a>
+                  <a
+                    href={`https://wa.me/${order.riderPhone.replace(/\D/g, "")}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center justify-center gap-1 min-h-9 px-3 rounded-md border border-clinical-sage/40 text-xs text-clinical-sage hover:text-white hover:bg-clinical-sage/10"
+                    aria-label={`WhatsApp rider${order.riderName ? " " + order.riderName : ""}`}
+                  >
+                    <Phone className="w-3 h-3" />
+                    WhatsApp
+                  </a>
+                </div>
               )}
             </div>
           </CardContent>

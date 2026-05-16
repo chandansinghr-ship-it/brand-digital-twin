@@ -114,6 +114,11 @@ export default function Menu() {
   const [category, setCategory] = useState<"all" | DishCategory>("all");
   const [diet, setDiet] = useState<DietFilter>("all");
   const [lifestyle, setLifestyle] = useState<Lifestyle>("all");
+  // Collapse the four secondary filter rails behind a "More filters"
+  // button on mobile. The Protocol chip-row above stays inline as the
+  // primary IA axis. Per adoption audit P1 #19. Open by default on
+  // desktop (md+); user-toggleable on mobile.
+  const [showFilters, setShowFilters] = useState(false);
   const [query, setQuery] = useState("");
   const [hideBlocked, setHideBlocked] = useState(true);
   const { addItem, addBundleSlug } = useCart();
@@ -598,6 +603,31 @@ export default function Menu() {
         </div>
       </div>
 
+      {/* Mobile-only trigger: collapse secondary filters until tapped.
+          Counter shows how many filters are active so the user knows
+          to expand it if they want to refine. */}
+      <button
+        type="button"
+        onClick={() => setShowFilters((v) => !v)}
+        aria-expanded={showFilters}
+        className="md:hidden flex items-center justify-between w-full px-3 py-2.5 rounded-md border border-clinical-slate/30 bg-clinical-surface text-xs text-white hover:border-clinical-gold/40 min-h-11"
+      >
+        <span className="flex items-center gap-2">
+          <SlidersHorizontal className="w-3.5 h-3.5 text-clinical-gold" />
+          <span>More filters</span>
+          {(lifestyle !== "all" || diet !== "all" || category !== "all" || kitchen !== "all") && (
+            <span className="text-[10px] px-1.5 py-0.5 rounded bg-clinical-gold/20 text-clinical-gold font-bold tabular-nums">
+              {[lifestyle, diet, category, kitchen].filter((v) => v !== "all").length}
+            </span>
+          )}
+        </span>
+        <span className="text-clinical-zinc text-[10px]">{showFilters ? "Hide" : "Show"}</span>
+      </button>
+
+      {/* Secondary filter rails. Always visible md+; toggle-driven on
+          mobile. Wrapped in a single container so all 4 rails share
+          the same collapse state. */}
+      <div className={showFilters ? "space-y-4 md:space-y-4" : "hidden md:block space-y-4"}>
       {/* Lifestyle / EHR-diet chips. Clinical mode swaps the marketing
           copy ("Heart Healthy", "Silver Vitality") for hospital vocabulary
           ("Cardiac", "Soft") without altering the underlying matcher. */}
@@ -700,6 +730,7 @@ export default function Menu() {
           })}
         </div>
       </div>
+      </div>{/* /secondary filter rails wrapper */}
 
       {preferences && (
         <div className="flex flex-wrap items-center gap-2 rounded-lg border border-clinical-gold/20 bg-clinical-gold/5 px-3 py-2">
@@ -831,7 +862,12 @@ export default function Menu() {
       )}
 
       {/* Dish grid — dark luxury cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+      {/* Menu density: 2 dishes / row on mobile (matches Swiggy/Zomato),
+          3 on tablet, 4 on desktop. The previous 1-per-row layout
+          showed roughly 1.5 dishes above the fold on mobile after the
+          filter rails — a known browse-friction point flagged in the
+          adoption audit (P1 #19). */}
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4">
         {filtered.map(({ dish: item, match }, idx) => (
           <MenuCard
             key={item.id}

@@ -203,6 +203,33 @@ export default function RdProfile() {
               {member.credentials.map((c) => (
                 <p key={c}>· {c}</p>
               ))}
+              {/* Verifiable-credential block. Renders only when the RD
+                  has supplied public-display values in teamData.ts —
+                  per ASCI 2022 endorsement guidelines. */}
+              {(member.councilNumber || member.verifyUrl) && (
+                <div className="pt-2 mt-1 border-t border-clinical-slate/20 space-y-0.5">
+                  {member.councilNumber && (
+                    <p className="text-[10px]">
+                      <span className="text-clinical-zinc/70">
+                        {member.councilName ?? "Council reg."}:
+                      </span>{" "}
+                      <span className="text-white tabular-nums">
+                        {member.councilNumber}
+                      </span>
+                    </p>
+                  )}
+                  {member.verifyUrl && (
+                    <a
+                      href={member.verifyUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-[10px] text-clinical-gold hover:underline inline-block"
+                    >
+                      Verify on public registry →
+                    </a>
+                  )}
+                </div>
+              )}
             </div>
           </div>
 

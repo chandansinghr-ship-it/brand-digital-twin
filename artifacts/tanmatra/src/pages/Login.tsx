@@ -229,19 +229,31 @@ export default function Login() {
                 <Label htmlFor="phone" className="text-xs text-clinical-zinc">
                   Phone number
                 </Label>
+                {/* Country code as a Select prevents users from deleting
+                    the `+91` prefix entirely (a known OTP-send failure
+                    mode flagged in the adoption audit P2 finding).
+                    India default + a few diaspora markets cover the
+                    target audience without bloating the list. */}
                 <div className="flex gap-2">
-                  <Input
+                  <select
                     id="cc"
                     aria-label="Country code"
                     value={countryCode}
                     onChange={(e) => setCountryCode(e.target.value)}
-                    className="w-20 bg-clinical-bg border-clinical-slate/30 text-white text-clinical-data"
-                    maxLength={5}
-                  />
+                    className="w-24 h-10 bg-clinical-bg border border-clinical-slate/30 rounded-md text-white text-sm px-2 focus:outline-none focus:ring-2 focus:ring-clinical-gold/40"
+                  >
+                    <option value="+91">🇮🇳 +91</option>
+                    <option value="+1">🇺🇸 +1</option>
+                    <option value="+44">🇬🇧 +44</option>
+                    <option value="+61">🇦🇺 +61</option>
+                    <option value="+971">🇦🇪 +971</option>
+                    <option value="+65">🇸🇬 +65</option>
+                  </select>
                   <Input
                     id="phone"
                     autoFocus
-                    inputMode="tel"
+                    inputMode="numeric"
+                    autoComplete="tel-national"
                     placeholder="98765 43210"
                     value={phone}
                     onChange={(e) => setPhone(e.target.value)}
