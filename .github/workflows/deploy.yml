@@ -62,33 +62,66 @@ jobs:
       - name: Set up gcloud
         uses: google-github-actions/setup-gcloud@v2
 
-      - name: Build image with Cloud Build
-        run: |
-          gcloud builds submit \
-            --tag gcr.io/${GCP_PROJECT}/${SERVICE}:${{ github.sha }} \
-            --project ${GCP_PROJECT}
+      # The Cloud Build GitHub trigger (set up server-side, watches
+      # pushes to main) is the canonical build + deploy path. It
+      # already builds the Dockerfile and rolls Cloud Run on every
+      # backend-touching commit. This job's role is to *verify* that
+      # rollout succeeded — not to duplicate the build (which kept
+      # failing for permission reasons and produced a misleading red
+      # badge on every push).
 
-      - name: Deploy to Cloud Run
+      - name: Snapshot current Cloud Run revision (baseline)
+        id: baseline
         run: |
-          gcloud run deploy ${SERVICE} \
-            --image gcr.io/${GCP_PROJECT}/${SERVICE}:${{ github.sha }} \
-            --region ${GCP_REGION} \
-            --project ${GCP_PROJECT} \
-            --quiet
+          BASELINE=$(gcloud run services describe ${SERVICE} \
+            --region ${GCP_REGION} --project ${GCP_PROJECT} \
+            --format='value(status.latestReadyRevisionName)' 2>/dev/null || echo "none")
+          echo "baseline=$BASELINE" >> "$GITHUB_OUTPUT"
+          echo "Pre-push revision: $BASELINE"
 
-      - name: Smoke-test /api/healthz
+      - name: Wait for trigger to deploy a new revision
+        id: wait
+        env:
+          BASELINE: ${{ steps.baseline.outputs.baseline }}
+        run: |
+          # Poll for up to 8 minutes — covers a typical Cloud Build
+          # build (3-5 min) + Cloud Run rollout (~30s).
+          DEADLINE=$((SECONDS + 480))
+          while [ $SECONDS -lt $DEADLINE ]; do
+            CURRENT=$(gcloud run services describe ${SERVICE} \
+              --region ${GCP_REGION} --project ${GCP_PROJECT} \
+              --format='value(status.latestReadyRevisionName)' 2>/dev/null || echo "")
+            if [ -n "$CURRENT" ] && [ "$CURRENT" != "$BASELINE" ]; then
+              echo "✓ new revision live: $CURRENT (baseline was $BASELINE)"
+              echo "revision=$CURRENT" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+            echo "  …still on $CURRENT (waiting for trigger)"
+            sleep 15
+          done
+          echo "::error::Cloud Build trigger did not produce a new Cloud Run revision within 8 minutes."
+          echo "::error::Inspect https://console.cloud.google.com/cloud-build/builds?project=${GCP_PROJECT}"
+          exit 1
+
+      - name: Smoke-test /api/healthz on the new revision
         run: |
           URL=$(gcloud run services describe ${SERVICE} \
             --region ${GCP_REGION} --project ${GCP_PROJECT} \
             --format='value(status.url)')
           echo "Service URL: $URL"
-          for i in 1 2 3 4 5; do
-            if curl -sf "$URL/api/healthz" >/dev/null; then
-              echo "healthz OK"; exit 0
+          # Cloud Run can take a few seconds to fully drain old traffic;
+          # retry a handful of times before failing.
+          for i in 1 2 3 4 5 6 7 8; do
+            STATUS=$(curl -s -o /dev/null -w "%{http_code}" --max-time 10 "$URL/api/healthz" || echo "000")
+            if [ "$STATUS" = "200" ]; then
+              echo "✓ healthz OK on revision ${{ steps.wait.outputs.revision }}"
+              exit 0
             fi
-            echo "healthz attempt $i failed, retrying..."; sleep 5
+            echo "healthz attempt $i returned $STATUS, retrying..."
+            sleep 5
           done
-          echo "healthz never returned 200"; exit 1
+          echo "::error::healthz never returned 200. New revision may be crash-looping."
+          exit 1
 
   # Build the SPA and deploy to Firebase Hosting.
   #
