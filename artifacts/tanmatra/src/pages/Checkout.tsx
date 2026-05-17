@@ -1216,9 +1216,12 @@ export default function Checkout() {
               <div className="w-8 h-8 rounded-md bg-clinical-gold/20 flex items-center justify-center">
                 <CreditCard className="w-4 h-4 text-clinical-gold" />
               </div>
-              <div>
+              <div className="flex-1">
                 <p className="text-xs font-medium text-white">Razorpay Secure Checkout</p>
-                <p className="text-[10px] text-clinical-zinc">UPI · Cards · Net Banking · Wallets · PCI-DSS Level 1</p>
+                <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+                  <span className="text-[10px] font-semibold text-clinical-gold bg-clinical-gold/10 border border-clinical-gold/30 rounded px-1.5 py-0.5">UPI</span>
+                  <span className="text-[10px] text-clinical-zinc">Cards · Net Banking · Wallets · COD · PCI-DSS L1</span>
+                </div>
               </div>
               <ShieldCheck className="w-4 h-4 text-clinical-sage ml-auto" aria-label="Encrypted payment" />
             </div>

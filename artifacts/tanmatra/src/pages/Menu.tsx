@@ -1,6 +1,32 @@
 import { useState, useMemo } from "react";
 import { useDishRationales, type DishRationale } from "@/lib/dishRationaleApi";
-import { useSearchParams } from "react-router";
+import { useSearchParams, type MetaFunction } from "react-router";
+import { DISHES as STATIC_DISHES } from "@/lib/menuData";
+
+export const meta: MetaFunction = () => [
+  { title: "Clinical Menu | Tanmatra" },
+  { name: "description", content: "Browse Tanmatra's curated clinical menu — therapeutic meals formulated by registered dietitians for wellness, performance, and clinical protocols." },
+  { property: "og:title", content: "Clinical Menu | Tanmatra" },
+  { property: "og:description", content: "Therapeutic meals for every goal — weight management, gut health, metabolic balance, and more. Designed by RDs, delivered fresh." },
+  { property: "og:image", content: "https://tanmatra.food/og-image.jpg" },
+  { property: "og:url", content: "https://tanmatra.food/menu" },
+  { name: "twitter:card", content: "summary_large_image" },
+  {
+    "script:ld+json": {
+      "@context": "https://schema.org",
+      "@type": "ItemList",
+      "name": "Tanmatra Clinical Menu",
+      "description": "Therapeutic meal delivery menu designed by registered dietitians.",
+      "url": "https://tanmatra.food/menu",
+      "itemListElement": STATIC_DISHES.slice(0, 20).map((dish, i) => ({
+        "@type": "ListItem",
+        "position": i + 1,
+        "url": `https://tanmatra.food/dish/${dish.slug}`,
+        "name": dish.name,
+      })),
+    },
+  },
+];
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";

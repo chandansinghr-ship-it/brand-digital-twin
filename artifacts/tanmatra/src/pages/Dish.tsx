@@ -1,5 +1,45 @@
 import { useState, useMemo } from "react";
-import { useParams, Link, useNavigate } from "react-router";
+import { useParams, Link, useNavigate, type MetaFunction } from "react-router";
+import { getDishBySlug } from "@/lib/menuData";
+
+export const meta: MetaFunction = ({ params }) => {
+  const dish = getDishBySlug(params.slug ?? "");
+  if (!dish) return [{ title: "Dish | Tanmatra" }];
+  const price = (dish.price / 100).toFixed(0);
+  const image = dish.image ?? "https://tanmatra.food/og-image.jpg";
+  const url = `https://tanmatra.food/dish/${dish.slug}`;
+  return [
+    { title: `${dish.name} | Tanmatra` },
+    { name: "description", content: dish.description },
+    { property: "og:type", content: "product" },
+    { property: "og:title", content: dish.name },
+    { property: "og:description", content: dish.description },
+    { property: "og:image", content: image },
+    { property: "og:url", content: url },
+    { name: "twitter:card", content: "summary_large_image" },
+    { name: "twitter:title", content: dish.name },
+    { name: "twitter:description", content: dish.description },
+    { name: "twitter:image", content: image },
+    {
+      "script:ld+json": {
+        "@context": "https://schema.org",
+        "@type": "Product",
+        "name": dish.name,
+        "description": dish.description,
+        "image": image,
+        "url": url,
+        "brand": { "@type": "Brand", "name": "Tanmatra" },
+        "offers": {
+          "@type": "Offer",
+          "price": price,
+          "priceCurrency": "INR",
+          "availability": "https://schema.org/InStock",
+          "seller": { "@type": "Organization", "name": "Tanmatra" },
+        },
+      },
+    },
+  ];
+};
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
