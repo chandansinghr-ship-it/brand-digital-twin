@@ -69,7 +69,7 @@ export default function MenuCard({
       } ${match.blocked ? "ring-1 ring-orange-500/40" : ""}`}
     >
       {/* Image */}
-      <div className="relative h-52 overflow-hidden">
+      <div className="relative aspect-[4/3] overflow-hidden">
         <img
           src={item.image}
           alt={item.name}

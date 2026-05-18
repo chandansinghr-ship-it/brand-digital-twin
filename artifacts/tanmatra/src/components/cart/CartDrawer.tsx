@@ -126,17 +126,19 @@ export default function CartDrawer() {
       if (!rpRes.ok) { navigate("/checkout"); return; }
       const { razorpayOrderId } = (await rpRes.json()) as { razorpayOrderId: string };
 
-      // 3. Load Razorpay script lazily
+      // 3. Load Razorpay script lazily (5 s timeout → fallback to /checkout)
       await new Promise<void>((resolve, reject) => {
         if ((window as { Razorpay?: unknown }).Razorpay) { resolve(); return; }
+        const timer = window.setTimeout(() => reject(new Error("timeout")), 5000);
         if (!document.getElementById("__rzp_script")) {
           const s = document.createElement("script");
           s.id = "__rzp_script";
           s.src = "https://checkout.razorpay.com/v1/checkout.js";
-          s.onload = () => resolve();
-          s.onerror = () => reject(new Error("load-failed"));
+          s.onload = () => { window.clearTimeout(timer); resolve(); };
+          s.onerror = () => { window.clearTimeout(timer); reject(new Error("load-failed")); };
           document.head.appendChild(s);
         } else {
+          window.clearTimeout(timer);
           resolve();
         }
       });
@@ -283,7 +285,7 @@ export default function CartDrawer() {
             aria-modal="true"
             aria-label="Shopping cart"
             onKeyDown={handlePanelKeyDown}
-            className="fixed right-0 top-0 z-50 h-full w-full sm:max-w-md bg-clinical-dark border-l border-clinical-zinc/20 text-white flex flex-col shadow-2xl"
+            className="fixed right-0 top-0 z-50 h-[100dvh] w-full max-w-[min(420px,100vw)] bg-clinical-dark border-l border-clinical-zinc/20 text-white flex flex-col shadow-2xl"
           >
             <DrawerHeader
               totalQuantity={totals.totalQuantity}
@@ -295,17 +297,17 @@ export default function CartDrawer() {
               <EmptyState onClose={close} />
             ) : (
               <>
-                <FreeDeliveryBar
-                  subtotal={subtotal}
-                  currentFill={currentFill}
-                  projectedFill={projectedFill}
-                  ghostUnlocksDelivery={ghostUnlocksDelivery}
-                  ghostItem={ghostItem}
-                  hasFreeDelivery={totals.hasFreeDelivery}
-                  amountToFreeDelivery={totals.amountToFreeDelivery}
-                />
-
-                <div className="flex-1 overflow-y-auto px-5 py-4 space-y-3">
+                <div className="flex-1 overflow-y-auto overscroll-contain px-5 py-4 space-y-3">
+                  {/* FreeDeliveryBar inside scroll so it stays visible on long carts */}
+                  <FreeDeliveryBar
+                    subtotal={subtotal}
+                    currentFill={currentFill}
+                    projectedFill={projectedFill}
+                    ghostUnlocksDelivery={ghostUnlocksDelivery}
+                    ghostItem={ghostItem}
+                    hasFreeDelivery={totals.hasFreeDelivery}
+                    amountToFreeDelivery={totals.amountToFreeDelivery}
+                  />
                   <CartLineList
                     items={items}
                     updateQty={updateQty}
@@ -321,6 +323,7 @@ export default function CartDrawer() {
                     />
                   )}
                 </div>
+
 
                 <FooterTotals
                   totals={totals}
@@ -369,7 +372,7 @@ function DrawerHeader({
         type="button"
         onClick={onClose}
         aria-label="Close cart"
-        className="text-clinical-zinc hover:text-white transition-colors"
+        className="w-11 h-11 -mr-2 inline-flex items-center justify-center text-clinical-zinc hover:text-white transition-colors"
       >
         <X className="w-4 h-4" aria-hidden />
       </button>
@@ -451,7 +454,7 @@ function FreeDeliveryBar({
   }
 
   return (
-    <div className="px-5 pt-3 pb-2 border-b border-clinical-zinc/10 bg-clinical-dark/60 shrink-0">
+    <div className="rounded-lg px-3 pt-3 pb-2 border border-clinical-zinc/10 bg-clinical-dark/60">
       <div className="flex items-center justify-between mb-1.5">
         <span className="text-[10px] uppercase tracking-[0.14em] text-clinical-zinc">
           Free Delivery
@@ -656,7 +659,7 @@ function QtyStepper({
         type="button"
         onClick={onDec}
         aria-label={`Decrease ${name} quantity`}
-        className="w-7 h-7 inline-flex items-center justify-center text-clinical-zinc hover:text-clinical-gold transition-colors"
+        className="w-11 h-11 inline-flex items-center justify-center text-clinical-zinc hover:text-clinical-gold transition-colors"
       >
         <Minus className="w-3 h-3" aria-hidden />
       </button>
@@ -670,7 +673,7 @@ function QtyStepper({
         type="button"
         onClick={onInc}
         aria-label={`Increase ${name} quantity`}
-        className="w-7 h-7 inline-flex items-center justify-center text-clinical-zinc hover:text-clinical-gold transition-colors"
+        className="w-11 h-11 inline-flex items-center justify-center text-clinical-zinc hover:text-clinical-gold transition-colors"
       >
         <Plus className="w-3 h-3" aria-hidden />
       </button>
@@ -740,6 +743,8 @@ function UpsellCard({
 }) {
   const { status, setStatus } = useAddToCartStatus(dish.id);
   const timerRef = useRef<number | null>(null);
+  // Track whether ghost preview is active (for tap-to-preview on touch devices)
+  const [ghostActive, setGhostActive] = useState(false);
 
   useEffect(() => () => {
     if (timerRef.current) window.clearTimeout(timerRef.current);
@@ -747,6 +752,15 @@ function UpsellCard({
 
   const handleAdd = () => {
     if (status !== "idle") return;
+    // On touch: first tap shows ghost preview; second tap confirms add.
+    // On pointer: hover already triggered ghost, so always add immediately.
+    if (!ghostActive) {
+      setGhostActive(true);
+      onGhost(dish);
+      return;
+    }
+    setGhostActive(false);
+    onGhost(null);
     setStatus("loading");
     timerRef.current = window.setTimeout(() => {
       onAdd(dish);
@@ -760,10 +774,10 @@ function UpsellCard({
       role="group"
       aria-label={dish.name}
       className="snap-start shrink-0 w-[156px] rounded-lg border border-clinical-zinc/15 bg-upsell-accent overflow-hidden"
-      onPointerEnter={() => onGhost(dish)}
-      onPointerLeave={() => onGhost(null)}
+      onPointerEnter={() => { setGhostActive(true); onGhost(dish); }}
+      onPointerLeave={() => { setGhostActive(false); onGhost(null); }}
       onFocus={() => onGhost(dish)}
-      onBlur={() => onGhost(null)}
+      onBlur={() => { setGhostActive(false); onGhost(null); }}
     >
       <div className="relative aspect-[4/3] bg-clinical-zinc/10">
         <img
@@ -790,9 +804,9 @@ function UpsellCard({
             type="button"
             onClick={handleAdd}
             disabled={status === "loading"}
-            aria-label={`Add ${dish.name} to cart`}
+            aria-label={ghostActive ? `Confirm add ${dish.name}` : `Preview ${dish.name}`}
             className={cn(
-              "h-7 px-2 text-[10px] font-semibold text-[#050505] rounded-md transition-colors uppercase tracking-[0.08em] shrink-0 inline-flex items-center gap-1",
+              "h-11 px-2 text-[10px] font-semibold text-[#050505] rounded-md transition-colors uppercase tracking-[0.08em] shrink-0 inline-flex items-center gap-1",
               status === "success" ? "bg-clinical-sage" : "bg-clinical-gold hover:bg-clinical-gold/90",
             )}
           >
@@ -840,7 +854,7 @@ function FooterTotals({
   const hasExpressUPI = Boolean(import.meta.env.VITE_RAZORPAY_KEY_ID);
 
   return (
-    <div className="border-t border-clinical-zinc/15 bg-clinical-dark/95 px-5 py-4 space-y-3 shrink-0">
+    <div className="border-t border-clinical-zinc/15 bg-clinical-dark/95 px-5 pt-4 pb-[calc(1rem+env(safe-area-inset-bottom))] space-y-3 shrink-0">
       <dl className="space-y-1.5 text-xs">
         <TotalsRow label="Subtotal" value={formatPrice(totals.subtotal)} />
         <TotalsRow label="GST 5%" value={formatPrice(totals.tax)} muted />

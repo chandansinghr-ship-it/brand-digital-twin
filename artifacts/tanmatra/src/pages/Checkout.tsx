@@ -1055,6 +1055,7 @@ export default function Checkout() {
                           setNewAddr({ ...newAddr, label: e.target.value })
                         }
                         onBlur={() => touchField("label")}
+                        autoComplete="nickname"
                         className="h-9 text-xs bg-clinical-surface border-clinical-border pr-7"
                       />
                       {touchedFields.has("label") && newAddr.label.trim() && !addressErrors.label && (
@@ -1080,6 +1081,7 @@ export default function Checkout() {
                           setNewAddr({ ...newAddr, phone: formatted });
                         }}
                         onBlur={() => touchField("phone")}
+                        type="tel"
                         inputMode="tel"
                         autoComplete="tel"
                         className="h-9 text-xs bg-clinical-surface border-clinical-border pr-7"
@@ -1105,6 +1107,7 @@ export default function Checkout() {
                           setNewAddr({ ...newAddr, city: e.target.value })
                         }
                         onBlur={() => touchField("city")}
+                        autoComplete="address-level2"
                         className="h-9 text-xs bg-clinical-surface border-clinical-border pr-7"
                       />
                       {touchedFields.has("city") && newAddr.city.trim() && !addressErrors.city && (
@@ -1127,6 +1130,7 @@ export default function Checkout() {
                         }
                         onBlur={() => touchField("pincode")}
                         inputMode="numeric"
+                        pattern="[0-9]*"
                         autoComplete="postal-code"
                         maxLength={6}
                         className="h-9 text-xs bg-clinical-surface border-clinical-border pr-7"
@@ -1151,6 +1155,7 @@ export default function Checkout() {
                         setNewAddr({ ...newAddr, line1: e.target.value })
                       }
                       onBlur={() => touchField("line1")}
+                      autoComplete="street-address"
                       className="h-9 text-xs bg-clinical-surface border-clinical-border pr-7"
                     />
                     {touchedFields.has("line1") && newAddr.line1.trim() && !addressErrors.line1 && (
@@ -1170,6 +1175,7 @@ export default function Checkout() {
                     onChange={(e) =>
                       setNewAddr({ ...newAddr, line2: e.target.value })
                     }
+                    autoComplete="address-line2"
                     className="h-9 text-xs bg-clinical-surface border-clinical-border"
                   />
                 </div>
@@ -1398,7 +1404,7 @@ export default function Checkout() {
                     key={tip}
                     size="sm"
                     variant={selected ? "default" : "outline"}
-                    className={`flex-1 h-9 text-xs tabular-nums ${
+                    className={`flex-1 h-11 text-xs tabular-nums ${
                       selected
                         ? "bg-clinical-gold/15 text-clinical-gold border-clinical-gold/40"
                         : "border-clinical-border text-clinical-zinc hover:border-clinical-border"
@@ -1416,7 +1422,7 @@ export default function Checkout() {
               <Button
                 size="sm"
                 variant={isCustomTip ? "default" : "outline"}
-                className={`h-9 text-xs px-3 ${
+                className={`h-11 text-xs px-3 ${
                   isCustomTip
                     ? "bg-clinical-gold/15 text-clinical-gold border-clinical-gold/40"
                     : "border-clinical-border text-clinical-zinc"
@@ -1720,10 +1726,12 @@ export default function Checkout() {
                     type="text"
                     value={voucherCode}
                     onChange={(e) => {
-                      setVoucherCode(e.target.value.toUpperCase());
-                      // Clear stale error as soon as the user edits
-                      // — same pattern as a normal validated input.
-                      if (voucherError) setVoucherError(null);
+                      const next = e.target.value.toUpperCase();
+                      setVoucherCode(next);
+                      // Only clear when the user removes characters (corrective
+                      // edit) — not on every keystroke, so the error stays
+                      // visible long enough to read on mobile.
+                      if (voucherError && next.length < voucherCode.length) setVoucherError(null);
                     }}
                     placeholder="VOUCHER CODE"
                     className={`flex-1 min-w-0 h-8 rounded-md bg-clinical-dark border px-2 text-[11px] text-white placeholder:text-clinical-zinc-muted tracking-wider uppercase focus:outline-none ${
