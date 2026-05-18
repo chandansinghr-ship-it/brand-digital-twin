@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Link } from "react-router";
+import { unsplashSrcset } from "@/lib/imgSrcset";
 import { motion } from "framer-motion";
 import { Sparkle } from "@phosphor-icons/react";
 import {
@@ -72,6 +73,8 @@ export default function MenuCard({
       <div className="relative aspect-[4/3] overflow-hidden">
         <img
           src={item.image}
+          srcSet={unsplashSrcset(item.image)}
+          sizes="(max-width: 640px) calc(50vw - 1.5rem), (max-width: 1024px) calc(33vw - 1.5rem), 25vw"
           alt={item.name}
           loading="lazy"
           className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"

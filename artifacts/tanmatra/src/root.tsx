@@ -21,6 +21,19 @@ import "./index.css";
 
 export const links: LinksFunction = () => [
   { rel: "preconnect", href: "https://images.unsplash.com" },
+  // LCP image — tell the browser to fetch this before the JS bundle evaluates.
+  { rel: "preload", as: "image", href: "/hero-bg.jpg" },
+  // Critical font — Inter Variable latin subset is the first face the browser
+  // needs. Without this hint it discovers the URL only after CSS is parsed.
+  {
+    rel: "preload",
+    as: "font",
+    type: "font/woff2",
+    href: "/@fontsource-variable/inter/files/inter-latin-standard-normal.woff2",
+    crossOrigin: "anonymous",
+  },
+  // PWA manifest — enables "Add to Home Screen" prompt on Android Chrome.
+  { rel: "manifest", href: "/manifest.webmanifest" },
 ];
 
 export const meta: MetaFunction = () => [

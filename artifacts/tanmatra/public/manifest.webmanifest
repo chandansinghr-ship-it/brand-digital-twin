@@ -1,0 +1,53 @@
+{
+  "name": "Tanmatra — Therapeutic Meal Delivery",
+  "short_name": "Tanmatra",
+  "description": "Clinical-grade therapeutic meals designed by registered dietitians.",
+  "start_url": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#050505",
+  "theme_color": "#050505",
+  "lang": "en",
+  "dir": "ltr",
+  "categories": ["food", "health", "lifestyle"],
+  "icons": [
+    {
+      "src": "/icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ],
+  "screenshots": [
+    {
+      "src": "/opengraph.jpg",
+      "sizes": "1200x630",
+      "type": "image/jpeg",
+      "label": "Tanmatra home page"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Browse Menu",
+      "url": "/menu",
+      "description": "Explore the full dish catalog"
+    },
+    {
+      "name": "My Orders",
+      "url": "/orders",
+      "description": "Track your recent orders"
+    }
+  ]
+}

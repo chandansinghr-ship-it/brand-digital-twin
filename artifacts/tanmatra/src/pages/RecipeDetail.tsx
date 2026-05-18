@@ -1,4 +1,4 @@
-import { Link, useParams } from "react-router";
+import { Link, useParams, type MetaFunction } from "react-router";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -12,6 +12,34 @@ import {
   Utensils,
 } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
+
+export const meta: MetaFunction = ({ params }) => {
+  const slug = params.slug ?? "";
+  const canonical = `https://tanmatra.food/recipes/${slug}`;
+  return [
+    { title: "Recipe | Tanmatra" },
+    { property: "og:type", content: "article" },
+    {
+      "script:ld+json": {
+        "@context": "https://schema.org",
+        "@type": "Recipe",
+        "publisher": { "@type": "Organization", "name": "Tanmatra", "url": "https://tanmatra.food" },
+        "url": canonical,
+      },
+    },
+    {
+      "script:ld+json": {
+        "@context": "https://schema.org",
+        "@type": "BreadcrumbList",
+        "itemListElement": [
+          { "@type": "ListItem", "position": 1, "name": "Home", "item": "https://tanmatra.food/" },
+          { "@type": "ListItem", "position": 2, "name": "Recipes", "item": "https://tanmatra.food/recipes" },
+          { "@type": "ListItem", "position": 3, "name": "Recipe", "item": canonical },
+        ],
+      },
+    },
+  ];
+};
 
 export default function RecipeDetail() {
   const { slug } = useParams<{ slug: string }>();

@@ -1,5 +1,6 @@
 import { Link, useNavigate } from "react-router";
 import { useMemo, useState } from "react";
+import { unsplashSrcset } from "@/lib/imgSrcset";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -301,7 +302,7 @@ export default function Home() {
       {/* ═══════════════ HERO SECTION ═══════════════ */}
       <section className="relative min-h-[360px] md:h-[70vh] md:min-h-[480px] overflow-hidden flex items-center">
         <div className="absolute inset-0">
-          <img src="/hero-bg.jpg" alt="Clinical-grade food preparation" className="w-full h-full object-cover" loading="eager" />
+          <img src="/hero-bg.jpg" alt="Clinical-grade food preparation" className="w-full h-full object-cover" loading="eager" fetchPriority="high" />
           <div className="absolute inset-0 bg-gradient-to-r from-[#050505]/98 via-[#050505]/85 to-[#050505]/55 md:from-[#050505]/95 md:via-[#050505]/70 md:to-[#050505]/40" />
           <div className="absolute inset-0 bg-gradient-to-t from-[#050505] via-[#050505]/40 to-[#050505]/30 md:via-transparent" />
         </div>
@@ -648,7 +649,15 @@ export default function Home() {
               >
                 <Card className="group bg-clinical-surface border-clinical-border hover:border-clinical-gold/30 transition-all duration-300 hover:shadow-clinical overflow-hidden">
                   <div className="relative aspect-[4/3] overflow-hidden">
-                    <img src={meal.image} alt={meal.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" loading={i < 3 ? "eager" : "lazy"} />
+                    <img
+                      src={meal.image}
+                      srcSet={unsplashSrcset(meal.image)}
+                      sizes="(max-width: 640px) calc(50vw - 1.5rem), (max-width: 1024px) calc(33vw - 1.5rem), 25vw"
+                      alt={meal.name}
+                      loading={i < 3 ? "eager" : "lazy"}
+                      fetchPriority={i === 0 ? "high" : undefined}
+                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                    />
                     <div className="absolute inset-0 bg-gradient-to-t from-[#050505]/80 via-transparent to-transparent" />
                     <div className="absolute top-3 left-3 flex gap-1.5">
                       {meal.rdVerified && (
@@ -699,7 +708,14 @@ export default function Home() {
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-0">
                     {/* Image side */}
                     <div className="relative aspect-[16/10] md:aspect-auto overflow-hidden">
-                      <img src={proto.image} alt={proto.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700" loading="lazy" />
+                      <img
+                        src={proto.image}
+                        srcSet={unsplashSrcset(proto.image)}
+                        sizes="(max-width: 768px) 100vw, 50vw"
+                        alt={proto.title}
+                        loading="lazy"
+                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700"
+                      />
                       <div className={`absolute inset-0 bg-gradient-to-r ${proto.gradient} to-transparent opacity-60`} />
                       <div className="absolute top-4 left-4">
                         <div className={`w-10 h-10 rounded-xl ${proto.bg} flex items-center justify-center border ${proto.border}`}>

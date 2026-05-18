@@ -38,6 +38,17 @@ export const meta: MetaFunction = ({ params }) => {
         },
       },
     },
+    {
+      "script:ld+json": {
+        "@context": "https://schema.org",
+        "@type": "BreadcrumbList",
+        "itemListElement": [
+          { "@type": "ListItem", "position": 1, "name": "Home", "item": "https://tanmatra.food/" },
+          { "@type": "ListItem", "position": 2, "name": "Menu", "item": "https://tanmatra.food/menu" },
+          { "@type": "ListItem", "position": 3, "name": dish.name, "item": url },
+        ],
+      },
+    },
   ];
 };
 import { Card, CardContent } from "@/components/ui/card";

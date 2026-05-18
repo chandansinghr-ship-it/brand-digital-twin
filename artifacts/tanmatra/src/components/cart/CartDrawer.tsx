@@ -26,6 +26,7 @@ import { formatPrice } from "@/lib/api/adapter";
 import { track } from "@/lib/analytics";
 import { PANEL_SLIDE, BACKDROP, PULSE_OPACITY } from "@/lib/motion";
 import { cn } from "@/lib/utils";
+import { unsplashSrcset } from "@/lib/imgSrcset";
 
 // Suppress unused-import warning — DELIVERY_FEE is used in the comment context only,
 // the actual constant is pulled from cartContext which re-exports it.
@@ -134,6 +135,7 @@ export default function CartDrawer() {
           const s = document.createElement("script");
           s.id = "__rzp_script";
           s.src = "https://checkout.razorpay.com/v1/checkout.js";
+          s.async = true;
           s.onload = () => { window.clearTimeout(timer); resolve(); };
           s.onerror = () => { window.clearTimeout(timer); reject(new Error("load-failed")); };
           document.head.appendChild(s);
@@ -481,16 +483,17 @@ function FreeDeliveryBar({
           style={{ width: `${currentFill * 100}%` }}
         />
 
-        {/* Ghost layer */}
+        {/* Ghost layer — uses only transform (GPU-composited, zero layout cost).
+            translateX moves by a percentage of the element's own width (= 100%
+            of the bar), then scaleX shrinks it to ghostWidth% from the left. */}
         {showGhostLayer && ghostWidth > 0 && (
           <motion.div
             className={cn(
-              "absolute inset-y-0 rounded-full",
+              "absolute inset-y-0 left-0 w-full rounded-full origin-left",
               prefersReducedMotion ? "bg-matcha/25" : "bg-matcha/40",
             )}
             style={{
-              left: `${currentFill * 100}%`,
-              width: `${ghostWidth}%`,
+              transform: `translateX(${currentFill * 100}%) scaleX(${ghostWidth / 100})`,
             }}
             variants={prefersReducedMotion ? undefined : PULSE_OPACITY}
             initial={prefersReducedMotion ? undefined : "idle"}
@@ -586,6 +589,8 @@ function CartLine({
     <div className="flex gap-3 rounded-lg border border-clinical-zinc/15 bg-clinical-zinc/[0.04] p-3">
       <img
         src={item.image}
+        srcSet={unsplashSrcset(item.image)}
+        sizes="64px"
         alt=""
         loading="lazy"
         className="w-16 h-16 rounded-md object-cover shrink-0 bg-clinical-zinc/10"
@@ -782,6 +787,8 @@ function UpsellCard({
       <div className="relative aspect-[4/3] bg-clinical-zinc/10">
         <img
           src={dish.image}
+          srcSet={unsplashSrcset(dish.image)}
+          sizes="156px"
           alt=""
           loading="lazy"
           className="w-full h-full object-cover"

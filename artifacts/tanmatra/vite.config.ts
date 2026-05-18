@@ -25,6 +25,20 @@ export default defineConfig({
     dedupe: ["react", "react-dom"],
   },
   root: path.resolve(import.meta.dirname),
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          // Keep heavy visualisation libs in their own async chunk so they
+          // only load on the routes that actually use them.
+          if (id.includes("recharts") || id.includes("d3-")) return "charts";
+          if (id.includes("leaflet")) return "maps";
+          if (id.includes("framer-motion")) return "motion";
+          if (id.includes("socket.io")) return "socket";
+        },
+      },
+    },
+  },
   // react-router build manages outDir internally (build/client, build/server).
   // Do not set build.outDir here — it conflicts with the reactRouter() plugin.
   server: {
