@@ -719,48 +719,62 @@ export default function Menu() {
           })}
         </div>
 
-        <div
-          className="flex gap-2 overflow-x-auto md:flex-wrap -mx-4 px-4 md:mx-0 md:px-0 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
-          aria-label="Filter by category"
-        >
-          {CATEGORY_TABS.map((c) => {
-            const active = category === c;
-            return (
-              <button
-                key={c}
-                onClick={() => setCategory(c)}
-                className={`shrink-0 inline-flex items-center px-3 min-h-[36px] rounded-full border text-[11px] uppercase tracking-[0.12em] font-semibold transition-all ${
-                  active
-                    ? "border-clinical-gold/50 bg-clinical-gold/10 text-clinical-gold"
-                    : "border-clinical-border text-clinical-zinc hover:text-clinical-gold"
-                }`}
-              >
-                {c === "all" ? "All Categories" : CATEGORY_LABELS[c]}
-              </button>
-            );
-          })}
+        <div className="space-y-2">
+          <p className="text-[10px] uppercase tracking-[0.18em] text-clinical-zinc font-semibold">
+            Category
+          </p>
+          <div
+            className="flex gap-2 overflow-x-auto md:flex-wrap -mx-4 px-4 md:mx-0 md:px-0 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+            role="group"
+            aria-label="Filter by category"
+          >
+            {CATEGORY_TABS.map((c) => {
+              const active = category === c;
+              return (
+                <button
+                  key={c}
+                  onClick={() => setCategory(c)}
+                  aria-pressed={active}
+                  className={`shrink-0 inline-flex items-center px-3 min-h-[36px] rounded-full border text-[11px] uppercase tracking-[0.12em] font-semibold transition-all ${
+                    active
+                      ? "border-clinical-gold/50 bg-clinical-gold/10 text-clinical-gold"
+                      : "border-clinical-border text-clinical-zinc hover:text-clinical-gold"
+                  }`}
+                >
+                  {c === "all" ? "All Categories" : CATEGORY_LABELS[c]}
+                </button>
+              );
+            })}
+          </div>
         </div>
 
-        <div
-          className="flex gap-2 overflow-x-auto md:flex-wrap -mx-4 px-4 md:mx-0 md:px-0 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
-          aria-label="Filter by kitchen"
-        >
-          {KITCHEN_TABS.map((k) => {
-            const active = kitchen === k;
-            return (
-              <button
-                key={k}
-                onClick={() => setKitchen(k)}
-                className={`shrink-0 inline-flex items-center px-3 min-h-[36px] rounded-full border text-[11px] uppercase tracking-[0.12em] font-semibold transition-all ${
-                  active
-                    ? "border-clinical-gold/50 bg-clinical-gold/10 text-clinical-gold"
-                    : "border-clinical-border text-clinical-zinc hover:text-clinical-gold"
-                }`}
-              >
-                {k === "all" ? "All Kitchens" : k.charAt(0).toUpperCase() + k.slice(1)}
-              </button>
-            );
-          })}
+        <div className="space-y-2">
+          <p className="text-[10px] uppercase tracking-[0.18em] text-clinical-zinc font-semibold">
+            Kitchen
+          </p>
+          <div
+            className="flex gap-2 overflow-x-auto md:flex-wrap -mx-4 px-4 md:mx-0 md:px-0 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+            role="group"
+            aria-label="Filter by kitchen"
+          >
+            {KITCHEN_TABS.map((k) => {
+              const active = kitchen === k;
+              return (
+                <button
+                  key={k}
+                  onClick={() => setKitchen(k)}
+                  aria-pressed={active}
+                  className={`shrink-0 inline-flex items-center px-3 min-h-[36px] rounded-full border text-[11px] uppercase tracking-[0.12em] font-semibold transition-all ${
+                    active
+                      ? "border-clinical-gold/50 bg-clinical-gold/10 text-clinical-gold"
+                      : "border-clinical-border text-clinical-zinc hover:text-clinical-gold"
+                  }`}
+                >
+                  {k === "all" ? "All Kitchens" : k.charAt(0).toUpperCase() + k.slice(1)}
+                </button>
+              );
+            })}
+          </div>
         </div>
       </div>
       </div>{/* /secondary filter rails wrapper */}

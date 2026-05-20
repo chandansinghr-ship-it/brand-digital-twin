@@ -179,11 +179,6 @@ export default function MenuCard({
             value={`${item.macros.fat}g`}
             ariaLabel={`${item.macros.fat} grams of fat`}
           />
-          <MacroChip
-            label="GI"
-            value={String(item.glycaemicIndex)}
-            ariaLabel={`Glycaemic index ${item.glycaemicIndex}`}
-          />
         </div>
 
         <div className="text-[10px] uppercase tracking-[0.12em] text-clinical-zinc font-semibold">
@@ -264,11 +259,10 @@ export default function MenuCard({
                 e.stopPropagation();
                 onPremiumGate();
               }}
-              disabled={!item.isAvailable}
-              className="flex-1 h-10 bg-transparent border border-clinical-gold/50 text-clinical-gold hover:bg-clinical-gold/10 text-[11px] uppercase tracking-[0.12em] font-bold gap-1"
+              className="flex-1 h-10 bg-clinical-gold/10 border border-clinical-gold/50 text-clinical-gold hover:bg-clinical-gold/20 text-[11px] uppercase tracking-[0.12em] font-bold gap-1"
             >
               <Crown className="w-3 h-3" />
-              Premium Only
+              Upgrade to Premium
             </Button>
           ) : (
             <Button
@@ -290,14 +284,6 @@ export default function MenuCard({
           <span className="text-xs flex items-center gap-1 px-3 py-1 rounded-full bg-red-500/20 border border-red-500/40 text-red-300 font-semibold">
             <AlertTriangle className="w-3 h-3" />
             Out of Stock
-          </span>
-        </div>
-      )}
-      {showPremiumGate && item.isAvailable && (
-        <div className="absolute inset-0 z-20 flex items-start justify-end p-2 bg-gradient-to-b from-[#050505]/30 to-transparent pointer-events-none">
-          <span className="text-[10px] flex items-center gap-1 px-2 py-1 rounded-full bg-clinical-gold/15 border border-clinical-gold/40 text-clinical-gold font-bold uppercase tracking-wider backdrop-blur-sm">
-            <Crown className="w-3 h-3" />
-            Premium
           </span>
         </div>
       )}
