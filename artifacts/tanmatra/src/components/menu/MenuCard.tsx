@@ -65,21 +65,22 @@ export default function MenuCard({
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.4, delay: Math.min(index, 8) * 0.04 }}
       whileHover={{ y: -4 }}
-      className={`group relative flex flex-col rounded-2xl overflow-hidden bg-clinical-surface-elevated border border-clinical-border hover:border-clinical-gold/50 hover:shadow-[0_8px_30px_rgba(212,175,55,0.12)] transition-all duration-300 ${
+      className={`group relative flex flex-row sm:flex-col rounded-2xl overflow-hidden bg-clinical-surface-elevated border border-clinical-border hover:border-clinical-gold/50 hover:shadow-[0_8px_30px_rgba(212,175,55,0.12)] transition-all duration-300 ${
         !item.isAvailable ? "opacity-50 grayscale" : ""
       } ${match.blocked ? "ring-1 ring-orange-500/40" : ""}`}
     >
-      {/* Image */}
-      <div className="relative aspect-[4/3] overflow-hidden">
+      {/* Image — square thumbnail on mobile, 4:3 full-width on sm+ */}
+      <div className="relative shrink-0 w-28 aspect-square sm:w-full sm:aspect-[4/3] overflow-hidden">
         <img
           src={item.image}
           srcSet={unsplashSrcset(item.image)}
-          sizes="(max-width: 640px) calc(50vw - 1.5rem), (max-width: 1024px) calc(33vw - 1.5rem), 25vw"
+          sizes="(max-width: 640px) 112px, (max-width: 1024px) calc(50vw - 1.5rem), 25vw"
           alt={item.name}
           loading="lazy"
           className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
         />
-        <div className="absolute inset-0 bg-gradient-to-t from-clinical-surface-elevated via-clinical-surface-elevated/30 to-transparent z-10" />
+        {/* Gradient fade only meaningful in vertical (sm+) card layout */}
+        <div className="hidden sm:block absolute inset-0 bg-gradient-to-t from-clinical-surface-elevated via-clinical-surface-elevated/30 to-transparent z-10" />
 
         {/* Sparkle hover flourish */}
         <motion.div
@@ -127,14 +128,14 @@ export default function MenuCard({
         )}
       </div>
 
-      {/* Content */}
-      <div className="relative z-20 -mt-10 flex-1 flex flex-col p-5 gap-3">
-        <div className="flex justify-between items-start gap-3">
-          <h3 className="font-serif text-lg font-medium leading-tight text-white">
+      {/* Content — compact on mobile (horizontal card), full on sm+ (vertical card) */}
+      <div className="relative z-20 sm:-mt-10 flex-1 flex flex-col p-3 sm:p-5 gap-2 sm:gap-3 min-w-0">
+        <div className="flex justify-between items-start gap-2">
+          <h3 className="font-serif text-sm sm:text-lg font-medium leading-tight text-white">
             {item.name}
           </h3>
           <div className="flex flex-col items-end shrink-0">
-            <span className="font-serif text-lg font-medium text-clinical-gold tabular-nums">
+            <span className="font-serif text-sm sm:text-lg font-medium text-clinical-gold tabular-nums">
               {formatPrice(item.price)}
             </span>
             {!isLive && (
@@ -143,19 +144,20 @@ export default function MenuCard({
           </div>
         </div>
         {item.averageRating != null && (item.reviewCount ?? 0) >= 5 && (
-          <div className="flex items-center gap-1.5">
+          <div className="hidden sm:flex items-center gap-1.5">
             <StarRating value={item.averageRating} />
             <span className="text-[10px] text-clinical-zinc">
               {item.averageRating.toFixed(1)} · {item.reviewCount} reviews
             </span>
           </div>
         )}
-        <p className="text-xs text-clinical-zinc line-clamp-2 leading-relaxed">
+        <p className="text-xs text-clinical-zinc line-clamp-1 sm:line-clamp-2 leading-relaxed">
           {item.description}
         </p>
 
+        {/* Macro chips: scrollable row on mobile so they never wrap; wrapping on sm+ */}
         <div
-          className="flex flex-wrap gap-1.5"
+          className="flex gap-1 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:flex-wrap sm:gap-1.5"
           role="group"
           aria-label={`Nutrition for ${item.name}`}
         >
@@ -181,13 +183,13 @@ export default function MenuCard({
           />
         </div>
 
-        <div className="text-[10px] uppercase tracking-[0.12em] text-clinical-zinc font-semibold">
+        <div className="hidden sm:block text-[10px] uppercase tracking-[0.12em] text-clinical-zinc font-semibold">
           {categoryLine}
         </div>
 
         {preferences &&
           (preferences.calorieTarget || preferences.proteinTargetGrams) && (
-            <div className="flex flex-wrap gap-1.5 text-[10px]">
+            <div className="hidden sm:flex flex-wrap gap-1.5 text-[10px]">
               {preferences.calorieTarget && (
                 <span className="px-1.5 py-0.5 rounded bg-clinical-surface-elevated text-clinical-zinc">
                   {Math.round(
@@ -209,7 +211,7 @@ export default function MenuCard({
           )}
 
         {match.warnings.length > 0 && (
-          <div className="space-y-1.5">
+          <div className="hidden sm:block space-y-1.5">
             <div className="flex items-start gap-1.5 text-[11px] text-orange-400">
               <ShieldAlert className="w-3.5 h-3.5 shrink-0 mt-0.5" />
               <span className="leading-tight">{match.warnings[0]}</span>
@@ -231,7 +233,7 @@ export default function MenuCard({
           </div>
         )}
         {match.warnings.length === 0 && match.reasons.length > 0 && (
-          <div className="flex items-start gap-1.5 text-[11px] text-clinical-sage">
+          <div className="hidden sm:flex items-start gap-1.5 text-[11px] text-clinical-sage">
             <SparklesIcon className="w-3.5 h-3.5 shrink-0 mt-0.5" />
             <span className="leading-tight">
               Why this for you: {match.reasons[0]}
@@ -239,14 +241,16 @@ export default function MenuCard({
           </div>
         )}
 
-        <WhyThisMealRow rationale={rationale} />
+        <div className="hidden sm:block">
+          <WhyThisMealRow rationale={rationale} />
+        </div>
 
-        <div className="mt-auto pt-2 flex gap-2">
+        <div className="mt-auto pt-1 sm:pt-2 flex gap-1.5 sm:gap-2">
           <Link to={`/dish/${item.slug}`} className="flex-1">
             <Button
               variant="outline"
               size="sm"
-              className="w-full h-10 border-clinical-border bg-transparent text-clinical-zinc hover:bg-clinical-surface hover:text-white hover:border-clinical-gold/40 text-[11px] uppercase tracking-[0.12em] font-semibold"
+              className="w-full h-8 sm:h-10 border-clinical-border bg-transparent text-clinical-zinc hover:bg-clinical-surface hover:text-white hover:border-clinical-gold/40 text-[10px] sm:text-[11px] uppercase tracking-[0.12em] font-semibold"
             >
               Details
             </Button>
@@ -259,7 +263,7 @@ export default function MenuCard({
                 e.stopPropagation();
                 onPremiumGate();
               }}
-              className="flex-1 h-10 bg-clinical-gold/10 border border-clinical-gold/50 text-clinical-gold hover:bg-clinical-gold/20 text-[11px] uppercase tracking-[0.12em] font-bold gap-1"
+              className="flex-1 h-8 sm:h-10 bg-clinical-gold/10 border border-clinical-gold/50 text-clinical-gold hover:bg-clinical-gold/20 text-[10px] sm:text-[11px] uppercase tracking-[0.12em] font-bold gap-1"
             >
               <Crown className="w-3 h-3" />
               Upgrade to Premium
@@ -270,7 +274,7 @@ export default function MenuCard({
               onClick={(e) => onQuickAdd(e, item)}
               disabled={!item.isAvailable || !isLive}
               title={!isLive ? "Menu is updating — add to cart will be available shortly" : undefined}
-              className="flex-1 h-10 bg-clinical-gold text-[#050505] hover:bg-clinical-gold/90 disabled:opacity-50 disabled:pointer-events-none text-[11px] uppercase tracking-[0.12em] font-bold gap-1 shadow-[0_0_15px_rgba(212,175,55,0.15)] hover:shadow-[0_0_20px_rgba(212,175,55,0.3)]"
+              className="flex-1 h-8 sm:h-10 bg-clinical-gold text-[#050505] hover:bg-clinical-gold/90 disabled:opacity-50 disabled:pointer-events-none text-[10px] sm:text-[11px] uppercase tracking-[0.12em] font-bold gap-1 shadow-[0_0_15px_rgba(212,175,55,0.15)] hover:shadow-[0_0_20px_rgba(212,175,55,0.3)]"
             >
               <Plus className="w-3 h-3" />
               Add to Order
