@@ -623,7 +623,7 @@ export default function Menu() {
                   setSearchParams(next, { replace: true });
                 }}
                 aria-pressed={active}
-                className={`shrink-0 inline-flex items-center px-3 min-h-[36px] rounded-full border text-[11px] uppercase tracking-[0.12em] font-semibold transition-all ${
+                className={`shrink-0 inline-flex items-center px-3 min-h-[32px] rounded-full border text-[11px] uppercase tracking-[0.12em] font-semibold transition-all ${
                   active
                     ? "border-clinical-gold/50 bg-clinical-gold/10 text-clinical-gold shadow-[0_0_12px_rgba(212,175,55,0.18)]"
                     : "border-clinical-border text-clinical-zinc hover:border-clinical-gold/30 hover:text-clinical-gold"
@@ -660,7 +660,7 @@ export default function Menu() {
       {/* Secondary filter rails. Always visible md+; toggle-driven on
           mobile. Wrapped in a single container so all 4 rails share
           the same collapse state. */}
-      <div className={showFilters ? "space-y-4 md:space-y-4" : "hidden md:block space-y-4"}>
+      <div className={showFilters ? "space-y-3 md:space-y-4" : "hidden md:block space-y-4"}>
       {/* Lifestyle / EHR-diet chips. Clinical mode swaps the marketing
           copy ("Heart Healthy", "Silver Vitality") for hospital vocabulary
           ("Cardiac", "Soft") without altering the underlying matcher. */}
@@ -668,7 +668,11 @@ export default function Menu() {
         <p className="text-[10px] uppercase tracking-[0.18em] text-clinical-zinc font-semibold">
           {clinicalMode ? "Therapeutic diet" : "Lifestyle"}
         </p>
-        <div className="flex flex-wrap gap-2">
+        <div
+          className="flex gap-2 overflow-x-auto -mx-4 px-4 md:mx-0 md:px-0 md:flex-wrap [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+          role="group"
+          aria-label="Filter by lifestyle"
+        >
           {LIFESTYLE_TABS.map(({ value, label: marketingLabel, icon: Icon }) => {
             const label =
               clinicalMode && value !== "all"
@@ -679,7 +683,8 @@ export default function Menu() {
               <button
                 key={value}
                 onClick={() => setLifestyle(value)}
-                className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-full border text-[11px] uppercase tracking-[0.12em] font-semibold transition-all ${
+                aria-pressed={active}
+                className={`shrink-0 flex items-center gap-1.5 px-3 min-h-[32px] rounded-full border text-[11px] uppercase tracking-[0.12em] font-semibold transition-all ${
                   active
                     ? "border-clinical-gold/50 bg-clinical-gold/10 text-clinical-gold shadow-[0_0_12px_rgba(212,175,55,0.18)]"
                     : "border-clinical-border text-clinical-zinc hover:border-clinical-gold/30 hover:text-clinical-gold"
@@ -694,7 +699,7 @@ export default function Menu() {
       </div>
 
       {/* Diet + Category + Kitchen */}
-      <div className="space-y-3">
+      <div className="space-y-2 md:space-y-3">
         <div className="flex items-center gap-2 overflow-x-auto md:flex-wrap -mx-4 px-4 md:mx-0 md:px-0 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           <span className="shrink-0 text-[10px] uppercase tracking-[0.18em] text-clinical-zinc font-semibold pr-1">
             Diet
@@ -706,7 +711,7 @@ export default function Menu() {
               <button
                 key={opt}
                 onClick={() => setDiet(opt)}
-                className={`shrink-0 inline-flex items-center gap-1.5 px-3 min-h-[36px] rounded-full border text-[11px] uppercase tracking-[0.12em] font-semibold transition-all ${
+                className={`shrink-0 inline-flex items-center gap-1.5 px-3 min-h-[32px] rounded-full border text-[11px] uppercase tracking-[0.12em] font-semibold transition-all ${
                   active
                     ? "border-clinical-gold/50 bg-clinical-gold/10 text-clinical-gold"
                     : "border-clinical-border text-clinical-zinc hover:text-clinical-gold"
@@ -735,7 +740,7 @@ export default function Menu() {
                   key={c}
                   onClick={() => setCategory(c)}
                   aria-pressed={active}
-                  className={`shrink-0 inline-flex items-center px-3 min-h-[36px] rounded-full border text-[11px] uppercase tracking-[0.12em] font-semibold transition-all ${
+                  className={`shrink-0 inline-flex items-center px-3 min-h-[32px] rounded-full border text-[11px] uppercase tracking-[0.12em] font-semibold transition-all ${
                     active
                       ? "border-clinical-gold/50 bg-clinical-gold/10 text-clinical-gold"
                       : "border-clinical-border text-clinical-zinc hover:text-clinical-gold"
@@ -764,7 +769,7 @@ export default function Menu() {
                   key={k}
                   onClick={() => setKitchen(k)}
                   aria-pressed={active}
-                  className={`shrink-0 inline-flex items-center px-3 min-h-[36px] rounded-full border text-[11px] uppercase tracking-[0.12em] font-semibold transition-all ${
+                  className={`shrink-0 inline-flex items-center px-3 min-h-[32px] rounded-full border text-[11px] uppercase tracking-[0.12em] font-semibold transition-all ${
                     active
                       ? "border-clinical-gold/50 bg-clinical-gold/10 text-clinical-gold"
                       : "border-clinical-border text-clinical-zinc hover:text-clinical-gold"

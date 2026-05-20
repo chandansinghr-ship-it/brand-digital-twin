@@ -365,12 +365,21 @@ export default function Home() {
                 source backing them (ASCI exposure under unsubstantiated
                 claims). RD count is computed from teamData.ts so it
                 stays honest as the team grows. */}
-            <div className="flex flex-wrap items-start gap-x-5 gap-y-3 pt-4">
-              <div className="min-w-0"><p className="tabular-nums text-2xl font-bold text-white">{TEAM.filter((m) => m.role === "rd").length}</p><p className="text-clinical-label mt-0.5">Registered Dietitians on staff</p></div>
+            <div className="grid grid-cols-3 gap-3 sm:flex sm:flex-wrap sm:items-start sm:gap-x-5 sm:gap-y-3 pt-4">
+              <div className="min-w-0">
+                <p className="tabular-nums text-xl sm:text-2xl font-bold text-white">{TEAM.filter((m) => m.role === "rd").length}</p>
+                <p className="text-clinical-label mt-0.5 leading-tight">Registered Dietitians</p>
+              </div>
               <div className="hidden sm:block w-px self-stretch bg-clinical-surface-elevated" />
-              <div className="min-w-0"><p className="tabular-nums text-2xl font-bold text-white">100%</p><p className="text-clinical-label mt-0.5">Macros &amp; allergens disclosed</p></div>
+              <div className="min-w-0">
+                <p className="tabular-nums text-xl sm:text-2xl font-bold text-white">100%</p>
+                <p className="text-clinical-label mt-0.5 leading-tight">Macros &amp; allergens disclosed</p>
+              </div>
               <div className="hidden sm:block w-px self-stretch bg-clinical-surface-elevated" />
-              <div className="min-w-0"><p className="tabular-nums text-2xl font-bold text-white">FSSAI</p><p className="text-clinical-label mt-0.5">Licensed · ISO 22000 kitchen</p></div>
+              <div className="min-w-0">
+                <p className="tabular-nums text-xl sm:text-2xl font-bold text-white">FSSAI</p>
+                <p className="text-clinical-label mt-0.5 leading-tight">Licensed · ISO 22000</p>
+              </div>
             </div>
           </div>
         </div>
