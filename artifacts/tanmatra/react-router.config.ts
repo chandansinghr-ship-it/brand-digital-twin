@@ -2,7 +2,13 @@ import type { Config } from "@react-router/dev/config";
 
 export default {
   appDirectory: "src",
-  ssr: true,
+  // SPA mode: React Router renders entirely client-side. Pre-rendering still
+  // works for the listed routes. Setting ssr:true with Firebase static hosting
+  // caused checkout crashes because Firebase serves the home-page SSR HTML for
+  // unknown routes, and React Router v7 then tried to fetch /checkout.data
+  // from a server that doesn't exist — Firebase returned HTML (200 OK), and
+  // the JSON.parse of that HTML threw: "Unexpected token '<', <!DOCTYPE..."
+  ssr: false,
   prerender: [
     "/",
     "/menu",

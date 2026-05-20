@@ -34,24 +34,33 @@ COPY artifacts/tanmatra artifacts/tanmatra
 # VITE_API_BASE is baked into the JS bundle at build time. Pass it as a build
 # arg so CI can set the correct wellness-foods Cloud Run URL.
 ARG VITE_API_BASE
-# Build → build/client/ (static assets) + build/server/ (SSR bundle).
+# SPA mode (ssr:false) — produces build/client/ only (no build/server/).
 RUN VITE_API_BASE="${VITE_API_BASE}" pnpm --filter @workspace/tanmatra run build
 
-# Isolated production deployment: only prod deps, no workspace symlinks.
-RUN pnpm deploy --filter @workspace/tanmatra --prod /app/isolated --ignore-scripts
-
 # ── runner ────────────────────────────────────────────────────────────────────
+# Serve the static SPA with a minimal Node http server; no SSR bundle needed.
 FROM node:24-slim AS runner
 
 ENV NODE_ENV=production
 ENV PORT=8080
 WORKDIR /app
 
-# SSR server bundle + static assets.
-COPY --from=builder /app/artifacts/tanmatra/build ./build
-# Prod node_modules (includes @react-router/serve binary).
-COPY --from=builder /app/isolated/package.json    ./package.json
-COPY --from=builder /app/isolated/node_modules    ./node_modules
+COPY --from=builder /app/artifacts/tanmatra/build/client ./public
+
+# Inline static server — serves SPA fallback (index.html) for all non-asset paths.
+RUN printf '%s\n' \
+  "const http=require('http'),fs=require('fs'),path=require('path');" \
+  "const root=path.join(__dirname,'public');" \
+  "http.createServer((req,res)=>{" \
+  "  const u=req.url.split('?')[0];" \
+  "  let f=path.join(root,u==='/'?'/index.html':u);" \
+  "  if(!fs.existsSync(f)||fs.statSync(f).isDirectory())f=path.join(root,'index.html');" \
+  "  const ext=path.extname(f);" \
+  "  const ct={'html':'text/html','js':'application/javascript','css':'text/css','json':'application/json','svg':'image/svg+xml','png':'image/png','ico':'image/x-icon','webmanifest':'application/manifest+json'}[ext.slice(1)]||'application/octet-stream';" \
+  "  res.writeHead(200,{'Content-Type':ct,'Cache-Control':ext==='.html'?'no-cache':'public,max-age=31536000,immutable'});" \
+  "  fs.createReadStream(f).pipe(res);" \
+  "}).listen(process.env.PORT||8080,()=>console.log('Serving on',process.env.PORT||8080));" \
+  > server.js
 
 RUN groupadd --system --gid 1001 app \
  && useradd  --system --uid 1001 --gid app --home /app app \
@@ -60,5 +69,4 @@ USER app
 
 EXPOSE 8080
 
-# react-router-serve streams SSR responses and serves build/client/ as static.
-CMD ["./node_modules/.bin/react-router-serve", "./build/server/index.js"]
+CMD ["node", "server.js"]
