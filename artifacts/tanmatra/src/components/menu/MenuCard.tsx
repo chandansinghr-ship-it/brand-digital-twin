@@ -250,7 +250,7 @@ export default function MenuCard({
             <Button
               variant="outline"
               size="sm"
-              className="w-full h-8 sm:h-10 border-clinical-border bg-transparent text-clinical-zinc hover:bg-clinical-surface hover:text-white hover:border-clinical-gold/40 text-[10px] sm:text-[11px] uppercase tracking-[0.12em] font-semibold"
+              className="w-full h-11 sm:h-10 border-clinical-border bg-transparent text-clinical-zinc hover:bg-clinical-surface hover:text-white hover:border-clinical-gold/40 text-[10px] sm:text-[11px] uppercase tracking-[0.12em] font-semibold"
             >
               Details
             </Button>
@@ -263,7 +263,7 @@ export default function MenuCard({
                 e.stopPropagation();
                 onPremiumGate();
               }}
-              className="flex-1 h-8 sm:h-10 bg-clinical-gold/10 border border-clinical-gold/50 text-clinical-gold hover:bg-clinical-gold/20 text-[10px] sm:text-[11px] uppercase tracking-[0.12em] font-bold gap-1"
+              className="flex-1 h-11 sm:h-10 bg-clinical-gold/10 border border-clinical-gold/50 text-clinical-gold hover:bg-clinical-gold/20 text-[10px] sm:text-[11px] uppercase tracking-[0.12em] font-bold gap-1"
             >
               <Crown className="w-3 h-3" />
               Upgrade to Premium
@@ -274,7 +274,7 @@ export default function MenuCard({
               onClick={(e) => onQuickAdd(e, item)}
               disabled={!item.isAvailable || !isLive}
               title={!isLive ? "Menu is updating — add to cart will be available shortly" : undefined}
-              className="flex-1 h-8 sm:h-10 bg-clinical-gold text-[#050505] hover:bg-clinical-gold/90 disabled:opacity-50 disabled:pointer-events-none text-[10px] sm:text-[11px] uppercase tracking-[0.12em] font-bold gap-1 shadow-[0_0_15px_rgba(212,175,55,0.15)] hover:shadow-[0_0_20px_rgba(212,175,55,0.3)]"
+              className="flex-1 h-11 sm:h-10 bg-clinical-gold text-[#050505] hover:bg-clinical-gold/90 disabled:opacity-50 disabled:pointer-events-none text-[10px] sm:text-[11px] uppercase tracking-[0.12em] font-bold gap-1 shadow-[0_0_15px_rgba(212,175,55,0.15)] hover:shadow-[0_0_20px_rgba(212,175,55,0.3)]"
             >
               <Plus className="w-3 h-3" />
               Add to Order

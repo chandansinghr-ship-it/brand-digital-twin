@@ -348,14 +348,17 @@ export default function Home() {
                   Take metabolic assessment <ArrowRight className="w-4 h-4" />
                 </Button>
               </Link>
-              {/* Demoted from outline button to text link so the assessment
-                  is unambiguously the primary CTA. The Menu is reachable
-                  from the bottom nav on mobile and the top nav on desktop. */}
-              <Link
-                to="/menu"
-                className="inline-flex items-center justify-center gap-1 text-xs text-clinical-zinc hover:text-white underline-offset-4 hover:underline px-2 min-h-11"
-              >
-                or browse the menu first <ArrowRight className="w-3 h-3" />
+              {/* Equal-weight ghost button — assessment remains the primary
+                  CTA (filled gold) while browsing is a respected peer choice
+                  with a matching touch target. Users with browse-first intent
+                  no longer have to hunt for a small underlined link. */}
+              <Link to="/menu" className="flex-1 sm:flex-none">
+                <Button
+                  variant="outline"
+                  className="w-full sm:w-auto bg-transparent border-clinical-gold/40 text-clinical-gold hover:bg-clinical-gold/10 hover:text-clinical-gold font-semibold gap-2 h-12 sm:h-11 px-6"
+                >
+                  Browse the menu <ArrowRight className="w-4 h-4" />
+                </Button>
               </Link>
             </div>
 

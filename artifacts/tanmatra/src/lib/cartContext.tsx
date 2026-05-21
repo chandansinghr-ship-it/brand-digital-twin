@@ -44,7 +44,7 @@ interface CartState {
 
 const STORAGE_KEY = "tanmatra:cart:v1";
 
-const useCartStore = create<CartState>()(
+export const useCartStore = create<CartState>()(
   persist(
     (set) => ({
       items: [],

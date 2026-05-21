@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useDishRationales, type DishRationale } from "@/lib/dishRationaleApi";
 import { useSearchParams, type MetaFunction } from "react-router";
 import { DISHES as STATIC_DISHES } from "@/lib/menuData";
@@ -75,7 +75,7 @@ import {
   matchesProtocol,
   type Protocol,
 } from "@/lib/protocols";
-import { useCart, useCartDrawer } from "@/lib/cartContext";
+import { useCart, useCartDrawer, useCartStore } from "@/lib/cartContext";
 import { usePreferences } from "@/lib/preferencesContext";
 import { usePremiumStatus, usePremiumSlugs } from "@/lib/usePremium";
 import { useNavigate } from "react-router";
@@ -151,6 +151,10 @@ export default function Menu() {
   const [showFilters, setShowFilters] = useState(false);
   const [query, setQuery] = useState("");
   const [hideBlocked, setHideBlocked] = useState(true);
+  // Pagination: start with 24 cards in the DOM. Loading all 113 at once
+  // produced scroll jank on mid-range Android devices.
+  const PAGE_SIZE = 24;
+  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
   const { addItem, addBundleSlug } = useCart();
   const { open: openCart } = useCartDrawer();
   const { preferences } = usePreferences();
@@ -217,6 +221,7 @@ export default function Menu() {
       toast.error("Bundles can only be added to your personal cart");
       return;
     }
+    const beforeLineIds = new Set(useCartStore.getState().items.map((i) => i.lineId));
     let added = 0;
     for (const did of bundle.dishIds) {
       const dish = getDishById(did);
@@ -244,6 +249,10 @@ export default function Menu() {
     if (added === 0) {
       toast.error("This bundle is currently unavailable");
     } else {
+      const newLineIds = useCartStore
+        .getState()
+        .items.filter((i) => !beforeLineIds.has(i.lineId))
+        .map((i) => i.lineId);
       // Record the slug so the server can re-validate at finalize and
       // apply the authoritative bundle discount (client-side per-line
       // pricing is just for cart UX).
@@ -251,10 +260,19 @@ export default function Menu() {
       openCart();
       toast.success(`${bundle.name} added to your order`, {
         description: `${added} item${added === 1 ? "" : "s"} for ${formatPrice(bundle.pricePaise)}`,
-        action: { label: "View Cart", onClick: openCart },
+        action: {
+          label: "Undo",
+          onClick: () => newLineIds.forEach((lid) => useCartStore.getState().removeItem(lid)),
+        },
       });
     }
   };
+
+  // Reset pagination when any filter changes so the user always starts
+  // at the first page of the new filtered set.
+  useEffect(() => {
+    setVisibleCount(PAGE_SIZE);
+  }, [kitchen, category, diet, lifestyle, query, activeProtocol]);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -623,7 +641,7 @@ export default function Menu() {
                   setSearchParams(next, { replace: true });
                 }}
                 aria-pressed={active}
-                className={`shrink-0 inline-flex items-center px-3 min-h-[32px] rounded-full border text-[11px] uppercase tracking-[0.12em] font-semibold transition-all ${
+                className={`shrink-0 inline-flex items-center px-3 min-h-[44px] sm:min-h-[32px] rounded-full border text-[11px] uppercase tracking-[0.12em] font-semibold transition-all ${
                   active
                     ? "border-clinical-gold/50 bg-clinical-gold/10 text-clinical-gold shadow-[0_0_12px_rgba(212,175,55,0.18)]"
                     : "border-clinical-border text-clinical-zinc hover:border-clinical-gold/30 hover:text-clinical-gold"
@@ -684,7 +702,7 @@ export default function Menu() {
                 key={value}
                 onClick={() => setLifestyle(value)}
                 aria-pressed={active}
-                className={`shrink-0 flex items-center gap-1.5 px-3 min-h-[32px] rounded-full border text-[11px] uppercase tracking-[0.12em] font-semibold transition-all ${
+                className={`shrink-0 flex items-center gap-1.5 px-3 min-h-[44px] sm:min-h-[32px] rounded-full border text-[11px] uppercase tracking-[0.12em] font-semibold transition-all ${
                   active
                     ? "border-clinical-gold/50 bg-clinical-gold/10 text-clinical-gold shadow-[0_0_12px_rgba(212,175,55,0.18)]"
                     : "border-clinical-border text-clinical-zinc hover:border-clinical-gold/30 hover:text-clinical-gold"
@@ -711,7 +729,7 @@ export default function Menu() {
               <button
                 key={opt}
                 onClick={() => setDiet(opt)}
-                className={`shrink-0 inline-flex items-center gap-1.5 px-3 min-h-[32px] rounded-full border text-[11px] uppercase tracking-[0.12em] font-semibold transition-all ${
+                className={`shrink-0 inline-flex items-center gap-1.5 px-3 min-h-[44px] sm:min-h-[32px] rounded-full border text-[11px] uppercase tracking-[0.12em] font-semibold transition-all ${
                   active
                     ? "border-clinical-gold/50 bg-clinical-gold/10 text-clinical-gold"
                     : "border-clinical-border text-clinical-zinc hover:text-clinical-gold"
@@ -740,7 +758,7 @@ export default function Menu() {
                   key={c}
                   onClick={() => setCategory(c)}
                   aria-pressed={active}
-                  className={`shrink-0 inline-flex items-center px-3 min-h-[32px] rounded-full border text-[11px] uppercase tracking-[0.12em] font-semibold transition-all ${
+                  className={`shrink-0 inline-flex items-center px-3 min-h-[44px] sm:min-h-[32px] rounded-full border text-[11px] uppercase tracking-[0.12em] font-semibold transition-all ${
                     active
                       ? "border-clinical-gold/50 bg-clinical-gold/10 text-clinical-gold"
                       : "border-clinical-border text-clinical-zinc hover:text-clinical-gold"
@@ -769,7 +787,7 @@ export default function Menu() {
                   key={k}
                   onClick={() => setKitchen(k)}
                   aria-pressed={active}
-                  className={`shrink-0 inline-flex items-center px-3 min-h-[32px] rounded-full border text-[11px] uppercase tracking-[0.12em] font-semibold transition-all ${
+                  className={`shrink-0 inline-flex items-center px-3 min-h-[44px] sm:min-h-[32px] rounded-full border text-[11px] uppercase tracking-[0.12em] font-semibold transition-all ${
                     active
                       ? "border-clinical-gold/50 bg-clinical-gold/10 text-clinical-gold"
                       : "border-clinical-border text-clinical-zinc hover:text-clinical-gold"
@@ -920,7 +938,7 @@ export default function Menu() {
           filter rails — a known browse-friction point flagged in the
           adoption audit (P1 #19). */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-4">
-        {filtered.map(({ dish: item, match }, idx) => (
+        {filtered.slice(0, visibleCount).map(({ dish: item, match }, idx) => (
           <MenuCard
             key={item.id}
             item={item}
@@ -936,6 +954,21 @@ export default function Menu() {
           />
         ))}
       </div>
+
+      {visibleCount < filtered.length && (
+        <div className="flex justify-center pt-2">
+          <Button
+            variant="outline"
+            onClick={() => setVisibleCount((n) => n + PAGE_SIZE)}
+            className="min-h-11 border-clinical-gold/40 bg-transparent text-clinical-gold hover:bg-clinical-gold/10 hover:text-clinical-gold px-6 text-[11px] uppercase tracking-[0.12em] font-semibold"
+          >
+            Load {Math.min(PAGE_SIZE, filtered.length - visibleCount)} more
+            <span className="ml-2 text-clinical-zinc tabular-nums">
+              ({visibleCount} / {filtered.length})
+            </span>
+          </Button>
+        </div>
+      )}
     </div>
   );
 }

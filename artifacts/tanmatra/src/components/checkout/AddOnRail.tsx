@@ -124,7 +124,8 @@ function AddonTile({
             <button
               type="button"
               onClick={() => onQty(1)}
-              className="px-2 py-0.5 rounded text-[10px] font-semibold bg-clinical-gold text-[#050505] hover:bg-clinical-gold/90"
+              aria-label={`Add ${addon.name}`}
+              className="min-w-11 min-h-9 px-3 rounded text-[10px] font-semibold bg-clinical-gold text-[#050505] hover:bg-clinical-gold/90"
             >
               ADD
             </button>
@@ -133,21 +134,21 @@ function AddonTile({
               <button
                 type="button"
                 onClick={() => onQty(qty - 1)}
-                aria-label="Decrease"
-                className="w-5 h-5 rounded bg-clinical-surface-elevated text-white flex items-center justify-center hover:bg-clinical-slate/60"
+                aria-label="Decrease quantity"
+                className="w-9 h-9 rounded bg-clinical-surface-elevated text-white flex items-center justify-center hover:bg-clinical-slate/60 active:scale-95 transition-transform"
               >
-                <Minus className="w-3 h-3" />
+                <Minus className="w-3.5 h-3.5" />
               </button>
-              <span className="text-[11px] text-white tabular-nums w-4 text-center">
+              <span className="text-[11px] text-white tabular-nums w-5 text-center">
                 {qty}
               </span>
               <button
                 type="button"
                 onClick={() => onQty(qty + 1)}
-                aria-label="Increase"
-                className="w-5 h-5 rounded bg-clinical-gold text-[#050505] flex items-center justify-center hover:bg-clinical-gold/90"
+                aria-label="Increase quantity"
+                className="w-9 h-9 rounded bg-clinical-gold text-[#050505] flex items-center justify-center hover:bg-clinical-gold/90 active:scale-95 transition-transform"
               >
-                <Plus className="w-3 h-3" />
+                <Plus className="w-3.5 h-3.5" />
               </button>
             </div>
           )}
