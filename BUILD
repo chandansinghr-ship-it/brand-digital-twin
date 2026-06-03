@@ -13,6 +13,28 @@ ts_library(
 )
 
 ts_library(
+    name = "observability",
+    srcs = ["observability.ts"],
+    deps = [],
+)
+
+ts_library(
+    name = "forecasting",
+    srcs = ["forecasting.ts"],
+    deps = [],
+)
+
+ts_library(
+    name = "orchestrator",
+    srcs = ["orchestrator.ts"],
+    deps = [
+        ":governance_engine",
+        ":platform_adapter",
+        "//third_party/javascript/typings/node",
+    ],
+)
+
+ts_library(
     name = "governance_shadow",
     srcs = ["governance_shadow.ts"],
     deps = ["//third_party/javascript/typings/node"],
@@ -58,6 +80,7 @@ ts_library(
     name = "governance_engine",
     srcs = ["governance_engine.ts"],
     deps = [
+        ":observability",
         ":platform_adapter",
     ],
 )
@@ -93,6 +116,24 @@ ts_library(
 )
 
 ts_library(
+    name = "simulation",
+    srcs = ["simulation.ts"],
+    deps = [
+        ":governance_engine",
+        ":platform_adapter",
+        "//third_party/javascript/typings/node",
+    ],
+)
+
+ts_library(
+    name = "rate_limiter",
+    srcs = ["rate_limiter.ts"],
+    deps = [
+        ":platform_adapter",
+    ],
+)
+
+ts_library(
     name = "google_express",
     srcs = ["google_express.ts"],
     deps = [],
@@ -108,6 +149,7 @@ ts_library(
     name = "brand_twin_tests",
     testonly = True,
     srcs = [
+        "advanced_features_test.ts",
         "onboarding_simulator_test.ts",
         "phase1_test.ts",
         "phase2_test.ts",
@@ -117,15 +159,20 @@ ts_library(
     ],
     deps = [
         ":analyst_agent",
+        ":forecasting",
         ":google_ads_adapter",
         ":google_express",
         ":governance_engine",
         ":identity_resolver",
         ":meta_ads_adapter",
+        ":observability",
         ":onboarding_simulator",
+        ":orchestrator",
         ":platform_adapter",
         ":rbi_aa_adapter",
+        ":rate_limiter",
         ":risk_radar",
+        ":simulation",
         ":shopify_adapter",
         ":tally_adapter",
         ":whatsapp_adapter",
@@ -155,6 +202,11 @@ jasmine_node_test(
 
 jasmine_node_test(
     name = "phase4_test",
+    srcs = [":brand_twin_tests"],
+)
+
+jasmine_node_test(
+    name = "advanced_features_test",
     srcs = [":brand_twin_tests"],
 )
 

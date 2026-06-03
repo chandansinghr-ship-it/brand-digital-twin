@@ -24,12 +24,12 @@ export class GoogleAdsAdapter implements PlatformAdapter {
   readonly platform = "google";
   readonly schemaVersion = `google_ads@${API_VERSION}`;
   readonly capabilities: Capability[] = [
-    { entity: "campaign", ops: ["read", "update_budget", "pause", "activate"], reversible: true },
+    { entity: "campaign", ops: ["read", "update_budget", "pause", "activate", "scale_budget", "update_feed"], reversible: true },
     { entity: "spend_fact", ops: ["read"], reversible: true },
   ];
 
   // In-memory campaign state simulator for write operations
-  private simulatedCampaigns: Map<string, { name?: string; budget: number; status: string }> = new Map();
+  private simulatedCampaigns: Map<string, { name?: string; budget: number; status: string; activeVariantId?: string }> = new Map();
 
   constructor(
     private customerId: string,
@@ -167,6 +167,12 @@ export class GoogleAdsAdapter implements PlatformAdapter {
         return { request: req, valid: false, projectedCost: 0, warnings: ["Invalid budget update value."] };
       }
       projectedCost = Math.abs(payload.budget - (camp?.budget ?? 0));
+    } else if (req.op === "scale_budget") {
+      const payload = req.payload as { scaleFactor: number };
+      if (!payload || typeof payload.scaleFactor !== "number" || payload.scaleFactor <= 0) {
+        return { request: req, valid: false, projectedCost: 0, warnings: ["Invalid budget scale factor."] };
+      }
+      projectedCost = (camp?.budget ?? 0) * Math.abs(payload.scaleFactor - 1.0);
     }
 
     return {
@@ -191,6 +197,19 @@ export class GoogleAdsAdapter implements PlatformAdapter {
       this.simulatedCampaigns.set(req.targetId, {
         budget: payload.budget,
         status: camp?.status ?? "ENABLED",
+      });
+    } else if (req.op === "scale_budget") {
+      const payload = req.payload as { scaleFactor: number };
+      this.simulatedCampaigns.set(req.targetId, {
+        budget: (camp?.budget ?? 0) * payload.scaleFactor,
+        status: camp?.status ?? "ENABLED",
+      });
+    } else if (req.op === "update_feed") {
+      this.simulatedCampaigns.set(req.targetId, {
+        name: camp?.name,
+        budget: camp?.budget ?? 0,
+        status: camp?.status ?? "ENABLED",
+        activeVariantId: (req.payload as any)?.activeVariantId,
       });
     } else if (req.op === "pause") {
       this.simulatedCampaigns.set(req.targetId, {

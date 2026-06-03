@@ -1,6 +1,6 @@
 // PlatformAdapter interface and canonical contract definitions.
 
-export type Op = "read" | "update_budget" | "pause" | "activate";
+export type Op = "read" | "update_budget" | "pause" | "activate" | "scale_budget" | "update_feed";
 
 export interface Capability {
   entity: string; // 'campaign' | 'order' | 'audience' | etc.
@@ -20,6 +20,7 @@ export interface RollbackHandle {
   rollbackId: string;
   platform: string;
   originalState: unknown;
+  scaleFactor?: number;
 }
 
 export interface ActionRequest {
