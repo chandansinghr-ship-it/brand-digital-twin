@@ -334,7 +334,7 @@ describe('Omnichannel Storefront Adapters Integration Test', () => {
         source: 'ads',
         type: 'low_performance_roi',
         severity: 'high',
-        message: 'Campaign ROI drop',
+        message: 'Campaign POAS below threshold',
         payload: {campaignId: 'c1'},
         timestamp: Date.now(),
       });
