@@ -369,3 +369,35 @@ BEGIN
   RETURN;
 END;
 $$ LANGUAGE plpgsql;
+
+-- Auth & Org Hierarchy tables
+CREATE TABLE IF NOT EXISTS brand_twin.users(
+  user_id       STRING NOT NULL, -- PK
+  email         STRING NOT NULL, -- UNIQUE
+  pw_hash       STRING NOT NULL,
+  status        STRING NOT NULL, -- 'pending_verification' | 'active' | 'disabled'
+  created_at    TIMESTAMP)
+  CLUSTER BY user_id;
+
+CREATE TABLE IF NOT EXISTS brand_twin.refresh_tokens(
+  token_hash STRING NOT NULL, -- PK
+  user_id    STRING NOT NULL,
+  expires_at TIMESTAMP NOT NULL,
+  revoked    BOOLEAN NOT NULL,
+  created_at TIMESTAMP)
+  CLUSTER BY token_hash;
+
+CREATE TABLE IF NOT EXISTS brand_twin.orgs(
+  org_id     STRING NOT NULL, -- PK
+  name       STRING NOT NULL,
+  owner_user STRING NOT NULL,
+  plan       STRING NOT NULL,
+  created_at TIMESTAMP)
+  CLUSTER BY org_id;
+
+CREATE TABLE IF NOT EXISTS brand_twin.org_members(
+  org_id STRING NOT NULL,
+  user_id STRING NOT NULL,
+  role STRING NOT NULL,
+  PRIMARY KEY (org_id, user_id));
+

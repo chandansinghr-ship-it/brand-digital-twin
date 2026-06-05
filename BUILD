@@ -382,6 +382,17 @@ ts_library(
 )
 
 ts_library(
+    name = "user_auth",
+    srcs = ["user_auth.ts"],
+    deps = [
+        ":auth",
+        ":errors",
+        ":supabase_client",
+        "//third_party/javascript/typings/node",
+    ],
+)
+
+ts_library(
     name = "validation",
     srcs = ["validation.ts"],
     deps = [
@@ -463,6 +474,7 @@ ts_library(
         ":rate_limiter",
         ":supabase_client",
         ":unified_brain",
+        ":user_auth",
         ":validation",
         "//third_party/javascript/typings/node",
     ],
@@ -493,6 +505,7 @@ ts_library(
         "shopify_adapter_test.ts",
         "stakeholder_portal_test.ts",
         "supabase_client_test.ts",
+        "user_auth_test.ts",
     ],
     deps = [
         ":account_health",
@@ -537,6 +550,7 @@ ts_library(
         ":supabase_client",
         ":tally_adapter",
         ":unified_brain",
+        ":user_auth",
         ":whatsapp_adapter",
         ":woocommerce_adapter",
         ":workspace_connectors",
@@ -642,5 +656,10 @@ jasmine_node_test(
 
 jasmine_node_test(
     name = "plaid_adapter_test",
+    srcs = [":brand_twin_tests"],
+)
+
+jasmine_node_test(
+    name = "user_auth_test",
     srcs = [":brand_twin_tests"],
 )

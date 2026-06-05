@@ -20,7 +20,9 @@ import {
   TrustLedger,
   Waiver,
 } from './governance_engine';
-import {SupabaseClient} from './supabase_client';
+import {SupabaseClient, OrgEntry} from './supabase_client';
+import {signup, verifyEmail, login, rotateRefreshToken} from './user_auth';
+import * as crypto from 'crypto';
 import {UnifiedIntelligenceBrain} from './unified_brain';
 import {IdentityResolver} from './identity_resolver';
 import {PersistentAuditSink} from './audit_sink';
@@ -39,9 +41,29 @@ eventBus.on('event', (data) => {
 });
 
 const ipLimiters = new Map<string, TokenBucket>();
+const authIpLimiters = new Map<string, TokenBucket>();
 
 export function resetRateLimiters(): void {
   ipLimiters.clear();
+  authIpLimiters.clear();
+}
+
+function checkAuthRateLimit(req: http.IncomingMessage): void {
+  const ip =
+    (req.headers['x-forwarded-for'] as string) ||
+    req.socket.remoteAddress ||
+    'unknown';
+  let bucket = authIpLimiters.get(ip);
+  if (!bucket) {
+    bucket = new TokenBucket(
+      5, // max 5 login/signup requests burst
+      0.5 // refill 1 token every 2 seconds
+    );
+    authIpLimiters.set(ip, bucket);
+  }
+  if (!bucket.tryAcquire()) {
+    throw new RateLimitError('Too many auth attempts. Please wait.');
+  }
 }
 
 const googleAdsLimiter = new TokenBucket(
@@ -265,6 +287,94 @@ export function startServer(port: number, db: SupabaseClient): http.Server {
         return;
       }
 
+      // C. Public User Auth endpoints
+      if (path === '/api/v1/auth/signup' && req.method === 'POST') {
+        checkAuthRateLimit(req);
+        const body = await parseRequestBody(req);
+        const {email, password, orgName} = body;
+        if (!email || !password || !orgName) {
+          res.writeHead(400, {'Content-Type': 'application/json'});
+          res.end(JSON.stringify({error: 'Missing required parameters'}));
+          return;
+        }
+        try {
+          const {user, verificationToken} = await signup(db, email, password, orgName, config.auth.jwtSecret);
+          sendSuccessResponse(res, {
+            status: 'success',
+            message: 'Signup successful. Verification token generated.',
+            userId: user.user_id,
+            verificationToken,
+          });
+        } catch (err: any) {
+          res.writeHead(400, {'Content-Type': 'application/json'});
+          res.end(JSON.stringify({error: err.message || String(err)}));
+        }
+        return;
+      }
+
+      if (path === '/api/v1/auth/verify' && req.method === 'POST') {
+        const body = await parseRequestBody(req);
+        const {token} = body;
+        if (!token) {
+          res.writeHead(400, {'Content-Type': 'application/json'});
+          res.end(JSON.stringify({error: 'Missing verification token'}));
+          return;
+        }
+        const success = await verifyEmail(db, token, config.auth.jwtSecret);
+        if (success) {
+          sendSuccessResponse(res, {status: 'success', message: 'Email verified. Account active.'});
+        } else {
+          res.writeHead(400, {'Content-Type': 'application/json'});
+          res.end(JSON.stringify({error: 'Invalid or expired verification token'}));
+        }
+        return;
+      }
+
+      if (path === '/api/v1/auth/login' && req.method === 'POST') {
+        checkAuthRateLimit(req);
+        const body = await parseRequestBody(req);
+        const {email, password} = body;
+        if (!email || !password) {
+          res.writeHead(400, {'Content-Type': 'application/json'});
+          res.end(JSON.stringify({error: 'Missing credentials'}));
+          return;
+        }
+        try {
+          const {accessToken, refreshToken} = await login(db, email, password, config.auth.jwtSecret);
+          sendSuccessResponse(res, {
+            status: 'success',
+            accessToken,
+            refreshToken,
+          });
+        } catch (err: any) {
+          res.writeHead(401, {'Content-Type': 'application/json'});
+          res.end(JSON.stringify({error: err.message || String(err)}));
+        }
+        return;
+      }
+
+      if (path === '/api/v1/auth/refresh' && req.method === 'POST') {
+        const body = await parseRequestBody(req);
+        const {refreshToken} = body;
+        if (!refreshToken) {
+          res.writeHead(400, {'Content-Type': 'application/json'});
+          res.end(JSON.stringify({error: 'Missing refresh token'}));
+          return;
+        }
+        try {
+          const {accessToken, refreshToken: newRefreshToken} = await rotateRefreshToken(db, refreshToken, config.auth.jwtSecret);
+          sendSuccessResponse(res, {
+            status: 'success',
+            accessToken,
+            refreshToken: newRefreshToken,
+          });
+        } catch (err: any) {
+          res.writeHead(401, {'Content-Type': 'application/json'});
+          res.end(JSON.stringify({error: err.message || String(err)}));
+        }
+        return;
+      }
+
       // Centralized Authentication for all v1 API endpoints
       let decodedToken: DecodedJwt;
       try {
@@ -284,6 +394,118 @@ export function startServer(port: number, db: SupabaseClient): http.Server {
       }
 
       const tenantId = decodedToken.orgId;
+
+      // 1. GET /me (Retrieve current user, their orgs, and associated brands)
+      if (path === '/api/v1/me' && req.method === 'GET') {
+        const userId = decodedToken.userId;
+        const user = await db.getUserById(userId);
+        if (!user) {
+          res.writeHead(404, {'Content-Type': 'application/json'});
+          res.end(JSON.stringify({error: 'User not found'}));
+          return;
+        }
+        const orgs = await db.getUserOrgs(userId);
+        const orgProfiles = await Promise.all(orgs.map(async (o) => {
+          const brands = await db.getOrgBrands(o.org_id);
+          return {
+            ...o,
+            brands,
+          };
+        }));
+        sendSuccessResponse(res, {
+          userId: user.user_id,
+          email: user.email,
+          status: user.status,
+          orgs: orgProfiles,
+        });
+        return;
+      }
+
+      // 2. POST /orgs (Create custom org)
+      if (path === '/api/v1/orgs' && req.method === 'POST') {
+        const body = await parseRequestBody(req);
+        const {name} = body;
+        if (!name) {
+          res.writeHead(400, {'Content-Type': 'application/json'});
+          res.end(JSON.stringify({error: 'Missing org name'}));
+          return;
+        }
+        const orgId = `org_${crypto.randomUUID()}`;
+        const org: OrgEntry = {
+          org_id: orgId,
+          name,
+          owner_user: decodedToken.userId,
+          plan: 'trial',
+          created_at: new Date().toISOString(),
+        };
+        await db.saveOrg(org);
+        await db.saveOrgMember({
+          org_id: orgId,
+          user_id: decodedToken.userId,
+          role: 'owner',
+        });
+        sendSuccessResponse(res, {status: 'success', orgId});
+        return;
+      }
+
+      // 3. POST /orgs/:id/brands (Create a brand/tenant under org)
+      const brandMatch = path.match(/^\/api\/v1\/orgs\/([^/]+)\/brands$/);
+      if (brandMatch && req.method === 'POST') {
+        const orgId = brandMatch[1];
+        const org = await db.getOrg(orgId);
+        if (!org) {
+          res.writeHead(404, {'Content-Type': 'application/json'});
+          res.end(JSON.stringify({error: 'Organization not found'}));
+          return;
+        }
+        // Check membership
+        const members = await db.getOrgMembers(orgId);
+        const isMember = members.some(m => m.user_id === decodedToken.userId);
+        if (!isMember) {
+          res.writeHead(403, {'Content-Type': 'application/json'});
+          res.end(JSON.stringify({error: 'Forbidden: not a member of this organization'}));
+          return;
+        }
+
+        const body = await parseRequestBody(req);
+        const {name} = body;
+        if (!name) {
+          res.writeHead(400, {'Content-Type': 'application/json'});
+          res.end(JSON.stringify({error: 'Missing brand name'}));
+          return;
+        }
+
+        const tenantId = `tenant_${crypto.randomUUID()}`;
+
+        // Save brand (as client profile in clients table)
+        await db.saveClient({
+          clientId: `cli_${crypto.randomUUID()}`,
+          orgId,
+          name,
+          mrr: 0,
+          marginTarget: 0.3,
+          healthScore: 100,
+          churnRisk: 0.0,
+          tenantId,
+        });
+
+        // Wire to existing trust ledger: auto-start trust tier at OBSERVE (level 1)
+        tl.setTier(tenantId, 'read', 1);
+        tl.setTier(tenantId, 'update_budget', 1);
+        tl.setTier(tenantId, 'pause', 1);
+        tl.setTier(tenantId, 'activate', 1);
+        tl.setTier(tenantId, 'scale_budget', 1);
+
+        // Save to persisted DB as well
+        await db.saveTrustTier(tenantId, 'read', 1);
+        await db.saveTrustTier(tenantId, 'update_budget', 1);
+        await db.saveTrustTier(tenantId, 'pause', 1);
+        await db.saveTrustTier(tenantId, 'activate', 1);
+        await db.saveTrustTier(tenantId, 'scale_budget', 1);
+
+        sendSuccessResponse(res, {status: 'success', tenantId});
+        return;
+      }
 
       // 1. SSE STREAM ENDPOINT
       if (path === '/api/v1/stream' && req.method === 'GET') {

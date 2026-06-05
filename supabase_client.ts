@@ -192,6 +192,36 @@ export interface RefundEntry {
   ingested_at: string;
 }
 
+export interface UserEntry {
+  user_id: string;
+  email: string;
+  pw_hash: string;
+  status: 'pending_verification' | 'active' | 'disabled';
+  created_at: string;
+}
+
+export interface RefreshTokenEntry {
+  token_hash: string;
+  user_id: string;
+  expires_at: string;
+  revoked: boolean;
+  created_at: string;
+}
+
+export interface OrgEntry {
+  org_id: string;
+  name: string;
+  owner_user: string;
+  plan: string;
+  created_at: string;
+}
+
+export interface OrgMemberEntry {
+  org_id: string;
+  user_id: string;
+  role: string;
+}
+
 export interface FulfillmentCostEntry {
   order_id: string;
   shipping_cost: number;
@@ -307,6 +337,10 @@ interface MockDbContainer {
   mockVariants: VariantEntry[];
   mockPendingJobs: PendingJobEntry[];
   mockOnboardingEvents: OnboardingEventEntry[];
+  mockUsers: UserEntry[];
+  mockRefreshTokens: RefreshTokenEntry[];
+  mockOrgs: OrgEntry[];
+  mockOrgMembers: OrgMemberEntry[];
 }
 
 class GlobalMockDb {
@@ -346,6 +380,10 @@ class GlobalMockDb {
   static mockVariants: VariantEntry[] = [];
   static mockPendingJobs: PendingJobEntry[] = [];
   static mockOnboardingEvents: OnboardingEventEntry[] = [];
+  static mockUsers: UserEntry[] = [];
+  static mockRefreshTokens: RefreshTokenEntry[] = [];
+  static mockOrgs: OrgEntry[] = [];
+  static mockOrgMembers: OrgMemberEntry[] = [];
 }
 
 /**
@@ -391,6 +429,10 @@ export class SupabaseClient {
     mockVariants: [],
     mockPendingJobs: [],
     mockOnboardingEvents: [],
+    mockUsers: [],
+    mockRefreshTokens: [],
+    mockOrgs: [],
+    mockOrgMembers: [],
   };
 
   static resetGlobalMockDb() {
@@ -430,6 +472,10 @@ export class SupabaseClient {
     GlobalMockDb.mockVariants = [];
     GlobalMockDb.mockPendingJobs = [];
     GlobalMockDb.mockOnboardingEvents = [];
+    GlobalMockDb.mockUsers = [];
+    GlobalMockDb.mockRefreshTokens = [];
+    GlobalMockDb.mockOrgs = [];
+    GlobalMockDb.mockOrgMembers = [];
   }
 
   private get mockTrust(): TrustEntry[] { return SupabaseClient.useSharedMockDb ? GlobalMockDb.mockTrust : this.localMockDb.mockTrust; }
@@ -540,6 +586,18 @@ export class SupabaseClient {
   private get mockOnboardingEvents(): OnboardingEventEntry[] { return SupabaseClient.useSharedMockDb ? GlobalMockDb.mockOnboardingEvents : this.localMockDb.mockOnboardingEvents; }
   private set mockOnboardingEvents(v: OnboardingEventEntry[]) { if (SupabaseClient.useSharedMockDb) GlobalMockDb.mockOnboardingEvents = v; else this.localMockDb.mockOnboardingEvents = v; }
 
+  private get mockUsers(): UserEntry[] { return SupabaseClient.useSharedMockDb ? GlobalMockDb.mockUsers : this.localMockDb.mockUsers; }
+  private set mockUsers(v: UserEntry[]) { if (SupabaseClient.useSharedMockDb) GlobalMockDb.mockUsers = v; else this.localMockDb.mockUsers = v; }
+
+  private get mockRefreshTokens(): RefreshTokenEntry[] { return SupabaseClient.useSharedMockDb ? GlobalMockDb.mockRefreshTokens : this.localMockDb.mockRefreshTokens; }
+  private set mockRefreshTokens(v: RefreshTokenEntry[]) { if (SupabaseClient.useSharedMockDb) GlobalMockDb.mockRefreshTokens = v; else this.localMockDb.mockRefreshTokens = v; }
+
+  private get mockOrgs(): OrgEntry[] { return SupabaseClient.useSharedMockDb ? GlobalMockDb.mockOrgs : this.localMockDb.mockOrgs; }
+  private set mockOrgs(v: OrgEntry[]) { if (SupabaseClient.useSharedMockDb) GlobalMockDb.mockOrgs = v; else this.localMockDb.mockOrgs = v; }
+
+  private get mockOrgMembers(): OrgMemberEntry[] { return SupabaseClient.useSharedMockDb ? GlobalMockDb.mockOrgMembers : this.localMockDb.mockOrgMembers; }
+  private set mockOrgMembers(v: OrgMemberEntry[]) { if (SupabaseClient.useSharedMockDb) GlobalMockDb.mockOrgMembers = v; else this.localMockDb.mockOrgMembers = v; }
+
   private activeTenantId: string | null = null;
   private snapshots: {
     mockTrust: TrustEntry[];
@@ -578,6 +636,10 @@ export class SupabaseClient {
     mockOnboardingEvents: OnboardingEventEntry[];
     mockBaselineContexts: Array<{tenant_id: string; context: BaselineContext}>;
     mockCategoryBenchmarks: Array<{tenant_id: string; benchmarks: CategoryBenchmarks}>;
+    mockUsers: UserEntry[];
+    mockRefreshTokens: RefreshTokenEntry[];
+    mockOrgs: OrgEntry[];
+    mockOrgMembers: OrgMemberEntry[];
   } | null = null;
 
   private readonly logger: PinoLogger;
@@ -1848,6 +1910,116 @@ export class SupabaseClient {
     return [];
   }
 
+  // --- AUTH & ORG HIERARCHY ---
+
+  async saveUser(user: UserEntry): Promise<void> {
+    if (this.mockMode) {
+      const idx = this.mockUsers.findIndex(u => u.user_id === user.user_id);
+      if (idx >= 0) {
+        this.mockUsers[idx] = user;
+      } else {
+        this.mockUsers.push(user);
+      }
+      return;
+    }
+  }
+
+  async getUserByEmail(email: string): Promise<UserEntry | null> {
+    if (this.mockMode) {
+      return this.mockUsers.find(u => u.email === email) || null;
+    }
+    return null;
+  }
+
+  async getUserById(userId: string): Promise<UserEntry | null> {
+    if (this.mockMode) {
+      return this.mockUsers.find(u => u.user_id === userId) || null;
+    }
+    return null;
+  }
+
+  async saveRefreshToken(token: RefreshTokenEntry): Promise<void> {
+    if (this.mockMode) {
+      const idx = this.mockRefreshTokens.findIndex(t => t.token_hash === token.token_hash);
+      if (idx >= 0) {
+        this.mockRefreshTokens[idx] = token;
+      } else {
+        this.mockRefreshTokens.push(token);
+      }
+      return;
+    }
+  }
+
+  async getRefreshTokenHash(tokenHash: string): Promise<RefreshTokenEntry | null> {
+    if (this.mockMode) {
+      return this.mockRefreshTokens.find(t => t.token_hash === tokenHash) || null;
+    }
+    return null;
+  }
+
+  async revokeRefreshToken(tokenHash: string): Promise<void> {
+    if (this.mockMode) {
+      const token = this.mockRefreshTokens.find(t => t.token_hash === tokenHash);
+      if (token) {
+        token.revoked = true;
+      }
+      return;
+    }
+  }
+
+  async saveOrg(org: OrgEntry): Promise<void> {
+    if (this.mockMode) {
+      const idx = this.mockOrgs.findIndex(o => o.org_id === org.org_id);
+      if (idx >= 0) {
+        this.mockOrgs[idx] = org;
+      } else {
+        this.mockOrgs.push(org);
+      }
+      return;
+    }
+  }
+
+  async getOrg(orgId: string): Promise<OrgEntry | null> {
+    if (this.mockMode) {
+      return this.mockOrgs.find(o => o.org_id === orgId) || null;
+    }
+    return null;
+  }
+
+  async saveOrgMember(member: OrgMemberEntry): Promise<void> {
+    if (this.mockMode) {
+      const idx = this.mockOrgMembers.findIndex(m => m.org_id === member.org_id && m.user_id === member.user_id);
+      if (idx >= 0) {
+        this.mockOrgMembers[idx] = member;
+      } else {
+        this.mockOrgMembers.push(member);
+      }
+      return;
+    }
+  }
+
+  async getOrgMembers(orgId: string): Promise<OrgMemberEntry[]> {
+    if (this.mockMode) {
+      return this.mockOrgMembers.filter(m => m.org_id === orgId);
+    }
+    return [];
+  }
+
+  async getUserOrgs(userId: string): Promise<OrgEntry[]> {
+    if (this.mockMode) {
+      const memberships = this.mockOrgMembers.filter(m => m.user_id === userId);
+      return this.mockOrgs.filter(o => memberships.some(m => m.org_id === o.org_id));
+    }
+    return [];
+  }
+
+  async getOrgBrands(orgId: string): Promise<ClientProfile[]> {
+    if (this.mockMode) {
+      return this.mockClients.filter(c => c.orgId === orgId);
+    }
+    return [];
+  }
+
   // --- TRANSACTION SIMULATION ---
   private transactionActive = false;
 
@@ -1890,6 +2062,10 @@ export class SupabaseClient {
       mockOnboardingEvents: JSON.parse(JSON.stringify(this.mockOnboardingEvents)) as OnboardingEventEntry[],
       mockBaselineContexts: JSON.parse(JSON.stringify(this.mockBaselineContexts)) as Array<{tenant_id: string; context: BaselineContext}>,
       mockCategoryBenchmarks: JSON.parse(JSON.stringify(this.mockCategoryBenchmarks)) as Array<{tenant_id: string; benchmarks: CategoryBenchmarks}>,
+      mockUsers: JSON.parse(JSON.stringify(this.mockUsers)) as UserEntry[],
+      mockRefreshTokens: JSON.parse(JSON.stringify(this.mockRefreshTokens)) as RefreshTokenEntry[],
+      mockOrgs: JSON.parse(JSON.stringify(this.mockOrgs)) as OrgEntry[],
+      mockOrgMembers: JSON.parse(JSON.stringify(this.mockOrgMembers)) as OrgMemberEntry[],
     };
     this.logger.info('Transaction boundary started');
   }
@@ -1939,6 +2115,10 @@ export class SupabaseClient {
       this.mockOnboardingEvents = this.snapshots.mockOnboardingEvents;
       this.mockBaselineContexts = this.snapshots.mockBaselineContexts;
       this.mockCategoryBenchmarks = this.snapshots.mockCategoryBenchmarks;
+      this.mockUsers = this.snapshots.mockUsers;
+      this.mockRefreshTokens = this.snapshots.mockRefreshTokens;
+      this.mockOrgs = this.snapshots.mockOrgs;
+      this.mockOrgMembers = this.snapshots.mockOrgMembers;
       this.snapshots = null;
     }
     this.logger.info('Transaction boundary rolled back');

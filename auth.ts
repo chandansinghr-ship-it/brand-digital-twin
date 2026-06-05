@@ -101,3 +101,28 @@ export function authMiddleware(
 
   return verifyJwt(token, secret);
 }
+
+/**
+ * Signs a JWT payload using native crypto HS256 algorithm.
+ */
+export function signJwt(
+  payload: Omit<DecodedJwt, 'exp'>,
+  secret: string,
+  expiresInMs: number,
+): string {
+  const header = { alg: 'HS256', typ: 'JWT' };
+  const headerB64 = Buffer.from(JSON.stringify(header)).toString('base64url');
+
+  const fullPayload: DecodedJwt = {
+    ...payload,
+    exp: Math.floor((Date.now() + expiresInMs) / 1000),
+  };
+  const payloadB64 = Buffer.from(JSON.stringify(fullPayload)).toString('base64url');
+
+  const signature = crypto
+    .createHmac('sha256', secret)
+    .update(`${headerB64}.${payloadB64}`)
+    .digest('base64url');
+
+  return `${headerB64}.${payloadB64}.${signature}`;
+}
