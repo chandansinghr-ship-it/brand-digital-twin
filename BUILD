@@ -184,9 +184,25 @@ ts_library(
 )
 
 ts_library(
+    name = "bank_adapter",
+    srcs = ["bank_adapter.ts"],
+    deps = [],
+)
+
+ts_library(
+    name = "plaid_adapter",
+    srcs = ["plaid_adapter.ts"],
+    deps = [
+        ":bank_adapter",
+    ],
+)
+
+ts_library(
     name = "rbi_aa_adapter",
     srcs = ["rbi_aa_adapter.ts"],
-    deps = [],
+    deps = [
+        ":bank_adapter",
+    ],
 )
 
 ts_library(
@@ -201,11 +217,11 @@ ts_library(
     name = "risk_radar",
     srcs = ["risk_radar.ts"],
     deps = [
+        ":bank_adapter",
         ":google_ads_adapter",
         ":governance_engine",
         ":healing_types",
         ":platform_adapter",
-        ":rbi_aa_adapter",
         ":supabase_client",
     ],
 )
@@ -398,6 +414,8 @@ ts_library(
     srcs = ["poas_scheduler.ts"],
     deps = [
         ":agency_os_types",
+        ":governance_engine",
+        ":platform_adapter",
         ":poas_calculator",
         ":supabase_client",
     ],
@@ -460,7 +478,6 @@ ts_library(
         "agency_os_test.ts",
         "credential_vault_test.ts",
         "easysaas_test.ts",
-        "enterprise_os_test.ts",
         "integrations_test.ts",
         "omnichannel_test.ts",
         "onboarding_hierarchy_test.ts",
@@ -470,6 +487,7 @@ ts_library(
         "phase2_test.ts",
         "phase3_test.ts",
         "phase4_test.ts",
+        "plaid_adapter_test.ts",
         "poas_scheduler_test.ts",
         "server_test.ts",
         "shopify_adapter_test.ts",
@@ -480,10 +498,7 @@ ts_library(
         ":account_health",
         ":agency_os",
         ":agency_os_types",
-        ":analyst_agent",
         ":attribution_engine",
-        ":audit_sink",
-        ":auth",
         ":config",
         ":coverage_monitor",
         ":credential_vault",
@@ -496,7 +511,6 @@ ts_library(
         ":google_merchant_adapter",
         ":governance_engine",
         ":governance_types",
-        ":identity_resolver",
         ":incident_response",
         ":ingestion_engine",
         ":magento_adapter",
@@ -510,6 +524,8 @@ ts_library(
         ":orchestrator",
         ":platform_adapter",
         ":poas_calculator",
+        ":bank_adapter",
+        ":plaid_adapter",
         ":poas_scheduler",
         ":rate_limiter",
         ":rbi_aa_adapter",
@@ -521,7 +537,6 @@ ts_library(
         ":supabase_client",
         ":tally_adapter",
         ":unified_brain",
-        ":validation",
         ":whatsapp_adapter",
         ":woocommerce_adapter",
         ":workspace_connectors",
@@ -622,5 +637,10 @@ jasmine_node_test(
 
 jasmine_node_test(
     name = "poas_scheduler_test",
+    srcs = [":brand_twin_tests"],
+)
+
+jasmine_node_test(
+    name = "plaid_adapter_test",
     srcs = [":brand_twin_tests"],
 )

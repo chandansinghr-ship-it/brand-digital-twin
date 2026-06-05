@@ -15,6 +15,8 @@ import {RiskRadar, VariantInventory} from './risk_radar';
 import {ChaosAdapterWrapper, ForensicReplayer} from './simulation';
 import {OpaPolicyEngine} from './opa_policy';
 import {RbiAaAdapter} from './rbi_aa_adapter';
+import {BankAdapter} from './bank_adapter';
+import {PlaidAdapter} from './plaid_adapter';
 
 class DummyAuditSink {
   records: any[] = [];
@@ -524,7 +526,7 @@ describe('Advanced Risk & Observability Features', () => {
 
   describe('Financial Runway Spend Throttling (Risk Radar)', () => {
     let googleAds: GoogleAdsAdapter;
-    let rbiAdapter: RbiAaAdapter;
+    let bankAdapter: BankAdapter;
     let radar: RiskRadar;
 
     beforeEach(async () => {
@@ -535,7 +537,7 @@ describe('Advanced Risk & Observability Features', () => {
         'tenant-1',
       );
       radar = new RiskRadar(engine, googleAds, engine.supabase, 'tenant-1');
-      rbiAdapter = new RbiAaAdapter('mock_consent_token', 'tenant-1');
+      bankAdapter = new RbiAaAdapter('mock_consent_token', 'tenant-1');
 
       // Clear campaigns before each test to ensure clean assertions
       await engine.supabase.clearCampaigns('tenant-1');
@@ -573,7 +575,7 @@ describe('Advanced Risk & Observability Features', () => {
     });
 
     it('should do nothing if runway is healthy (e.g. > 4 months)', async () => {
-      const actions = await radar.scanFinancialRunway(ctx, rbiAdapter, 500000);
+      const actions = await radar.scanFinancialRunway(ctx, bankAdapter, 500000);
       expect(actions.length).toBe(0);
 
       expect(googleAds.getSimulatedCampaign('c1')?.budget).toBe(1000);
@@ -581,7 +583,7 @@ describe('Advanced Risk & Observability Features', () => {
     });
 
     it('should scale down budgets by 40% if runway is low (e.g. 2-4 months)', async () => {
-      const actions = await radar.scanFinancialRunway(ctx, rbiAdapter, 1200000);
+      const actions = await radar.scanFinancialRunway(ctx, bankAdapter, 1200000);
       expect(actions.map(f => f.code)).toContain('scaled_campaign_c1_low_runway');
       expect(actions.map(f => f.code)).toContain('scaled_campaign_888_low_runway');
 
@@ -590,12 +592,24 @@ describe('Advanced Risk & Observability Features', () => {
     });
 
     it('should pause all active campaigns if runway is critical (e.g. < 2 months)', async () => {
-      const actions = await radar.scanFinancialRunway(ctx, rbiAdapter, 2500000);
+      const actions = await radar.scanFinancialRunway(ctx, bankAdapter, 2500000);
       expect(actions.map(f => f.code)).toContain('paused_campaign_c1_critical_runway');
       expect(actions.map(f => f.code)).toContain('paused_campaign_888_critical_runway');
 
       expect(googleAds.getSimulatedCampaign('c1')?.status).toBe('PAUSED');
       expect(googleAds.getSimulatedCampaign('888')?.status).toBe('PAUSED');
+    });
+
+    it('should scale down budgets if runway is low (e.g. 2-4 months) using PlaidAdapter', async () => {
+      const plaid = new PlaidAdapter('mock_plaid_token', 'tenant-1');
+      // SVB ($120k) + Chase ($52k) = $172,000 USD
+      // Burn = $50,000 USD -> Runway = 3.44 months (low runway range)
+      const actions = await radar.scanFinancialRunway(ctx, plaid, 50000);
+      expect(actions.map(f => f.code)).toContain('scaled_campaign_c1_low_runway');
+      expect(actions.map(f => f.code)).toContain('scaled_campaign_888_low_runway');
+
+      expect(googleAds.getSimulatedCampaign('c1')?.budget).toBe(600);
+      expect(googleAds.getSimulatedCampaign('888')?.budget).toBe(300);
     });
   });
 

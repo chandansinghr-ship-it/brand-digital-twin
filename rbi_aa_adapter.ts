@@ -1,16 +1,9 @@
 // Phase 3 — RBI Account Aggregator Adapter.
 // Fetches real-time, consent-driven bank statements and runway.
 
-export interface BankAccountSummary {
-  bankName: string;
-  accountNumber: string;
-  availableBalance: number;
-  currency: string;
-  consentId: string;
-  lastUpdated: string;
-}
+import {BankAdapter, BankAccountSummary} from './bank_adapter';
 
-export class RbiAaAdapter {
+export class RbiAaAdapter implements BankAdapter {
   readonly platform = 'rbi_account_aggregator';
   readonly schemaVersion = 'aa_flow@v1.2';
 

@@ -2,7 +2,7 @@ import {GoogleAdsAdapter} from './google_ads_adapter';
 import {Context, GovernanceEngine} from './governance_engine';
 import {ActionRequest} from './platform_adapter';
 import {SupabaseClient} from './supabase_client';
-import {RbiAaAdapter} from './rbi_aa_adapter';
+import {BankAdapter} from './bank_adapter';
 import {
   RootCause,
   Side,
@@ -282,11 +282,11 @@ export class RiskRadar {
    */
   async scanFinancialRunway(
     ctx: Context,
-    rbiAdapter: RbiAaAdapter,
-    monthlyBurnInr: number,
+    bankAdapter: BankAdapter,
+    monthlyBurn: number,
   ): Promise<SweepFinding[]> {
     const findings: SweepFinding[] = [];
-    const runwayMonths = await rbiAdapter.calculateRunwayMonths(monthlyBurnInr);
+    const runwayMonths = await bankAdapter.calculateRunwayMonths(monthlyBurn);
 
     if (runwayMonths <= 0) return [];
 
