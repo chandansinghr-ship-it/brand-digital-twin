@@ -326,30 +326,55 @@ describe('Omnichannel Storefront Adapters Integration Test', () => {
         ingested_at: new Date().toISOString(),
       });
 
-      // Map ad campaigns to products/variants in our mock database
-      // Add Brand Signals to trigger brain analysis
-      await db.saveBrandSignal({
-        signalId: 'sig-1',
-        tenantId,
-        source: 'ads',
-        type: 'low_performance_roi',
-        severity: 'high',
-        message: 'Campaign POAS below threshold',
-        payload: {campaignId: 'c1'},
-        timestamp: Date.now(),
+      // 3. Map ad campaigns to orders using touchpoints
+      await db.saveTouchpoint({
+        touchpoint_id: 'tp-1',
+        customer_id: 'cust-1',
+        campaign_id: 'c1',
+        order_id: null,
+        occurred_at: '2026-06-03T11:00:00Z',
+        type: 'click',
+        tenant_id: tenantId,
+        source_system: 'google',
+        ingested_at: new Date().toISOString(),
       });
 
-      // 3. run UnifiedIntelligenceBrain analytics to compute POAS recommendations
+      await db.saveTouchpoint({
+        touchpoint_id: 'tp-2',
+        customer_id: 'cust-2',
+        campaign_id: 'c2',
+        order_id: null,
+        occurred_at: '2026-06-03T12:30:00Z',
+        type: 'click',
+        tenant_id: tenantId,
+        source_system: 'meta',
+        ingested_at: new Date().toISOString(),
+      });
+
+      // 4. run UnifiedIntelligenceBrain analytics to compute POAS recommendations
       const recommendations = await brain.analyzeProfitability(tenantId);
       expect(recommendations).toBeDefined();
-      expect(recommendations.length).toBeGreaterThan(0);
-      
-      // Shopify order profit is $50. c1 spent $60. POAS is negative.
-      // WooCommerce order profit is $80. c2 spent $50. POAS is positive.
-      // So campaign c1 should be flagged for optimization
-      expect(recommendations[0].targetId).toBe('c1');
-      expect(recommendations[0].type).toBe('pause_campaign');
-      expect(recommendations[0].reason).toContain('POAS');
+      expect(recommendations.length).toBe(1);
+
+      // Campaign c1 spent $60 promoting PRODUCT-A on Shopify (Attributed gross revenue $90, COGS $40).
+      // POAS is 50/60 = 0.833 < 1.0 (unprofitable).
+      // Since CVR is 100% (not low), and CAC is $60 (exceeds unit margin of $50),
+      // it should be diagnosed as CPC_TOO_HIGH.
+      const card = recommendations[0];
+      expect(card.campaignId).toBe('c1');
+      expect(card.dominantCause).toBe('CPC_TOO_HIGH');
+      expect(card.poas).toBe(0.83);
+      expect(card.roas).toBeCloseTo(1.5, 1);
+
+      // Verify healing prescriptions mapping
+      expect(card.osActs.length).toBeGreaterThan(0);
+      expect(card.osActs[0].action).toContain('Lower bid');
+      expect(card.osActs[0].executableOp?.op).toBe('scale_budget');
+      expect((card.osActs[0].executableOp?.payload as any).scaleFactor).toBe(0.8);
+
+      expect(card.userApproves.length).toBe(1);
+      expect(card.userApproves[0].action).toContain('Shift keywords');
+      expect(card.adsCantFix.length).toBe(0);
     });
   });
 });

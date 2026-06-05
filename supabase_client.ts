@@ -19,6 +19,7 @@ import {
 } from './agency_os_types';
 import {BaseError} from './errors';
 import {PinoLogger} from './observability';
+import {BaselineContext, CategoryBenchmarks} from './healing_types';
 
 export interface PlatformAccountEntry {
   account_id: string;
@@ -283,6 +284,9 @@ export class SupabaseClient {
   private mockCreativeAssets: CreativeAsset[] = [];
   private mockStakeholderAssociations: StakeholderAssociation[] = [];
 
+  private mockBaselineContexts: Array<{tenant_id: string; context: BaselineContext}> = [];
+  private mockCategoryBenchmarks: Array<{tenant_id: string; benchmarks: CategoryBenchmarks}> = [];
+
   private mockPlatformAccounts: PlatformAccountEntry[] = [];
   private mockAccountLinks: AccountLinkEntry[] = [];
   private mockAccountCredentials: AccountCredentialEntry[] = [];
@@ -323,6 +327,8 @@ export class SupabaseClient {
     mockAccountCredentials: AccountCredentialEntry[];
     mockProductAdLinks: ProductAdLinkEntry[];
     mockVariants: VariantEntry[];
+    mockBaselineContexts: Array<{tenant_id: string; context: BaselineContext}>;
+    mockCategoryBenchmarks: Array<{tenant_id: string; benchmarks: CategoryBenchmarks}>;
   } | null = null;
 
   private readonly logger: PinoLogger;
@@ -1473,6 +1479,48 @@ export class SupabaseClient {
     }
   }
 
+  async getBaselineContext(tenant: string): Promise<BaselineContext | null> {
+    this.assertRls(tenant);
+    if (this.mockMode) {
+      const entry = this.mockBaselineContexts.find((c) => c.tenant_id === tenant);
+      return entry ? entry.context : null;
+    }
+    return null;
+  }
+
+  async saveBaselineContext(tenant: string, context: BaselineContext): Promise<void> {
+    this.assertRls(tenant);
+    if (this.mockMode) {
+      const idx = this.mockBaselineContexts.findIndex((c) => c.tenant_id === tenant);
+      if (idx >= 0) {
+        this.mockBaselineContexts[idx] = {tenant_id: tenant, context};
+      } else {
+        this.mockBaselineContexts.push({tenant_id: tenant, context});
+      }
+    }
+  }
+
+  async getCategoryBenchmarks(tenant: string): Promise<CategoryBenchmarks | null> {
+    this.assertRls(tenant);
+    if (this.mockMode) {
+      const entry = this.mockCategoryBenchmarks.find((b) => b.tenant_id === tenant);
+      return entry ? entry.benchmarks : null;
+    }
+    return null;
+  }
+
+  async saveCategoryBenchmarks(tenant: string, benchmarks: CategoryBenchmarks): Promise<void> {
+    this.assertRls(tenant);
+    if (this.mockMode) {
+      const idx = this.mockCategoryBenchmarks.findIndex((b) => b.tenant_id === tenant);
+      if (idx >= 0) {
+        this.mockCategoryBenchmarks[idx] = {tenant_id: tenant, benchmarks};
+      } else {
+        this.mockCategoryBenchmarks.push({tenant_id: tenant, benchmarks});
+      }
+    }
+  }
+
   // --- TRANSACTION SIMULATION ---
   private transactionActive = false;
 
@@ -1511,6 +1559,8 @@ export class SupabaseClient {
       mockAccountCredentials: JSON.parse(JSON.stringify(this.mockAccountCredentials)) as AccountCredentialEntry[],
       mockProductAdLinks: JSON.parse(JSON.stringify(this.mockProductAdLinks)) as ProductAdLinkEntry[],
       mockVariants: JSON.parse(JSON.stringify(this.mockVariants)) as VariantEntry[],
+      mockBaselineContexts: JSON.parse(JSON.stringify(this.mockBaselineContexts)) as Array<{tenant_id: string; context: BaselineContext}>,
+      mockCategoryBenchmarks: JSON.parse(JSON.stringify(this.mockCategoryBenchmarks)) as Array<{tenant_id: string; benchmarks: CategoryBenchmarks}>,
     };
     this.logger.info('Transaction boundary started');
   }
@@ -1556,6 +1606,8 @@ export class SupabaseClient {
       this.mockAccountCredentials = this.snapshots.mockAccountCredentials;
       this.mockProductAdLinks = this.snapshots.mockProductAdLinks;
       this.mockVariants = this.snapshots.mockVariants;
+      this.mockBaselineContexts = this.snapshots.mockBaselineContexts;
+      this.mockCategoryBenchmarks = this.snapshots.mockCategoryBenchmarks;
       this.snapshots = null;
     }
     this.logger.info('Transaction boundary rolled back');

@@ -14,6 +14,9 @@ import {
   StockoutPredictor,
 } from './forecasting';
 import {SupabaseClient} from './supabase_client';
+import {RecommendationCard, BaselineContext, CategoryBenchmarks} from './healing_types';
+import {PoasCalculator} from './poas_calculator';
+import {RiskRadar} from './risk_radar';
 
 export interface Recommendation {
   type: string; // 'pause_campaign' | 'scale_budget' | 'pr_response' | 'rebalance_workload' | 'client_outreach';
@@ -37,25 +40,56 @@ export class UnifiedIntelligenceBrain {
   /**
    * Evaluates campaign profitability and generates adjustments if performance decreases below benchmarks.
    */
-  async analyzeProfitability(tenantId: string): Promise<Recommendation[]> {
-    const recommendations: Recommendation[] = [];
-    const signals = await this.db.getBrandSignals(tenantId);
+  async analyzeProfitability(tenantId: string): Promise<RecommendationCard[]> {
+    const cards: RecommendationCard[] = [];
+    const calculator = new PoasCalculator(this.db);
+    const reports = await calculator.calculate(tenantId);
 
-    // Find unprofitable signals
-    const unprofitableSignals = signals.filter(
-      (s) =>
-        s.type === 'low_performance_roi' || s.type === 'compliance_violation',
-    );
-    for (const signal of unprofitableSignals) {
-      recommendations.push({
-        type: 'pause_campaign',
-        targetId: signal.payload['campaignId'] || 'unknown',
-        reason: `Unprofitable performance alert: ${signal.message}`,
-        confidence: 0.9,
-      });
+    const context = (await this.db.getBaselineContext(tenantId)) || {};
+    const dbBenchmarks = await this.db.getCategoryBenchmarks(tenantId);
+    const benchmarks: CategoryBenchmarks = dbBenchmarks || {
+      categoryMedianCvr: 0.02,
+    };
+
+    for (const report of reports) {
+      if (report.poas !== null && report.poas < 1.0 && report.breakdown) {
+        const clicks = report.clicks;
+        const orders = report.orders;
+        const diagnosis = RiskRadar.diagnoseRootCause({
+          report,
+          breakdown: report.breakdown,
+          clicks,
+          orders,
+          context,
+          benchmarks,
+        });
+
+        if (diagnosis.rootCause === 'INSUFFICIENT_DATA') {
+          continue;
+        }
+
+        const osActs = diagnosis.prescriptions.filter((p) => p.tier === 1);
+        const userApproves = diagnosis.prescriptions.filter((p) => p.tier === 2);
+        const adsCantFix = diagnosis.prescriptions.filter((p) => p.tier === 3);
+
+        cards.push({
+          campaignId: report.campaignId,
+          campaignName: report.campaignName,
+          poas: report.poas,
+          roas: report.roas || 0,
+          dollarDrag: diagnosis.evidence.dollarDrag,
+          dominantCause: diagnosis.rootCause,
+          side: diagnosis.side,
+          confidence: diagnosis.confidence,
+          caveat: diagnosis.completeness.caveat,
+          osActs,
+          userApproves,
+          adsCantFix,
+        });
+      }
     }
 
-    return recommendations;
+    return cards;
   }
 
   /**

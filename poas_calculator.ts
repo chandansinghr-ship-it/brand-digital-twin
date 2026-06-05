@@ -1,15 +1,7 @@
 import {SupabaseClient} from './supabase_client';
+import {CampaignCostBreakdown, CampaignPoasReport} from './healing_types';
 
-export interface CampaignPoasReport {
-  campaignId: string;
-  campaignName: string;
-  platform: string;
-  status: string;
-  spend: number;
-  contributionMargin: number;
-  poas: number | null;
-  roas: number | null;
-}
+
 
 export class PoasCalculator {
   constructor(private readonly db: SupabaseClient) {}
@@ -46,19 +38,23 @@ export class PoasCalculator {
       const grossRevenue = (ol.unit_price - ol.line_discount) * ol.qty;
       const unitCost = ol.unit_cost ?? 0;
       const grossMargin = (ol.unit_price - ol.line_discount - unitCost) * ol.qty;
+      const discountAmount = ol.line_discount * ol.qty;
+      const cogs = unitCost * ol.qty;
 
       const lines = orderLinesByOrder.get(ol.order_id) ?? [];
       lines.push({
         lineId: ol.order_line_id,
         grossRevenue,
         grossMargin,
+        discountAmount,
+        cogs,
+        estimatedCogs: ol.unit_cost === null || ol.unit_cost === undefined,
       });
       orderLinesByOrder.set(ol.order_id, lines);
     }
 
-    // 5. Calculate order-level contribution margin and gross revenue
-    const orderContribMap = new Map<string, number>();
-    const orderRevenueMap = new Map<string, number>();
+    // 5. Calculate order-level contribution margin, gross revenue, and cost breakdowns
+    const orderBreakdownMap = new Map<string, CampaignCostBreakdown>();
     for (const order of orders) {
       const lines = orderLinesByOrder.get(order.order_id) ?? [];
       const orderGrossRevenue = lines.reduce((sum, l) => sum + l.grossRevenue, 0);
@@ -67,6 +63,11 @@ export class PoasCalculator {
       const totalFulfillment = fc.shipping + fc.marketplace;
 
       let orderContribution = 0;
+      let orderCogs = 0;
+      let orderDiscount = 0;
+      let orderRefund = 0;
+      let estimatedCogs = false;
+
       for (const line of lines) {
         const refunded = refundMap.get(line.lineId) ?? 0;
         const allocatedFulfillment =
@@ -76,10 +77,24 @@ export class PoasCalculator {
 
         const lineContribution = line.grossMargin - refunded - allocatedFulfillment;
         orderContribution += lineContribution;
+        orderCogs += line.cogs;
+        orderDiscount += line.discountAmount;
+        orderRefund += refunded;
+        if (line.estimatedCogs) {
+          estimatedCogs = true;
+        }
       }
 
-      orderContribMap.set(order.order_id, orderContribution);
-      orderRevenueMap.set(order.order_id, orderGrossRevenue);
+      orderBreakdownMap.set(order.order_id, {
+        grossRevenue: orderGrossRevenue,
+        discountAmount: orderDiscount,
+        cogs: orderCogs,
+        fulfillment: fc.shipping,
+        marketplaceFee: fc.marketplace,
+        refunds: orderRefund,
+        contributionMargin: orderContribution,
+        estimatedCogs,
+      });
     }
 
     // 6. Attribution: Order -> Campaign (Last touch click/impression within 30 days)
@@ -120,35 +135,74 @@ export class PoasCalculator {
       }
     }
 
-    // 7. Aggregate margin and revenue by campaign
-    const campaignMarginMap = new Map<string, number>();
-    const campaignRevenueMap = new Map<string, number>();
-    for (const [orderId, contribution] of orderContribMap.entries()) {
+    // 7. Aggregate breakdowns by campaign
+    const campaignBreakdownMap = new Map<string, CampaignCostBreakdown>();
+    for (const [orderId, orderBreakdown] of orderBreakdownMap.entries()) {
       const campaignId = orderAttribution.get(orderId) ?? 'ORGANIC';
-      const curMargin = campaignMarginMap.get(campaignId) ?? 0;
-      campaignMarginMap.set(campaignId, curMargin + contribution);
+      const cur = campaignBreakdownMap.get(campaignId) ?? {
+        grossRevenue: 0,
+        discountAmount: 0,
+        cogs: 0,
+        fulfillment: 0,
+        marketplaceFee: 0,
+        refunds: 0,
+        contributionMargin: 0,
+        estimatedCogs: false,
+      };
 
-      const revenue = orderRevenueMap.get(orderId) ?? 0;
-      const curRev = campaignRevenueMap.get(campaignId) ?? 0;
-      campaignRevenueMap.set(campaignId, curRev + revenue);
+      campaignBreakdownMap.set(campaignId, {
+        grossRevenue: cur.grossRevenue + orderBreakdown.grossRevenue,
+        discountAmount: cur.discountAmount + orderBreakdown.discountAmount,
+        cogs: cur.cogs + orderBreakdown.cogs,
+        fulfillment: cur.fulfillment + orderBreakdown.fulfillment,
+        marketplaceFee: cur.marketplaceFee + orderBreakdown.marketplaceFee,
+        refunds: cur.refunds + orderBreakdown.refunds,
+        contributionMargin: cur.contributionMargin + orderBreakdown.contributionMargin,
+        estimatedCogs: cur.estimatedCogs || orderBreakdown.estimatedCogs,
+      });
     }
 
-    // 8. Aggregate spend by campaign
+    // 8. Aggregate spend, clicks, and orders by campaign
     const campaignSpendMap = new Map<string, number>();
     for (const sf of spendFacts) {
       const cur = campaignSpendMap.get(sf.campaign_id) ?? 0;
       campaignSpendMap.set(sf.campaign_id, cur + sf.amount);
     }
 
+    const campaignClicksMap = new Map<string, number>();
+    for (const tp of touchpoints) {
+      if (tp.type === 'click') {
+        const campaignId = tp.campaign_id ?? 'ORGANIC';
+        const cur = campaignClicksMap.get(campaignId) ?? 0;
+        campaignClicksMap.set(campaignId, cur + 1);
+      }
+    }
+
+    const campaignOrdersCountMap = new Map<string, number>();
+    for (const [orderId, campaignId] of orderAttribution.entries()) {
+      const cur = campaignOrdersCountMap.get(campaignId) ?? 0;
+      campaignOrdersCountMap.set(campaignId, cur + 1);
+    }
+
     // 9. Generate final reports
     const reports: CampaignPoasReport[] = [];
     for (const c of campaigns) {
       const spend = campaignSpendMap.get(c.campaign_id) ?? 0;
-      const contributionMargin = campaignMarginMap.get(c.campaign_id) ?? 0;
-      const poas = spend > 0 ? Math.round((contributionMargin / spend) * 100) / 100 : null;
-
-      const revenue = campaignRevenueMap.get(c.campaign_id) ?? 0;
-      const roas = spend > 0 ? Math.round((revenue / spend) * 100) / 100 : null;
+      const bd = campaignBreakdownMap.get(c.campaign_id) ?? {
+        grossRevenue: 0,
+        discountAmount: 0,
+        cogs: 0,
+        fulfillment: 0,
+        marketplaceFee: 0,
+        refunds: 0,
+        contributionMargin: 0,
+        estimatedCogs: false,
+      };
+      
+      const poas = spend > 0 ? Math.round((bd.contributionMargin / spend) * 100) / 100 : null;
+      const roas = spend > 0 ? Math.round((bd.grossRevenue / spend) * 100) / 100 : null;
+      const clicks = campaignClicksMap.get(c.campaign_id) ?? 0;
+      const ordersCount = campaignOrdersCountMap.get(c.campaign_id) ?? 0;
 
       reports.push({
         campaignId: c.campaign_id,
@@ -156,25 +210,36 @@ export class PoasCalculator {
         platform: c.platform,
         status: c.status,
         spend,
-        contributionMargin,
+        contributionMargin: bd.contributionMargin,
         poas,
         roas,
+        breakdown: {
+          ...bd,
+          spend,
+        },
+        clicks,
+        orders: ordersCount,
       });
     }
 
     // Add ORGANIC pseudo-campaign report if it generated margin or revenue
-    const organicMargin = campaignMarginMap.get('ORGANIC') ?? 0;
-    const organicRevenue = campaignRevenueMap.get('ORGANIC') ?? 0;
-    if (organicMargin > 0 || organicRevenue > 0) {
+    const organicBd = campaignBreakdownMap.get('ORGANIC');
+    if (organicBd && (organicBd.contributionMargin > 0 || organicBd.grossRevenue > 0)) {
       reports.push({
         campaignId: 'ORGANIC',
         campaignName: 'Organic Traffic (Unattributed)',
         platform: 'organic',
         status: 'active',
         spend: 0,
-        contributionMargin: organicMargin,
+        contributionMargin: organicBd.contributionMargin,
         poas: null,
         roas: null,
+        breakdown: {
+          ...organicBd,
+          spend: 0,
+        },
+        clicks: campaignClicksMap.get('ORGANIC') ?? 0,
+        orders: campaignOrdersCountMap.get('ORGANIC') ?? 0,
       });
     }
 

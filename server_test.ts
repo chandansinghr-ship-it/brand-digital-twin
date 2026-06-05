@@ -169,23 +169,86 @@ describe('Native HTTP & SSE Server Integration Test', () => {
   });
 
   it('should return recommendations list on GET /api/v1/recommendations', async () => {
-    // Generate some test brand signals to cause recommendations
-    await db.saveBrandSignal({
-      signalId: 'sig-1',
-      tenantId: 'test-tenant',
-      source: 'sentiment',
-      type: 'low_performance_roi',
-      severity: 'high',
-      message: 'ROI dropped under threshold',
-      payload: {campaignId: 'nike-summer-1'},
-      timestamp: Date.now(),
+    // Seed campaign, spend, orders, and touchpoints to trigger profitability analysis
+    await db.saveCampaign({
+      campaign_id: 'nike-summer-1',
+      platform: 'google',
+      name: 'Nike Summer Campaign',
+      objective: 'sales',
+      status: 'ENABLED',
+      surface: 'google_search_network',
+      tenant_id: 'test-tenant',
+      source_system: 'google',
+      source_id: 'nike-summer-1',
+      source_version: '1.0',
+      ingested_at: new Date().toISOString(),
+    });
+
+    await db.saveSpendFact({
+      campaign_id: 'nike-summer-1',
+      platform: 'google',
+      day: new Date().toISOString().split('T')[0],
+      amount: 60.0,
+      currency: 'USD',
+      tenant_id: 'test-tenant',
+      source_system: 'google',
+      ingested_at: new Date().toISOString(),
+    });
+
+    await db.saveOrder({
+      order_id: 'nike-o1',
+      customer_id: 'nike-cust-1',
+      account_id: null,
+      channel: 'b2c_web',
+      surface: 'shopify',
+      placed_at: '2026-06-03T12:00:00Z',
+      currency: 'USD',
+      gross_revenue: 100,
+      total_discounts: 10,
+      total_tax: 5,
+      shipping_charged: 5,
+      status: 'PAID',
+      tenant_id: 'test-tenant',
+      source_system: 'shopify',
+      source_id: 'nike-o1',
+      source_version: '1.0',
+      ingested_at: new Date().toISOString(),
+    });
+
+    await db.saveOrderLine({
+      order_line_id: 'nike-li1',
+      order_id: 'nike-o1',
+      variant_id: 'v1',
+      sku: 'PRODUCT-NIKE-A',
+      qty: 1,
+      unit_price: 90,
+      line_discount: 0,
+      unit_cost: 40,
+      tenant_id: 'test-tenant',
+      source_system: 'shopify',
+      source_id: 'nike-li1',
+      source_version: '1.0',
+      ingested_at: new Date().toISOString(),
+    });
+
+    await db.saveTouchpoint({
+      touchpoint_id: 'nike-tp1',
+      customer_id: 'nike-cust-1',
+      campaign_id: 'nike-summer-1',
+      order_id: null,
+      occurred_at: '2026-06-03T11:00:00Z',
+      type: 'click',
+      tenant_id: 'test-tenant',
+      source_system: 'google',
+      ingested_at: new Date().toISOString(),
     });
 
     const res = await getJson('/api/v1/recommendations');
     expect(res.status).toBe('success');
     expect(res.data.recommendations).toBeDefined();
     expect(res.data.recommendations.length).toBeGreaterThan(0);
-    expect(res.data.recommendations[0].type).toBe('pause_campaign');
+    expect(res.data.recommendations[0].campaignId).toBe('nike-summer-1');
+    expect(res.data.recommendations[0].dominantCause).toBe('CPC_TOO_HIGH');
   });
 
   it('should retrieve approvals list on GET /api/v1/approvals', async () => {

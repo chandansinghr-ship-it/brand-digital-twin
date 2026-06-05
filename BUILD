@@ -13,6 +13,14 @@ ts_library(
 )
 
 ts_library(
+    name = "healing_types",
+    srcs = ["healing_types.ts"],
+    deps = [
+        ":platform_adapter",
+    ],
+)
+
+ts_library(
     name = "observability",
     srcs = ["observability.ts"],
     deps = [],
@@ -138,6 +146,7 @@ ts_library(
     deps = [
         ":agency_os_types",
         ":errors",
+        ":healing_types",
         ":observability",
     ],
 )
@@ -196,6 +205,7 @@ ts_library(
     deps = [
         ":google_ads_adapter",
         ":governance_engine",
+        ":healing_types",
         ":platform_adapter",
         ":rbi_aa_adapter",
         ":supabase_client",
@@ -265,6 +275,9 @@ ts_library(
     deps = [
         ":agency_os_types",
         ":forecasting",
+        ":healing_types",
+        ":poas_calculator",
+        ":risk_radar",
         ":supabase_client",
     ],
 )
@@ -378,6 +391,7 @@ ts_library(
     name = "poas_calculator",
     srcs = ["poas_calculator.ts"],
     deps = [
+        ":healing_types",
         ":supabase_client",
     ],
 )
