@@ -104,6 +104,7 @@ function parseRequestBody(req: http.IncomingMessage): Promise<any> {
       const buf = typeof chunk === 'string' ? Buffer.from(chunk) : chunk;
       bytesReceived += buf.length;
       if (bytesReceived > maxLimit) {
+        setTimeout(() => req.destroy(), 100);
         reject(new PayloadTooLargeError('Payload exceeds 10MB limit'));
         return;
       }
@@ -122,12 +123,25 @@ function parseRequestBody(req: http.IncomingMessage): Promise<any> {
   });
 }
 
+function keysToCamelCase(obj: any): any {
+  if (Array.isArray(obj)) {
+    return obj.map(v => keysToCamelCase(v));
+  } else if (obj !== null && obj !== undefined && obj.constructor === Object) {
+    return Object.keys(obj).reduce((result, key) => {
+      const camelKey = key.replace(/_([a-z])/g, (g) => g[1].toUpperCase());
+      result[camelKey] = keysToCamelCase(obj[key]);
+      return result;
+    }, {} as any);
+  }
+  return obj;
+}
+
 function sendSuccessResponse(res: http.ServerResponse, data: any) {
   res.writeHead(200, {'Content-Type': 'application/json'});
   res.end(
     JSON.stringify({
       status: 'success',
-      data,
+      data: keysToCamelCase(data),
       timestamp: new Date().toISOString(),
     }),
   );
@@ -1335,6 +1349,10 @@ export function startServer(port: number, db: SupabaseClient): http.Server {
       sendErrorResponse(res, err);
     }
   });
+
+  server.headersTimeout = 60000; // 60s
+  server.requestTimeout = 300000; // 5m
+  server.keepAliveTimeout = 5000; // 5s
 
   return server.listen(port);
 }
