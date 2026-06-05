@@ -72,7 +72,7 @@ COGS + billing. **A stranger still can't connect a platform or click anything.**
 | # | Item | Size | File(s) |
 |---|------|------|---------|
 | A3.1 | ✅ **DONE** — Next.js `app/` scaffold imported and configured (Tailwind, TanStack Query, types, API client, DualMetricCard). | L | `app/` |
-| A3.2 | ◐ **STARTED** — first screen built: POAS dashboard hero + `DualMetricCard` (worst-first sort, MOCK mode). 8 screens + SSE client remain | XL | `app/` |
+| A3.2 | ◐ **IN PROGRESS** — built: POAS dashboard hero (`DualMetricCard`) + **three-zone healing screen** (`HealingCard` — OS acts / you decide / ads can't fix) + shared `Nav` (worst-first sort, MOCK mode). ~7 screens + SSE client remain | XL | `app/` |
 | A3.3 | ✅ **DONE** — `GET /api/v1/profit-readiness` endpoint + calculator | M | `server.ts`, `profit_readiness.ts` |
 
 > **Phase A note:** the MCP agent layer (`a6ab7db`) already exposes engine tools
