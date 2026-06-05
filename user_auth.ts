@@ -208,9 +208,10 @@ export async function rotateRefreshToken(
 
   if (storedToken.revoked || new Date(storedToken.expires_at).getTime() < Date.now()) {
     // Abuse detection: if a revoked refresh token is re-presented, revoke all tokens for that user!
-    const tokens = db['mockRefreshTokens'].filter(t => t.user_id === storedToken.user_id);
+    const tokens = await db.getRefreshTokensForUser(storedToken.user_id);
     for (const t of tokens) {
       t.revoked = true;
+      await db.saveRefreshToken(t);
     }
     throw new AuthError('Token compromised: session revoked');
   }

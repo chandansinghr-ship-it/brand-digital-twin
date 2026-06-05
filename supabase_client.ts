@@ -1967,6 +1967,13 @@ export class SupabaseClient {
     }
   }
 
+  async getRefreshTokensForUser(userId: string): Promise<RefreshTokenEntry[]> {
+    if (this.mockMode) {
+      return this.mockRefreshTokens.filter(t => t.user_id === userId);
+    }
+    return [];
+  }
+
   async saveOrg(org: OrgEntry): Promise<void> {
     if (this.mockMode) {
       const idx = this.mockOrgs.findIndex(o => o.org_id === org.org_id);
