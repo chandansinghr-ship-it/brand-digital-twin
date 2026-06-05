@@ -887,6 +887,45 @@ describe('Native HTTP & SSE Server Integration Test', () => {
         expect(forbiddenRes.error.code).toBe('FORBIDDEN');
       });
     });
+
+    describe('Auth Ticket Authentication (A2.5)', () => {
+      it('should generate a ticket, use it to query integrations, and reject reuse/replay', async () => {
+        // 1. Generate a single-use ticket
+        const ticketRes = await getJson('/api/v1/auth/ticket');
+        expect(ticketRes.status).toBe('success');
+        expect(ticketRes.data.ticket).toBeDefined();
+        const ticket = ticketRes.data.ticket;
+
+        // 2. Query integrations with the ticket instead of Bearer token
+        const queryRes = await getJson(`/api/v1/integrations?ticket=${ticket}`, {} as any);
+        expect(queryRes.status).toBe('success');
+        expect(queryRes.data.integrations).toBeDefined();
+
+        // 3. Attempt to reuse the ticket (replay) -> should return 401 Unauthorized
+        const replayRes = await getJson(`/api/v1/integrations?ticket=${ticket}`, {} as any);
+        expect(replayRes.error).toBeDefined();
+        expect(replayRes.error.code).toBe('UNAUTHORIZED');
+        expect(replayRes.error.message).toContain('already been used');
+      });
+
+      it('should reject requests with an expired ticket', async () => {
+        const expiredTicket = signJwt(
+          {
+            userId: 'test-user',
+            orgId: 'test-tenant',
+            role: 'media_buyer',
+            purpose: 'auth_ticket',
+            exp: Math.floor(Date.now() / 1000) - 10, // expired 10s ago
+          },
+          config.auth.jwtSecret,
+        );
+
+        const res = await getJson(`/api/v1/integrations?ticket=${expiredTicket}`, {} as any);
+        expect(res.error).toBeDefined();
+        expect(res.error.code).toBe('UNAUTHORIZED');
+        expect(res.error.message).toContain('expired');
+      });
+    });
   });
 });
 

@@ -8,7 +8,7 @@ import * as http from 'http';
 import * as url from 'url';
 import {createHash} from 'node:crypto';
 import {config} from './config';
-import {sendErrorResponse, ValidationError, RateLimitError, PayloadTooLargeError} from './errors';
+import {sendErrorResponse, ValidationError, RateLimitError, PayloadTooLargeError, AuthError} from './errors';
 import {eventBus} from './event_bus';
 import {GoogleAdsAdapter} from './google_ads_adapter';
 import {authMiddleware, DecodedJwt, signJwt, verifyJwt, signOauthState, verifyOauthState} from './auth';
@@ -145,6 +145,20 @@ function sendSuccessResponse(res: http.ServerResponse, data: any) {
       timestamp: new Date().toISOString(),
     }),
   );
+}
+
+const usedTickets = new Set<string>();
+
+function verifyAndBurnTicket(ticket: string): DecodedJwt {
+  if (usedTickets.has(ticket)) {
+    throw new AuthError('Ticket has already been used');
+  }
+  const decoded = verifyJwt(ticket, config.auth.jwtSecret);
+  if (decoded.purpose !== 'auth_ticket') {
+    throw new AuthError('Invalid ticket purpose');
+  }
+  usedTickets.add(ticket);
+  return decoded;
 }
 
 export function startServer(port: number, db: SupabaseClient): http.Server {
@@ -548,12 +562,15 @@ export function startServer(port: number, db: SupabaseClient): http.Server {
       const connectMatch = path.match(/^\/api\/v1\/connect\/([^/]+)$/);
       if (connectMatch && req.method === 'GET') {
         const platform = connectMatch[1];
+        const ticketQuery = parsedUrl.query['ticket'] as string;
         const tokenQuery = parsedUrl.query['t'] as string;
         const shop = parsedUrl.query['shop'] as string;
 
         let decoded: DecodedJwt;
         try {
-          if (tokenQuery) {
+          if (ticketQuery) {
+            decoded = verifyAndBurnTicket(ticketQuery);
+          } else if (tokenQuery) {
             decoded = verifyJwt(tokenQuery, config.auth.jwtSecret);
           } else {
             decoded = authMiddleware(req, config.auth.jwtSecret);
@@ -596,7 +613,12 @@ export function startServer(port: number, db: SupabaseClient): http.Server {
       // Centralized Authentication for all v1 API endpoints
       let decodedToken: DecodedJwt;
       try {
-        decodedToken = authMiddleware(req, config.auth.jwtSecret);
+        const ticketQuery = parsedUrl.query['ticket'] as string;
+        if (ticketQuery) {
+          decodedToken = verifyAndBurnTicket(ticketQuery);
+        } else {
+          decodedToken = authMiddleware(req, config.auth.jwtSecret);
+        }
       } catch (authErr: any) {
         res.writeHead(401, {'Content-Type': 'application/json'});
         res.end(
@@ -612,6 +634,22 @@ export function startServer(port: number, db: SupabaseClient): http.Server {
       }
 
       const tenantId = decodedToken.orgId;
+
+      // 0. Ticket generation endpoint (authenticated via Bearer JWT)
+      if (path === '/api/v1/auth/ticket' && req.method === 'GET') {
+        const ticket = signJwt(
+          {
+            userId: decodedToken.userId,
+            orgId: decodedToken.orgId,
+            role: decodedToken.role,
+            purpose: 'auth_ticket',
+          },
+          config.auth.jwtSecret,
+          60 * 1000, // 60s
+        );
+        sendSuccessResponse(res, { ticket });
+        return;
+      }
 
       // Legal Acceptance Endpoint (authenticated, exempt from compliance block)
       if (path === '/api/v1/legal/accept' && req.method === 'POST') {
