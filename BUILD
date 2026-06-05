@@ -383,6 +383,16 @@ ts_library(
 )
 
 ts_library(
+    name = "poas_scheduler",
+    srcs = ["poas_scheduler.ts"],
+    deps = [
+        ":agency_os_types",
+        ":poas_calculator",
+        ":supabase_client",
+    ],
+)
+
+ts_library(
     name = "coverage_monitor",
     srcs = ["coverage_monitor.ts"],
     deps = [
@@ -448,6 +458,7 @@ ts_library(
         "phase2_test.ts",
         "phase3_test.ts",
         "phase4_test.ts",
+        "poas_scheduler_test.ts",
         "server_test.ts",
         "shopify_adapter_test.ts",
         "stakeholder_portal_test.ts",
@@ -487,6 +498,7 @@ ts_library(
         ":orchestrator",
         ":platform_adapter",
         ":poas_calculator",
+        ":poas_scheduler",
         ":rate_limiter",
         ":rbi_aa_adapter",
         ":risk_radar",
@@ -593,5 +605,10 @@ jasmine_node_test(
 
 jasmine_node_test(
     name = "omnichannel_test",
+    srcs = [":brand_twin_tests"],
+)
+
+jasmine_node_test(
+    name = "poas_scheduler_test",
     srcs = [":brand_twin_tests"],
 )

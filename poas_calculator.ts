@@ -8,6 +8,7 @@ export interface CampaignPoasReport {
   spend: number;
   contributionMargin: number;
   poas: number | null;
+  roas: number | null;
 }
 
 export class PoasCalculator {
@@ -55,8 +56,9 @@ export class PoasCalculator {
       orderLinesByOrder.set(ol.order_id, lines);
     }
 
-    // 5. Calculate order-level contribution margin
+    // 5. Calculate order-level contribution margin and gross revenue
     const orderContribMap = new Map<string, number>();
+    const orderRevenueMap = new Map<string, number>();
     for (const order of orders) {
       const lines = orderLinesByOrder.get(order.order_id) ?? [];
       const orderGrossRevenue = lines.reduce((sum, l) => sum + l.grossRevenue, 0);
@@ -77,6 +79,7 @@ export class PoasCalculator {
       }
 
       orderContribMap.set(order.order_id, orderContribution);
+      orderRevenueMap.set(order.order_id, orderGrossRevenue);
     }
 
     // 6. Attribution: Order -> Campaign (Last touch click/impression within 30 days)
@@ -117,12 +120,17 @@ export class PoasCalculator {
       }
     }
 
-    // 7. Aggregate margin by campaign
+    // 7. Aggregate margin and revenue by campaign
     const campaignMarginMap = new Map<string, number>();
+    const campaignRevenueMap = new Map<string, number>();
     for (const [orderId, contribution] of orderContribMap.entries()) {
       const campaignId = orderAttribution.get(orderId) ?? 'ORGANIC';
-      const cur = campaignMarginMap.get(campaignId) ?? 0;
-      campaignMarginMap.set(campaignId, cur + contribution);
+      const curMargin = campaignMarginMap.get(campaignId) ?? 0;
+      campaignMarginMap.set(campaignId, curMargin + contribution);
+
+      const revenue = orderRevenueMap.get(orderId) ?? 0;
+      const curRev = campaignRevenueMap.get(campaignId) ?? 0;
+      campaignRevenueMap.set(campaignId, curRev + revenue);
     }
 
     // 8. Aggregate spend by campaign
@@ -139,6 +147,9 @@ export class PoasCalculator {
       const contributionMargin = campaignMarginMap.get(c.campaign_id) ?? 0;
       const poas = spend > 0 ? Math.round((contributionMargin / spend) * 100) / 100 : null;
 
+      const revenue = campaignRevenueMap.get(c.campaign_id) ?? 0;
+      const roas = spend > 0 ? Math.round((revenue / spend) * 100) / 100 : null;
+
       reports.push({
         campaignId: c.campaign_id,
         campaignName: c.name,
@@ -147,12 +158,14 @@ export class PoasCalculator {
         spend,
         contributionMargin,
         poas,
+        roas,
       });
     }
 
-    // Add ORGANIC pseudo-campaign report if it generated margin
+    // Add ORGANIC pseudo-campaign report if it generated margin or revenue
     const organicMargin = campaignMarginMap.get('ORGANIC') ?? 0;
-    if (organicMargin > 0) {
+    const organicRevenue = campaignRevenueMap.get('ORGANIC') ?? 0;
+    if (organicMargin > 0 || organicRevenue > 0) {
       reports.push({
         campaignId: 'ORGANIC',
         campaignName: 'Organic Traffic (Unattributed)',
@@ -161,6 +174,7 @@ export class PoasCalculator {
         spend: 0,
         contributionMargin: organicMargin,
         poas: null,
+        roas: null,
       });
     }
 

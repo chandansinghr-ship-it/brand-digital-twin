@@ -3,7 +3,7 @@
  */
 
 import {ValidationError} from './errors';
-import {Context, Waiver} from './governance_types';
+import {Context, Waiver, SEMANTIC_TIERS} from './governance_types';
 import {ActionPlan, ActionRequest} from './platform_adapter';
 
 export interface OPAInput {
@@ -11,6 +11,7 @@ export interface OPAInput {
   entity: string;
   cost: number;
   trust_tier: number;
+  earned_tier_cap: number;
   tenant_anomaly: boolean;
   waivers: Waiver[];
   current_time_ms: number;
@@ -30,12 +31,27 @@ export class OpaPolicyEngine {
     plan: ActionPlan,
     ctx: Context,
     trustTier: number,
+    earnedTierCap?: number,
   ): Promise<boolean> {
+    let resolvedCap = earnedTierCap;
+    if (resolvedCap === undefined) {
+      const semanticName = SEMANTIC_TIERS[trustTier] || 'OBSERVE';
+      const defaultCaps: Record<string, number> = {
+        'OBSERVE': 0,
+        'REVIEW': 100,
+        'ASSISTED': 500,
+        'AUTONOMOUS': 2000,
+        'C_SUITE': 1000000,
+      };
+      resolvedCap = defaultCaps[semanticName] ?? 0;
+    }
+
     const input: OPAInput = {
       op: req.op,
       entity: req.entity,
       cost: plan.projectedCost,
       trust_tier: trustTier,
+      earned_tier_cap: resolvedCap,
       tenant_anomaly: ctx.triggerAnomaly ?? false,
       waivers: ctx.activeWaivers ?? [],
       current_time_ms: Date.now(),
@@ -85,8 +101,8 @@ export class OpaPolicyEngine {
       return false;
     }
 
-    // Rule 1: Allow low-risk actions for trusted tenants
-    if (input.cost < 1000 && input.trust_tier >= 2) {
+    // Rule 1: Allow low-risk actions within earned tier cap
+    if (input.cost <= input.earned_tier_cap) {
       const allowedOps = [
         'read',
         'update_budget',

@@ -216,7 +216,7 @@ describe('Integrations (OPA, Supabase, Pino)', () => {
       };
 
       // Allowed with valid CFO waiver
-      const allowed = await opa.evaluate(req, plan, ctx, 3);
+      const allowed = await opa.evaluate(req, plan, ctx, 2);
       expect(allowed).toBe(true);
 
       // Blocked if waiver expired
@@ -227,7 +227,7 @@ describe('Integrations (OPA, Supabase, Pino)', () => {
         reason: 'Past campaign',
       };
       ctx.activeWaivers = [expiredWaiver];
-      const blocked = await opa.evaluate(req, plan, ctx, 3);
+      const blocked = await opa.evaluate(req, plan, ctx, 2);
       expect(blocked).toBe(false);
     });
   });

@@ -27,6 +27,8 @@ import {
   TrustOutcome,
   Waiver,
   WhitelistRule,
+  SEMANTIC_TIERS,
+  SemanticTrustTier,
 } from './governance_types';
 
 export type {
@@ -101,7 +103,7 @@ export class TrustLedger {
     }
 
     if (approvedByRole === 'cfo' || approvedByRole === 'cmo') {
-      if (currentTier < 3) {
+      if (currentTier < 4) {
         this.setTier(tenantId, actionType, currentTier + 1);
       }
       return;
@@ -119,7 +121,7 @@ export class TrustLedger {
       progressionScore += decayWeight * riskWeight;
     }
 
-    if (progressionScore >= 1.5 && currentTier < 3) {
+    if (progressionScore >= 1.5 && currentTier < 4) {
       this.setTier(tenantId, actionType, currentTier + 1);
       this.history.set(key, []); // Reset outcomes to start next progression level
     }
@@ -201,6 +203,27 @@ export class GovernanceEngine {
     let spanError: string | undefined = undefined;
 
     try {
+      const existingAudit = await this.supabase.getAuditLog(ctx.tenant.tenantId, req.idempotencyKey);
+      if (existingAudit) {
+        if (
+          existingAudit.decision === 'AUTO_EXECUTE' ||
+          existingAudit.decision === 'executed' ||
+          existingAudit.decision === 'EXECUTE' ||
+          existingAudit.decision === 'shadow_executed'
+        ) {
+          this.logger.info('Idempotency trigger: Replayed action request detected', {
+            actionId: req.idempotencyKey,
+            tenantId: ctx.tenant.tenantId,
+            loggedDecision: existingAudit.decision,
+          });
+          spanStatus = 'success';
+          return {
+            status: 'executed',
+            result: { ok: true, auditRef: `cached-${existingAudit.action_id}` },
+          };
+        }
+      }
+
       if (!adapter.plan || !adapter.execute) {
         throw new Error(`Platform adapter '${adapter.platform}' does not support write/execute operations.`);
       }
@@ -478,6 +501,14 @@ export class GovernanceEngine {
     // 4. Verify Phase
     let verificationOk = true;
     if (!isShadow) {
+      if (ctx.verifyWindowMs && ctx.verifyWindowMs > 0) {
+        this.logger.debug(`Sleeping for verification window: ${ctx.verifyWindowMs}ms`, {
+          actionId: req.idempotencyKey,
+        });
+        await new Promise<void>((resolve) => {
+          setTimeout(resolve, ctx.verifyWindowMs);
+        });
+      }
       const postMetrics = await this.readCurrentMetrics(
         adapter,
         ctx.tenant.tenantId,
@@ -659,7 +690,8 @@ export class GovernanceEngine {
     }
 
     // Evaluate OPA Policy Engine
-    const opaAllow = await this.opa.evaluate(req, plan, ctx, earned);
+    const earnedTierCap = this.getTierCap(ctx.tenant.policy, earned);
+    const opaAllow = await this.opa.evaluate(req, plan, ctx, earned, earnedTierCap);
     if (!opaAllow) {
       // If OPA denounces auto-execution, we determine if it is a block or a queue
       if (!hasWaiver && !ctx.role.permits(req.op, req.entity)) {
@@ -669,7 +701,7 @@ export class GovernanceEngine {
             'role permissions do not authorize action (rejection verified by OPA)',
         };
       }
-      const required = this.riskToTier(plan.projectedCost);
+      const required = this.riskToTier(ctx.tenant.policy, plan.projectedCost);
       if (earned < required && !hasWaiver) {
         return {
           kind: 'QUEUE',
@@ -739,12 +771,14 @@ export class GovernanceEngine {
     }
 
     // Check earned vs required trust, unless waiver is active
-    const required = this.riskToTier(plan.projectedCost);
+    const required = this.riskToTier(policy, plan.projectedCost);
 
     if (earned < required && !hasWaiver) {
+      const semanticEarned = SEMANTIC_TIERS[earned] || `Tier ${earned}`;
+      const semanticRequired = SEMANTIC_TIERS[required] || `Tier ${required}`;
       return {
         kind: 'QUEUE',
-        reason: `earned trust tier (${earned}) is less than required risk tier (${required})`,
+        reason: `earned trust tier (${semanticEarned}) is less than required risk tier (${semanticRequired})`,
         approver: policy.escalationRole,
       };
     }
@@ -757,10 +791,29 @@ export class GovernanceEngine {
     };
   }
 
-  private riskToTier(projectedCost: number): number {
-    if (projectedCost < 100) return 1; // Tier 1: shift small budget
-    if (projectedCost < 500) return 2; // Tier 2: moderate changes
-    return 3; // Tier 3: pre-approval mandatory for large changes
+  private getTierCap(policy: TenantPolicy, tierNum: number): number {
+    const semanticName = SEMANTIC_TIERS[tierNum] || 'OBSERVE';
+    const defaultCaps: Record<string, number> = {
+      'OBSERVE': 0,
+      'REVIEW': 100,
+      'ASSISTED': 500,
+      'AUTONOMOUS': 2000,
+      'C_SUITE': 1000000,
+    };
+    if (policy.tierCaps && policy.tierCaps[semanticName] !== undefined) {
+      return policy.tierCaps[semanticName];
+    }
+    return defaultCaps[semanticName] ?? 0;
+  }
+
+  private riskToTier(policy: TenantPolicy, projectedCost: number): number {
+    for (let tierNum = 0; tierNum <= 4; tierNum++) {
+      const cap = this.getTierCap(policy, tierNum);
+      if (projectedCost <= cap) {
+        return tierNum;
+      }
+    }
+    return 4; // defaults to C_SUITE
   }
 
   /**

@@ -3,25 +3,24 @@ package brand_twin.safety
 # By default, actions are blocked
 default allow = false
 
-# Rule 1: Allow low-risk actions for trusted tenants
+# Rule 1: Allow low-risk actions within earned trust cap
 allow {
     not input.tenant_anomaly
-    input.cost < 1000
-    input.trust_tier >= 2
+    input.cost <= input.earned_tier_cap
     is_allowed_op(input.op)
 }
 
-# Rule 2: Allow high-risk actions ONLY with CFO/CMO waiver
+# Rule 2: Allow actions exceeding cap ONLY with CFO/CMO waiver
 allow {
     not input.tenant_anomaly
-    input.cost >= 1000
+    input.cost > input.earned_tier_cap
     has_valid_waiver(input.waivers, "CFO", input.op, input.current_time_ms)
 }
 
-# Rule 3: Allow medium-risk actions with Media Buyer or Manager waiver
+# Rule 3: Allow medium-risk actions exceeding cap with Media Buyer waiver (below $5000)
 allow {
     not input.tenant_anomaly
-    input.cost >= 1000
+    input.cost > input.earned_tier_cap
     input.cost < 5000
     has_valid_waiver(input.waivers, "Media Buyer", input.op, input.current_time_ms)
 }

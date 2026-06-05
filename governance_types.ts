@@ -2,11 +2,22 @@
  * @fileoverview Type definitions and interfaces for the Governance Engine.
  */
 
+export type SemanticTrustTier = 'OBSERVE' | 'REVIEW' | 'ASSISTED' | 'AUTONOMOUS' | 'C_SUITE';
+
+export const SEMANTIC_TIERS: Record<number, SemanticTrustTier> = {
+  0: 'OBSERVE',
+  1: 'REVIEW',
+  2: 'ASSISTED',
+  3: 'AUTONOMOUS',
+  4: 'C_SUITE',
+};
+
 export interface TenantPolicy {
   maxDailyDollarsRisk: number; // e.g., $1000
   maxBudgetMovePct: number; // e.g., 20% (0.20)
   minConfidence: number; // e.g., 0.85
   escalationRole: string; // e.g., 'cmo'
+  tierCaps?: Record<string, number>; // Maps SemanticTrustTier (or its string) to dollar cap
 }
 
 export interface Tenant {

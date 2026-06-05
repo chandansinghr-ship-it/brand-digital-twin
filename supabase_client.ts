@@ -236,6 +236,17 @@ export interface GovernanceEventEntry {
   created_at: string;
 }
 
+export interface VariantEntry {
+  variant_id: string;
+  tenant_id: string;
+  sku: string;
+  price: number;
+  cost: number;
+  title: string;
+  ingested_at: string;
+}
+
+
 /**
  * Supabase client orchestrator.
  */
@@ -276,6 +287,7 @@ export class SupabaseClient {
   private mockAccountLinks: AccountLinkEntry[] = [];
   private mockAccountCredentials: AccountCredentialEntry[] = [];
   private mockProductAdLinks: ProductAdLinkEntry[] = [];
+  private mockVariants: VariantEntry[] = [];
 
   private activeTenantId: string | null = null;
   private snapshots: {
@@ -310,6 +322,7 @@ export class SupabaseClient {
     mockAccountLinks: AccountLinkEntry[];
     mockAccountCredentials: AccountCredentialEntry[];
     mockProductAdLinks: ProductAdLinkEntry[];
+    mockVariants: VariantEntry[];
   } | null = null;
 
   private readonly logger: PinoLogger;
@@ -361,6 +374,7 @@ export class SupabaseClient {
     copy.mockAccountLinks = this.mockAccountLinks;
     copy.mockAccountCredentials = this.mockAccountCredentials;
     copy.mockProductAdLinks = this.mockProductAdLinks;
+    copy.mockVariants = this.mockVariants;
     return copy;
   }
 
@@ -552,6 +566,35 @@ export class SupabaseClient {
       return this.mockGovernanceEvents.filter((e) => e.tenant_id === tenant);
     }
     return [];
+  }
+
+  async getAuditLog(tenant: string, actionId: string): Promise<AuditLogEntry | null> {
+    this.assertRls(tenant);
+    this.logger.debug('Fetching specific audit log', {'tenant': tenant, 'actionId': actionId});
+    if (this.mockMode) {
+      const log = [...this.mockAuditLogs].reverse().find((l) => l.tenant === tenant && l.action_id === actionId);
+      return log || null;
+    }
+    try {
+      const url = `${this.supabaseUrl}/rest/v1/brand_twin_audit_logs?tenant=eq.${tenant}&action_id=eq.${actionId}&order=timestamp.desc&limit=1&select=*`;
+      const response = await fetch(url, {
+        headers: {
+          'apikey': this.supabaseKey,
+          'Authorization': `Bearer ${this.supabaseKey}`,
+        },
+      });
+      if (response.ok) {
+        const data = (await response.json()) as AuditLogEntry[];
+        return data.length > 0 ? data[0] : null;
+      }
+    } catch (err: any) {
+      this.logger.error('Live get audit log threw error', {
+        'tenant': tenant,
+        'actionId': actionId,
+        'error': err?.message || String(err),
+      });
+    }
+    return null;
   }
 
   async getAuditLogs(tenant: string): Promise<AuditLogEntry[]> {
@@ -753,6 +796,21 @@ export class SupabaseClient {
     this.assertRls(tenant);
     if (this.mockMode) {
       return this.mockClients.filter((c) => c.tenantId === tenant);
+    }
+    return [];
+  }
+
+  async getAllTenants(): Promise<string[]> {
+    // No RLS check here as it is a global admin/background operation
+    if (this.mockMode) {
+      const tenants = new Set<string>();
+      for (const c of this.mockClients) {
+        tenants.add(c.tenantId);
+      }
+      for (const c of this.mockCampaigns) {
+        tenants.add(c.tenant_id);
+      }
+      return Array.from(tenants);
     }
     return [];
   }
@@ -1385,6 +1443,36 @@ export class SupabaseClient {
     return [];
   }
 
+  // --- PRODUCT CATALOG (VARIANTS) ---
+  async getVariants(tenant: string): Promise<VariantEntry[]> {
+    this.assertRls(tenant);
+    if (this.mockMode) {
+      return this.mockVariants.filter((v) => v.tenant_id === tenant);
+    }
+    return [];
+  }
+
+  async saveVariant(variant: VariantEntry): Promise<void> {
+    this.assertRls(variant.tenant_id);
+    if (this.mockMode) {
+      const idx = this.mockVariants.findIndex(
+        (v) => v.tenant_id === variant.tenant_id && v.variant_id === variant.variant_id
+      );
+      if (idx >= 0) {
+        this.mockVariants[idx] = variant;
+      } else {
+        this.mockVariants.push(variant);
+      }
+    }
+  }
+
+  async clearVariants(tenant: string): Promise<void> {
+    this.assertRls(tenant);
+    if (this.mockMode) {
+      this.mockVariants = this.mockVariants.filter((v) => v.tenant_id !== tenant);
+    }
+  }
+
   // --- TRANSACTION SIMULATION ---
   private transactionActive = false;
 
@@ -1422,6 +1510,7 @@ export class SupabaseClient {
       mockAccountLinks: JSON.parse(JSON.stringify(this.mockAccountLinks)) as AccountLinkEntry[],
       mockAccountCredentials: JSON.parse(JSON.stringify(this.mockAccountCredentials)) as AccountCredentialEntry[],
       mockProductAdLinks: JSON.parse(JSON.stringify(this.mockProductAdLinks)) as ProductAdLinkEntry[],
+      mockVariants: JSON.parse(JSON.stringify(this.mockVariants)) as VariantEntry[],
     };
     this.logger.info('Transaction boundary started');
   }
@@ -1466,6 +1555,7 @@ export class SupabaseClient {
       this.mockAccountLinks = this.snapshots.mockAccountLinks;
       this.mockAccountCredentials = this.snapshots.mockAccountCredentials;
       this.mockProductAdLinks = this.snapshots.mockProductAdLinks;
+      this.mockVariants = this.snapshots.mockVariants;
       this.snapshots = null;
     }
     this.logger.info('Transaction boundary rolled back');

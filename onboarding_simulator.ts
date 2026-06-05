@@ -335,6 +335,22 @@ export class OnboardingSimulator {
     const poasCalc = new PoasCalculator(db);
     const reports = await poasCalc.calculate(tenantId);
 
+    console.log('Campaign Performance Audit (ROAS vs POAS):');
+    console.log('----------------------------------------------------------------------');
+    console.log('Campaign Name             | Spend  | ROAS   | POAS   | Status');
+    console.log('----------------------------------------------------------------------');
+    for (const r of reports) {
+      if (r.campaignId === 'ORGANIC') continue;
+      const spendStr = `$${r.spend.toLocaleString()}`;
+      const roasStr = r.roas !== null ? r.roas.toFixed(2) : 'N/A';
+      const poasStr = r.poas !== null ? r.poas.toFixed(2) : 'N/A';
+      const statusStr = r.poas !== null && r.poas < 1.0 ? 'UNPROFITABLE' : 'PROFITABLE';
+      console.log(
+        `${r.campaignName.padEnd(25)} | ${spendStr.padEnd(6)} | ${roasStr.padEnd(6)} | ${poasStr.padEnd(6)} | ${statusStr}`
+      );
+    }
+    console.log('----------------------------------------------------------------------\n');
+
     let unprofitableSpend = 0;
     let unprofitableCampaignCount = 0;
 
