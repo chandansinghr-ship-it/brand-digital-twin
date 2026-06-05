@@ -67,13 +67,14 @@ COGS + billing. **A stranger still can't connect a platform or click anything.**
 | A2.1 | ✅ Signed `state` (`signOauthState`/`verifyOauthState`) | S | `auth.ts` |
 | A2.2 | ✅ `/connect/:platform` (302→consent) + `/connect/callback/:platform` for Google/Meta/Shopify | L | `server.ts`, `oauth_flows.ts` |
 | A2.3 | ✅ Reconnect-on-refresh-failure (`integration.status='suspended'`) | S | `credential_vault.ts` |
-| A2.4 | ☐ `GET /api/v1/integrations` — expose `getIntegrationStates()` so the connect UI can show what's linked (client method exists; no endpoint) | S | `server.ts` |
+| A2.4 | ☐ `GET /api/v1/integrations` — expose `getIntegrationStates()` so the connect UI can show what's linked (client method exists; no endpoint). UI built against it | S | `server.ts` |
+| A2.5 | ☐ Auth-on-redirect for OAuth initiation — connect is a top-level navigation that can't carry the `Bearer` header; needs cookie/session or a short-lived signed token on `GET /connect/:platform` | S | `server.ts`, `app/lib/api.ts` |
 
 ### A3 — Product UI (3 items) — the big one
 | # | Item | Size | File(s) |
 |---|------|------|---------|
 | A3.1 | ◐ **PARTIAL** — runnable Next.js `app/` scaffold landed in Wellness-Foods (tokens, api/types/queries layer, providers, dashboard route). Auth-gated routing pending A1 UI | L | `app/` |
-| A3.2 | ◐ **IN PROGRESS** — built: POAS dashboard + three-zone healing + live sweep + autonomy/approvals + **readiness gauge**, shared `Nav`, MOCK mode. Connect screen (now unblocked) + auth + SSE remain | XL | `app/` |
+| A3.2 | ◐ **IN PROGRESS** — built: connect-your-stack + POAS dashboard + readiness gauge + live sweep + three-zone healing + autonomy/approvals + shared `Nav`, MOCK mode. **Whole core loop walkable.** Auth screens + SSE remain | XL | `app/` |
 | A3.3 | ✅ **DONE** — endpoint (`dd9045a`) + `ReadinessGauge` UI on dashboard, wired to live `/profit-readiness` | M | `server.ts`, `profit_readiness.ts`, `app/` |
 | A3.4 | ☐ `GET /api/v1/sweep` endpoint — expose rich `SweepFinding[]` (today `/risks` returns only `string[]`); UI already built against it | S | `server.ts`, `risk_radar.ts` |
 | A3.5 | ☐ `GET/POST /api/v1/autonomy` — read/set current trust tier; UI dial already built against it (approvals already wired to live `/approvals`) | S | `server.ts`, `governance_engine.ts` |
