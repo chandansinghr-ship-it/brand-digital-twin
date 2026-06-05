@@ -270,52 +270,156 @@ export interface OnboardingEventEntry {
 }
 
 
+class GlobalMockDb {
+  static mockTrust: TrustEntry[] = [];
+  static mockAuditLogs: AuditLogEntry[] = [];
+  static mockLocks: LockEntry[] = [];
+  static mockCredentials: CredentialEntry[] = [];
+  static mockGovernanceEvents: GovernanceEventEntry[] = [];
+  static mockOrders: OrderEntry[] = [];
+  static mockOrderLines: OrderLineEntry[] = [];
+  static mockCampaigns: CampaignEntry[] = [];
+  static mockSpendFacts: SpendFactEntry[] = [];
+  static mockCustomers: CustomerEntry[] = [];
+  static mockIdentityLinks: IdentityLinkEntry[] = [];
+  static mockRefunds: RefundEntry[] = [];
+  static mockFulfillmentCosts: FulfillmentCostEntry[] = [];
+  static mockTouchpoints: TouchpointEntry[] = [];
+  static mockTeamMembers: TeamMember[] = [];
+  static mockClients: ClientProfile[] = [];
+  static mockCampaignBriefs: CampaignBrief[] = [];
+  static mockApprovals: ApprovalRequest[] = [];
+  static mockActivityFeed: ActivityFeedItem[] = [];
+  static mockClientPortals: ClientPortalToken[] = [];
+  static mockBrandSignals: BrandSignal[] = [];
+  static mockIntegrationStates: IntegrationState[] = [];
+  static mockSocialMentions: SocialMention[] = [];
+  static mockCompetitorSignals: CompetitorSignal[] = [];
+  static mockFinancialTransactions: FinancialTransaction[] = [];
+  static mockCreativeAssets: CreativeAsset[] = [];
+  static mockStakeholderAssociations: StakeholderAssociation[] = [];
+  static mockBaselineContexts: Array<{tenant_id: string; context: BaselineContext}> = [];
+  static mockCategoryBenchmarks: Array<{tenant_id: string; benchmarks: CategoryBenchmarks}> = [];
+  static mockPlatformAccounts: PlatformAccountEntry[] = [];
+  static mockAccountLinks: AccountLinkEntry[] = [];
+  static mockAccountCredentials: AccountCredentialEntry[] = [];
+  static mockProductAdLinks: ProductAdLinkEntry[] = [];
+  static mockVariants: VariantEntry[] = [];
+  static mockPendingJobs: PendingJobEntry[] = [];
+  static mockOnboardingEvents: OnboardingEventEntry[] = [];
+}
+
 /**
  * Supabase client orchestrator.
  */
 export class SupabaseClient {
-  // In-memory mock database backing for offline verification
-  private mockTrust: TrustEntry[] = [];
-  private mockAuditLogs: AuditLogEntry[] = [];
-  private mockLocks: LockEntry[] = [];
-  private mockCredentials: CredentialEntry[] = [];
-  private mockGovernanceEvents: GovernanceEventEntry[] = [];
+  private get mockTrust(): TrustEntry[] { return GlobalMockDb.mockTrust; }
+  private set mockTrust(v: TrustEntry[]) { GlobalMockDb.mockTrust = v; }
 
-  private mockOrders: OrderEntry[] = [];
-  private mockOrderLines: OrderLineEntry[] = [];
-  private mockCampaigns: CampaignEntry[] = [];
-  private mockSpendFacts: SpendFactEntry[] = [];
-  private mockCustomers: CustomerEntry[] = [];
-  private mockIdentityLinks: IdentityLinkEntry[] = [];
-  private mockRefunds: RefundEntry[] = [];
-  private mockFulfillmentCosts: FulfillmentCostEntry[] = [];
-  private mockTouchpoints: TouchpointEntry[] = [];
+  private get mockAuditLogs(): AuditLogEntry[] { return GlobalMockDb.mockAuditLogs; }
+  private set mockAuditLogs(v: AuditLogEntry[]) { GlobalMockDb.mockAuditLogs = v; }
 
-  private mockTeamMembers: TeamMember[] = [];
-  private mockClients: ClientProfile[] = [];
-  private mockCampaignBriefs: CampaignBrief[] = [];
-  private mockApprovals: ApprovalRequest[] = [];
-  private mockActivityFeed: ActivityFeedItem[] = [];
-  private mockClientPortals: ClientPortalToken[] = [];
+  private get mockLocks(): LockEntry[] { return GlobalMockDb.mockLocks; }
+  private set mockLocks(v: LockEntry[]) { GlobalMockDb.mockLocks = v; }
 
-  private mockBrandSignals: BrandSignal[] = [];
-  private mockIntegrationStates: IntegrationState[] = [];
-  private mockSocialMentions: SocialMention[] = [];
-  private mockCompetitorSignals: CompetitorSignal[] = [];
-  private mockFinancialTransactions: FinancialTransaction[] = [];
-  private mockCreativeAssets: CreativeAsset[] = [];
-  private mockStakeholderAssociations: StakeholderAssociation[] = [];
+  private get mockCredentials(): CredentialEntry[] { return GlobalMockDb.mockCredentials; }
+  private set mockCredentials(v: CredentialEntry[]) { GlobalMockDb.mockCredentials = v; }
 
-  private mockBaselineContexts: Array<{tenant_id: string; context: BaselineContext}> = [];
-  private mockCategoryBenchmarks: Array<{tenant_id: string; benchmarks: CategoryBenchmarks}> = [];
+  private get mockGovernanceEvents(): GovernanceEventEntry[] { return GlobalMockDb.mockGovernanceEvents; }
+  private set mockGovernanceEvents(v: GovernanceEventEntry[]) { GlobalMockDb.mockGovernanceEvents = v; }
 
-  private mockPlatformAccounts: PlatformAccountEntry[] = [];
-  private mockAccountLinks: AccountLinkEntry[] = [];
-  private mockAccountCredentials: AccountCredentialEntry[] = [];
-  private mockProductAdLinks: ProductAdLinkEntry[] = [];
-  private mockVariants: VariantEntry[] = [];
-  private mockPendingJobs: PendingJobEntry[] = [];
-  private mockOnboardingEvents: OnboardingEventEntry[] = [];
+  private get mockOrders(): OrderEntry[] { return GlobalMockDb.mockOrders; }
+  private set mockOrders(v: OrderEntry[]) { GlobalMockDb.mockOrders = v; }
+
+  private get mockOrderLines(): OrderLineEntry[] { return GlobalMockDb.mockOrderLines; }
+  private set mockOrderLines(v: OrderLineEntry[]) { GlobalMockDb.mockOrderLines = v; }
+
+  private get mockCampaigns(): CampaignEntry[] { return GlobalMockDb.mockCampaigns; }
+  private set mockCampaigns(v: CampaignEntry[]) { GlobalMockDb.mockCampaigns = v; }
+
+  private get mockSpendFacts(): SpendFactEntry[] { return GlobalMockDb.mockSpendFacts; }
+  private set mockSpendFacts(v: SpendFactEntry[]) { GlobalMockDb.mockSpendFacts = v; }
+
+  private get mockCustomers(): CustomerEntry[] { return GlobalMockDb.mockCustomers; }
+  private set mockCustomers(v: CustomerEntry[]) { GlobalMockDb.mockCustomers = v; }
+
+  private get mockIdentityLinks(): IdentityLinkEntry[] { return GlobalMockDb.mockIdentityLinks; }
+  private set mockIdentityLinks(v: IdentityLinkEntry[]) { GlobalMockDb.mockIdentityLinks = v; }
+
+  private get mockRefunds(): RefundEntry[] { return GlobalMockDb.mockRefunds; }
+  private set mockRefunds(v: RefundEntry[]) { GlobalMockDb.mockRefunds = v; }
+
+  private get mockFulfillmentCosts(): FulfillmentCostEntry[] { return GlobalMockDb.mockFulfillmentCosts; }
+  private set mockFulfillmentCosts(v: FulfillmentCostEntry[]) { GlobalMockDb.mockFulfillmentCosts = v; }
+
+  private get mockTouchpoints(): TouchpointEntry[] { return GlobalMockDb.mockTouchpoints; }
+  private set mockTouchpoints(v: TouchpointEntry[]) { GlobalMockDb.mockTouchpoints = v; }
+
+  private get mockTeamMembers(): TeamMember[] { return GlobalMockDb.mockTeamMembers; }
+  private set mockTeamMembers(v: TeamMember[]) { GlobalMockDb.mockTeamMembers = v; }
+
+  private get mockClients(): ClientProfile[] { return GlobalMockDb.mockClients; }
+  private set mockClients(v: ClientProfile[]) { GlobalMockDb.mockClients = v; }
+
+  private get mockCampaignBriefs(): CampaignBrief[] { return GlobalMockDb.mockCampaignBriefs; }
+  private set mockCampaignBriefs(v: CampaignBrief[]) { GlobalMockDb.mockCampaignBriefs = v; }
+
+  private get mockApprovals(): ApprovalRequest[] { return GlobalMockDb.mockApprovals; }
+  private set mockApprovals(v: ApprovalRequest[]) { GlobalMockDb.mockApprovals = v; }
+
+  private get mockActivityFeed(): ActivityFeedItem[] { return GlobalMockDb.mockActivityFeed; }
+  private set mockActivityFeed(v: ActivityFeedItem[]) { GlobalMockDb.mockActivityFeed = v; }
+
+  private get mockClientPortals(): ClientPortalToken[] { return GlobalMockDb.mockClientPortals; }
+  private set mockClientPortals(v: ClientPortalToken[]) { GlobalMockDb.mockClientPortals = v; }
+
+  private get mockBrandSignals(): BrandSignal[] { return GlobalMockDb.mockBrandSignals; }
+  private set mockBrandSignals(v: BrandSignal[]) { GlobalMockDb.mockBrandSignals = v; }
+
+  private get mockIntegrationStates(): IntegrationState[] { return GlobalMockDb.mockIntegrationStates; }
+  private set mockIntegrationStates(v: IntegrationState[]) { GlobalMockDb.mockIntegrationStates = v; }
+
+  private get mockSocialMentions(): SocialMention[] { return GlobalMockDb.mockSocialMentions; }
+  private set mockSocialMentions(v: SocialMention[]) { GlobalMockDb.mockSocialMentions = v; }
+
+  private get mockCompetitorSignals(): CompetitorSignal[] { return GlobalMockDb.mockCompetitorSignals; }
+  private set mockCompetitorSignals(v: CompetitorSignal[]) { GlobalMockDb.mockCompetitorSignals = v; }
+
+  private get mockFinancialTransactions(): FinancialTransaction[] { return GlobalMockDb.mockFinancialTransactions; }
+  private set mockFinancialTransactions(v: FinancialTransaction[]) { GlobalMockDb.mockFinancialTransactions = v; }
+
+  private get mockCreativeAssets(): CreativeAsset[] { return GlobalMockDb.mockCreativeAssets; }
+  private set mockCreativeAssets(v: CreativeAsset[]) { GlobalMockDb.mockCreativeAssets = v; }
+
+  private get mockStakeholderAssociations(): StakeholderAssociation[] { return GlobalMockDb.mockStakeholderAssociations; }
+  private set mockStakeholderAssociations(v: StakeholderAssociation[]) { GlobalMockDb.mockStakeholderAssociations = v; }
+
+  private get mockBaselineContexts(): Array<{tenant_id: string; context: BaselineContext}> { return GlobalMockDb.mockBaselineContexts; }
+  private set mockBaselineContexts(v: Array<{tenant_id: string; context: BaselineContext}>) { GlobalMockDb.mockBaselineContexts = v; }
+
+  private get mockCategoryBenchmarks(): Array<{tenant_id: string; benchmarks: CategoryBenchmarks}> { return GlobalMockDb.mockCategoryBenchmarks; }
+  private set mockCategoryBenchmarks(v: Array<{tenant_id: string; benchmarks: CategoryBenchmarks}>) { GlobalMockDb.mockCategoryBenchmarks = v; }
+
+  private get mockPlatformAccounts(): PlatformAccountEntry[] { return GlobalMockDb.mockPlatformAccounts; }
+  private set mockPlatformAccounts(v: PlatformAccountEntry[]) { GlobalMockDb.mockPlatformAccounts = v; }
+
+  private get mockAccountLinks(): AccountLinkEntry[] { return GlobalMockDb.mockAccountLinks; }
+  private set mockAccountLinks(v: AccountLinkEntry[]) { GlobalMockDb.mockAccountLinks = v; }
+
+  private get mockAccountCredentials(): AccountCredentialEntry[] { return GlobalMockDb.mockAccountCredentials; }
+  private set mockAccountCredentials(v: AccountCredentialEntry[]) { GlobalMockDb.mockAccountCredentials = v; }
+
+  private get mockProductAdLinks(): ProductAdLinkEntry[] { return GlobalMockDb.mockProductAdLinks; }
+  private set mockProductAdLinks(v: ProductAdLinkEntry[]) { GlobalMockDb.mockProductAdLinks = v; }
+
+  private get mockVariants(): VariantEntry[] { return GlobalMockDb.mockVariants; }
+  private set mockVariants(v: VariantEntry[]) { GlobalMockDb.mockVariants = v; }
+
+  private get mockPendingJobs(): PendingJobEntry[] { return GlobalMockDb.mockPendingJobs; }
+  private set mockPendingJobs(v: PendingJobEntry[]) { GlobalMockDb.mockPendingJobs = v; }
+
+  private get mockOnboardingEvents(): OnboardingEventEntry[] { return GlobalMockDb.mockOnboardingEvents; }
+  private set mockOnboardingEvents(v: OnboardingEventEntry[]) { GlobalMockDb.mockOnboardingEvents = v; }
 
   private activeTenantId: string | null = null;
   private snapshots: {

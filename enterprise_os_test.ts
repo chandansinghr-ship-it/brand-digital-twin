@@ -1,6 +1,11 @@
 import {OrganizationCEOAgent} from './agents/ceo_agent';
+import {IntelligentAnalystAgent} from './agents/analyst_agent';
+import {RiskRadarAgent} from './agents/risk_radar_agent';
+import {GovernanceShadowAgent} from './agents/governance_shadow_agent';
 import {IsolationContext, TenantIdentity} from './core/isolation_context';
 import {McpToolDefinition, OneMcpServer} from './core/onemcp_server';
+import {SupabaseClient} from 'google3/experimental/brand_twin/supabase_client';
+
 
 // Mock sub-agent MCP servers
 class MockAnalystMcpServer extends OneMcpServer {
@@ -238,6 +243,187 @@ describe('Enterprise Agency OS (OneMCP & Bounded Contexts) Tests', () => {
       expect(riskReport.result).toContain(
         "Destination agent server 'risk_radar' is unreachable",
       );
+    });
+  });
+
+  describe('Real Bounded MCP Agents Integration', () => {
+    let db: SupabaseClient;
+    const realTenantId = 'tenant-alpha';
+
+    beforeEach(async () => {
+      db = new SupabaseClient();
+      await db.clearCampaigns(realTenantId);
+
+      // Seed a campaign
+      await db.saveCampaign({
+        campaign_id: 'c-meta-1',
+        tenant_id: realTenantId,
+        name: 'Meta Lookalike Purchase',
+        platform: 'meta',
+        objective: 'CONVERSIONS',
+        status: 'active',
+        surface: 'meta_ads',
+        source_id: 'c-meta-1',
+        source_system: 'meta',
+        source_version: 'v18',
+        ingested_at: new Date().toISOString(),
+      });
+
+      // Seed a spend fact
+      await db.saveSpendFact({
+        campaign_id: 'c-meta-1',
+        platform: 'meta',
+        day: new Date().toISOString().split('T')[0],
+        amount: 1000,
+        currency: 'USD',
+        tenant_id: realTenantId,
+        source_system: 'meta',
+        ingested_at: new Date().toISOString(),
+      });
+
+      // Seed an order (gross revenue $800) and order line (cost $500)
+      // Since order gross revenue is $800, and spend is $1000, POAS is 300 / 1000 = 0.30 (unprofitable)
+      await db.saveOrder({
+        order_id: 'o1',
+        customer_id: 'cust1',
+        account_id: null,
+        channel: 'online',
+        surface: 'shopify',
+        placed_at: new Date().toISOString(),
+        currency: 'USD',
+        gross_revenue: 800,
+        total_discounts: 0,
+        total_tax: 0,
+        shipping_charged: 0,
+        status: 'PAID',
+        tenant_id: realTenantId,
+        source_system: 'shopify',
+        source_id: 'o1',
+        source_version: '1.0',
+        ingested_at: new Date().toISOString(),
+      });
+
+      await db.saveOrderLine({
+        order_line_id: 'ol1',
+        order_id: 'o1',
+        variant_id: 'v1',
+        sku: 'BLUE-SHIRT-M',
+        qty: 1,
+        unit_price: 800,
+        line_discount: 0,
+        unit_cost: 500, // COGS = $500, pre-ad margin = $300
+        tenant_id: realTenantId,
+        source_system: 'shopify',
+        source_id: 'ol1',
+        source_version: '1.0',
+        ingested_at: new Date().toISOString(),
+      });
+
+      // Seed click touchpoint to attribute order to campaign
+      await db.saveTouchpoint({
+        touchpoint_id: 'tp1',
+        customer_id: 'cust1',
+        campaign_id: 'c-meta-1',
+        order_id: 'o1',
+        occurred_at: new Date(Date.now() - 10000).toISOString(),
+        type: 'click',
+        tenant_id: realTenantId,
+        source_system: 'meta',
+        ingested_at: new Date().toISOString(),
+      });
+
+      // Also seed a purchase touchpoint for tracking checks
+      await db.saveTouchpoint({
+        touchpoint_id: 'tp1-conv',
+        customer_id: 'cust1',
+        campaign_id: 'c-meta-1',
+        order_id: 'o1',
+        occurred_at: new Date().toISOString(),
+        type: 'purchase',
+        source_system: 'sgtm',
+        tenant_id: realTenantId,
+        ingested_at: new Date().toISOString(),
+      });
+    });
+
+    it('IntelligentAnalystAgent should diagnose unprofitable campaign and return healing recommendations', async () => {
+      const identity: TenantIdentity = {
+        orgId: realTenantId,
+        spaceId: 'space-1',
+        role: 'analyst',
+        userId: 'user-123',
+      };
+      const context = IsolationContext.create(identity);
+      const agent = new IntelligentAnalystAgent();
+
+      const response = await agent.callTool(context, 'optimize_margins', { targetROI: 3.0 }, 'rpc-1');
+
+      expect(response.error).toBeUndefined();
+      expect(response.result.status).toBe('SUCCESS');
+      expect(response.result.recommendations.length).toBeGreaterThan(0);
+
+      const card = response.result.recommendations[0];
+      expect(card.campaignName).toBe('Meta Lookalike Purchase');
+      expect(card.osActs.length).toBe(1);
+      expect(card.userApproves.length).toBe(1);
+      expect(card.adsCantFix.length).toBe(0);
+    });
+
+    it('RiskRadarAgent should scan stockouts and output safety pausing findings', async () => {
+      const identity: TenantIdentity = {
+        orgId: realTenantId,
+        spaceId: 'space-1',
+        role: 'risk_officer',
+        userId: 'user-123',
+      };
+      const context = IsolationContext.create(identity);
+      const agent = new RiskRadarAgent();
+
+      const response = await agent.callTool(context, 'inventory_alert_correlation', { notifyThresholdDays: 5 }, 'rpc-2');
+
+      expect(response.error).toBeUndefined();
+      expect(response.result.status).toBe('SUCCESS');
+      expect(response.result.findingsCount).toBe(1);
+      expect(response.result.findings[0].code).toBe('paused_campaign_c-meta-1_for_SHOE-RED-10');
+    });
+
+    it('GovernanceShadowAgent should evaluate action requests against OPA engine rules', async () => {
+      const identity: TenantIdentity = {
+        orgId: realTenantId,
+        spaceId: 'space-1',
+        role: 'media_buyer',
+        userId: 'user-123',
+      };
+      const context = IsolationContext.create(identity);
+      const agent = new GovernanceShadowAgent();
+
+      // Test Case A: Under Cap ($400 < $500 cap for Media Buyer role on trust tier 2)
+      const resA = await agent.callTool(context, 'verify_policy_compliance', {
+        actionRequest: {
+          op: 'scale_budget',
+          entity: 'campaign',
+          confidence: 0.9,
+        },
+        projectedCost: 400,
+        trustTier: 2,
+      }, 'rpc-3');
+
+      expect(resA.result.isCompliant).toBe(true);
+      expect(resA.result.disposition).toBe('ALLOW');
+
+      // Test Case B: Over Cap ($600 > $500 cap for Media Buyer role on trust tier 2)
+      const resB = await agent.callTool(context, 'verify_policy_compliance', {
+        actionRequest: {
+          op: 'scale_budget',
+          entity: 'campaign',
+          confidence: 0.9,
+        },
+        projectedCost: 600,
+        trustTier: 2,
+      }, 'rpc-4');
+
+      expect(resB.result.isCompliant).toBe(false);
+      expect(resB.result.disposition).toBe('DENY');
     });
   });
 });
