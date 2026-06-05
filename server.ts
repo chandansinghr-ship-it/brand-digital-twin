@@ -32,7 +32,7 @@ import {IdentityResolver} from './identity_resolver';
 import {PersistentAuditSink} from './audit_sink';
 import {RiskRadar} from './risk_radar';
 import {SweepFinding} from './healing_types';
-
+import {DatabaseErrorSink} from './observability';
 const sha256 = (s: string) =>
   createHash('sha256').update(s.trim().toLowerCase()).digest('hex');
 
@@ -165,8 +165,11 @@ export function startServer(port: number, db: SupabaseClient): http.Server {
   const brain = new UnifiedIntelligenceBrain(db);
   const cb = new CircuitBreaker();
   const tl = new TrustLedger();
+  const errorSink = new DatabaseErrorSink(db);
 
   const server = http.createServer(async (req, res) => {
+    let tenantId: string | null = null;
+
     // Secure CORS settings: echo allowed origins only
     const origin = req.headers['origin'];
     if (origin && (origin.startsWith('http://localhost') || origin.endsWith('.google.com'))) {
@@ -647,7 +650,7 @@ export function startServer(port: number, db: SupabaseClient): http.Server {
         return;
       }
 
-      const tenantId = decodedToken.orgId;
+      tenantId = decodedToken.orgId;
 
       // 0. Ticket generation endpoint (authenticated via Bearer JWT)
       if (path === '/api/v1/auth/ticket' && req.method === 'GET') {
@@ -1398,6 +1401,17 @@ export function startServer(port: number, db: SupabaseClient): http.Server {
         }),
       );
     } catch (err: any) {
+      void errorSink.recordError({
+        tenant_id: tenantId,
+        severity: 'critical',
+        source: 'http_server_dispatch',
+        message: err.message || String(err),
+        context: {
+          url: req.url,
+          method: req.method,
+          stack: err.stack,
+        },
+      }).catch(() => {});
       sendErrorResponse(res, err);
     }
   });

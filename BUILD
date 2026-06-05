@@ -494,6 +494,7 @@ ts_library(
         ":healing_types",
         ":identity_resolver",
         ":oauth_flows",
+        ":observability",
         ":poas_calculator",
         ":profit_readiness",
         ":rate_limiter",
@@ -753,4 +754,19 @@ ts_library(
 jasmine_node_test(
     name = "e2e_test",
     srcs = [":e2e_test_lib"],
+)
+
+ts_library(
+    name = "observability_test_lib",
+    srcs = ["observability_test.ts"],
+    deps = [
+        ":observability",
+        "//third_party/javascript/typings/jasmine",
+        "//third_party/javascript/typings/node",
+    ],
+)
+
+jasmine_node_test(
+    name = "observability_test",
+    srcs = [":observability_test_lib"],
 )

@@ -4,7 +4,7 @@
 
 import {AdapterError, ValidationError} from './errors';
 import {eventBus} from './event_bus';
-import {MetricsTracker, PinoLogger, Span} from './observability';
+import {MetricsTracker, PinoLogger, Span, DatabaseErrorSink} from './observability';
 import {OpaPolicyEngine} from './opa_policy';
 import {
   ActionPlan,
@@ -173,7 +173,9 @@ export class GovernanceEngine {
     private metrics: MetricsTracker = new MetricsTracker(),
     public readonly opa = new OpaPolicyEngine(),
     public readonly supabase = new SupabaseClient(),
-  ) {}
+  ) {
+    this.metrics.setErrorSink(new DatabaseErrorSink(this.supabase));
+  }
 
   async getTrustTier(tenantId: string, op: string): Promise<number> {
     let earned = await this.supabase.getTrustTier(tenantId, op);

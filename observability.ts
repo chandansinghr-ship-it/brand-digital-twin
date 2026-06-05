@@ -18,10 +18,115 @@ export interface Metric {
   timestamp: string;
 }
 
+export function redactSensitiveData(val: any): any {
+  if (val === null || val === undefined) return val;
+
+  if (Array.isArray(val)) {
+    return val.map(redactSensitiveData);
+  }
+
+  if (typeof val === 'object') {
+    const redacted: Record<string, any> = {};
+    for (const key of Object.keys(val)) {
+      const lowerKey = key.toLowerCase();
+      if (
+        lowerKey.includes('auth') ||
+        lowerKey.includes('secret') ||
+        lowerKey.includes('key') ||
+        lowerKey.includes('token') ||
+        lowerKey.includes('bearer') ||
+        lowerKey.includes('password') ||
+        lowerKey.includes('refresh')
+      ) {
+        redacted[key] = '[REDACTED]';
+      } else {
+        redacted[key] = redactSensitiveData(val[key]);
+      }
+    }
+    return redacted;
+  }
+
+  if (typeof val === 'string') {
+    if (/^[a-zA-Z0-9\-_]+\.[a-zA-Z0-9\-_]+\.[a-zA-Z0-9\-_]+$/.test(val)) {
+      return '[REDACTED]';
+    }
+    if (/^\d{13,19}$/.test(val.replace(/[-\s]/g, ''))) {
+      return '[REDACTED]';
+    }
+  }
+
+  return val;
+}
+
+export interface ErrorEvent {
+  tenant_id: string | null;
+  severity: 'error' | 'warning' | 'critical';
+  source: string;
+  message: string;
+  context?: any;
+  trace_id?: string;
+}
+
+export interface ErrorSink {
+  recordError(event: ErrorEvent): Promise<void>;
+}
+
+export interface ErrorDbClient {
+  saveErrorEvent(event: any): Promise<void>;
+}
+
+export class DatabaseErrorSink implements ErrorSink {
+  constructor(private readonly db: ErrorDbClient) {}
+
+  async recordError(event: ErrorEvent): Promise<void> {
+    const redactedContext = redactSensitiveData(event.context);
+    await this.db.saveErrorEvent({
+      event_id: `err_${Math.random().toString(36).substring(7)}`,
+      tenant_id: event.tenant_id,
+      severity: event.severity,
+      source: event.source,
+      message: event.message,
+      context: redactedContext,
+      trace_id: event.trace_id || null,
+      created_at: new Date().toISOString(),
+    });
+  }
+}
+
+export class WebhookErrorSink implements ErrorSink {
+  constructor(private readonly webhookUrl: string) {}
+
+  async recordError(event: ErrorEvent): Promise<void> {
+    const redactedContext = redactSensitiveData(event.context);
+    try {
+      await fetch(this.webhookUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ...event,
+          context: redactedContext,
+          timestamp: new Date().toISOString(),
+        }),
+      });
+    } catch {
+      // Fail-silent
+    }
+  }
+}
+
 export class MetricsTracker {
   private spans: Span[] = [];
   private metrics: Metric[] = [];
   private alerts: string[] = [];
+  private errorSink?: ErrorSink;
+
+  constructor(errorSink?: ErrorSink) {
+    this.errorSink = errorSink;
+  }
+
+  setErrorSink(sink: ErrorSink) {
+    this.errorSink = sink;
+  }
 
   startSpan(operationName: string, platform: string, parentId?: string): Span {
     const span: Span = {
@@ -37,7 +142,7 @@ export class MetricsTracker {
     return span;
   }
 
-  endSpan(spanId: string, status: 'success' | 'failure', error?: string) {
+  endSpan(spanId: string, status: 'success' | 'failure', error?: string, tenantId?: string | null, context?: any) {
     const span = this.spans.find((s) => s.spanId === spanId);
     if (span) {
       span.endTimeMs = Date.now();
@@ -51,6 +156,17 @@ export class MetricsTracker {
         value: span.durationMs,
         timestamp: new Date().toISOString(),
       });
+
+      if (status === 'failure' && this.errorSink) {
+        this.errorSink.recordError({
+          tenant_id: tenantId || null,
+          severity: 'error',
+          source: span.operationName,
+          message: error || 'Operation failed',
+          context,
+          trace_id: span.traceId,
+        }).catch(() => {});
+      }
     }
   }
 

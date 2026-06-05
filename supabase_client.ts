@@ -324,8 +324,20 @@ export interface SchemaMigrationEntry {
   checksum: string;
 }
 
+export interface ErrorEventEntry {
+  event_id: string;
+  tenant_id: string | null;
+  severity: 'error' | 'warning' | 'critical';
+  source: string;
+  message: string;
+  context: any | null;
+  trace_id: string | null;
+  created_at: string;
+}
+
 interface MockDbContainer {
   mockTrust: TrustEntry[];
+  mockErrorEvents: ErrorEventEntry[];
   mockAuditLogs: AuditLogEntry[];
   mockLocks: LockEntry[];
   mockCredentials: CredentialEntry[];
@@ -412,6 +424,7 @@ class GlobalMockDb {
   static mockOrgMembers: OrgMemberEntry[] = [];
   static mockLegalAcceptances: LegalAcceptanceEntry[] = [];
   static mockSchemaMigrations: SchemaMigrationEntry[] = [];
+  static mockErrorEvents: ErrorEventEntry[] = [];
 }
 
 /**
@@ -422,6 +435,7 @@ export class SupabaseClient {
 
   private localMockDb: MockDbContainer = {
     mockTrust: [],
+    mockErrorEvents: [],
     mockAuditLogs: [],
     mockLocks: [],
     mockCredentials: [],
@@ -508,11 +522,13 @@ export class SupabaseClient {
     GlobalMockDb.mockOrgMembers = [];
     GlobalMockDb.mockLegalAcceptances = [];
     GlobalMockDb.mockSchemaMigrations = [];
+    GlobalMockDb.mockErrorEvents = [];
   }
   
   resetLocalMockDb() {
     this.localMockDb = {
       mockTrust: [],
+      mockErrorEvents: [],
       mockAuditLogs: [],
       mockLocks: [],
       mockCredentials: [],
@@ -682,6 +698,9 @@ export class SupabaseClient {
   private get mockSchemaMigrations(): SchemaMigrationEntry[] { return SupabaseClient.useSharedMockDb ? GlobalMockDb.mockSchemaMigrations : this.localMockDb.mockSchemaMigrations; }
   private set mockSchemaMigrations(v: SchemaMigrationEntry[]) { if (SupabaseClient.useSharedMockDb) GlobalMockDb.mockSchemaMigrations = v; else this.localMockDb.mockSchemaMigrations = v; }
 
+  private get mockErrorEvents(): ErrorEventEntry[] { return SupabaseClient.useSharedMockDb ? GlobalMockDb.mockErrorEvents : this.localMockDb.mockErrorEvents; }
+  private set mockErrorEvents(v: ErrorEventEntry[]) { if (SupabaseClient.useSharedMockDb) GlobalMockDb.mockErrorEvents = v; else this.localMockDb.mockErrorEvents = v; }
+
   private activeTenantId: string | null = null;
   private snapshots: {
     mockTrust: TrustEntry[];
@@ -726,6 +745,7 @@ export class SupabaseClient {
     mockOrgMembers: OrgMemberEntry[];
     mockLegalAcceptances: LegalAcceptanceEntry[];
     mockSchemaMigrations: SchemaMigrationEntry[];
+    mockErrorEvents: ErrorEventEntry[];
   } | null = null;
 
   private readonly logger: PinoLogger;
@@ -1073,6 +1093,55 @@ export class SupabaseClient {
       });
       return;
     }
+  }
+
+  async saveErrorEvent(event: ErrorEventEntry): Promise<void> {
+    if (event.tenant_id) {
+      this.assertRls(event.tenant_id);
+    }
+    this.logger.error('Storing error event', {
+      'tenant': event.tenant_id,
+      'severity': event.severity,
+      'source': event.source,
+      'message': event.message,
+    });
+    if (this.mockMode) {
+      this.mockErrorEvents.push(event);
+      return;
+    }
+
+    const url = `${this.supabaseUrl}/rest/v1/error_events`;
+    await fetch(url, {
+      method: 'POST',
+      headers: {
+        'apikey': this.supabaseKey,
+        'Authorization': `Bearer ${this.supabaseKey}`,
+        'Content-Type': 'application/json',
+        'Prefer': 'return=minimal',
+      },
+      body: JSON.stringify(event),
+    });
+  }
+
+  async getErrorEvents(tenantId: string | null): Promise<ErrorEventEntry[]> {
+    if (tenantId) {
+      this.assertRls(tenantId);
+    }
+    if (this.mockMode) {
+      return this.mockErrorEvents.filter((e) => e.tenant_id === tenantId);
+    }
+
+    const url = `${this.supabaseUrl}/rest/v1/error_events?tenant_id=${tenantId ? 'eq.' + tenantId : 'is.null'}&select=*`;
+    const response = await fetch(url, {
+      headers: {
+        'apikey': this.supabaseKey,
+        'Authorization': `Bearer ${this.supabaseKey}`,
+      },
+    });
+    if (response.ok) {
+      return (await response.json()) as ErrorEventEntry[];
+    }
+    return [];
   }
 
   async getGovernanceEvents(tenant: string): Promise<GovernanceEventEntry[]> {
@@ -2484,6 +2553,7 @@ export class SupabaseClient {
       mockOrgMembers: JSON.parse(JSON.stringify(this.mockOrgMembers)) as OrgMemberEntry[],
       mockLegalAcceptances: JSON.parse(JSON.stringify(this.mockLegalAcceptances)) as LegalAcceptanceEntry[],
       mockSchemaMigrations: JSON.parse(JSON.stringify(this.mockSchemaMigrations)) as SchemaMigrationEntry[],
+      mockErrorEvents: JSON.parse(JSON.stringify(this.mockErrorEvents)) as ErrorEventEntry[],
     };
     this.logger.info('Transaction boundary started');
   }
@@ -2539,6 +2609,7 @@ export class SupabaseClient {
       this.mockOrgMembers = this.snapshots.mockOrgMembers;
       this.mockLegalAcceptances = this.snapshots.mockLegalAcceptances;
       this.mockSchemaMigrations = this.snapshots.mockSchemaMigrations;
+      this.mockErrorEvents = this.snapshots.mockErrorEvents;
       this.snapshots = null;
     }
     this.logger.info('Transaction boundary rolled back');

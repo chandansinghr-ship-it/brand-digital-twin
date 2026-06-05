@@ -942,6 +942,43 @@ describe('Native HTTP & SSE Server Integration Test', () => {
         expect(res.error.message).toContain('Connection timeout');
       });
     });
+
+    describe('Durable Error Reporting Integration (P1.2a)', () => {
+      it('should record unhandled dispatch errors in error_events database table', async () => {
+        db.resetLocalMockDb();
+
+        const token = signJwt(
+          {
+            userId: 'user@example.com',
+            orgId: 'tenant-abc',
+            role: 'media_buyer',
+            exp: Math.floor(Date.now() / 1000) + 3600,
+          },
+          config.auth.jwtSecret,
+        );
+
+        const originalVersion = config.legal.activeVersion;
+        config.legal.activeVersion = 'v1_test';
+
+        spyOn(SupabaseClient.prototype, 'getLatestLegalAcceptance').and.throwError('Unexpected Database Crash');
+
+        const response = await requestRaw('/api/v1/integrations', 'GET', {
+          'Authorization': `Bearer ${token}`,
+        });
+
+        config.legal.activeVersion = originalVersion;
+
+        expect(response.statusCode).toBe(500);
+
+        const errors = await db.getErrorEvents('tenant-abc');
+        expect(errors.length).toBe(1);
+        expect(errors[0].severity).toBe('critical');
+        expect(errors[0].source).toBe('http_server_dispatch');
+        expect(errors[0].message).toContain('Unexpected Database Crash');
+        expect(errors[0].context.url).toBe('/api/v1/integrations');
+        expect(errors[0].context.method).toBe('GET');
+      });
+    });
   });
 });
 
