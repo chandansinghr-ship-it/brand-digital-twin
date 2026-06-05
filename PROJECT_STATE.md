@@ -64,18 +64,21 @@ healing engine `diagnoseRootCause()` + recommendation cards (side split,
 dollar-weighted ranking, incrementality flag, `CampaignCostBreakdown`, §7 cross-channel
 guards, §8 confidence gates) · all 5 sweep checks (sorted severity→dollarImpact) ·
 zero-order cold-start (`getVariants()` fallback, `MarginDiscoveryResult` union) ·
-**durable job queue** (`pending_jobs` table · `poas_daily` + `settling_window` job
-types · 5-min polling worker · `validateEnv()` startup guard · `.env.example`) ·
-**onboarding telemetry** (`onboarding_events` table · 7-stage instrumentation
-`goal_declared → first_action_taken`) — landed `53d7bc7`.
+durable job queue (`pending_jobs` · `poas_daily` + `settling_window` · 5-min poller) ·
+`validateEnv()` startup guard · `.env.example` · onboarding telemetry (7-stage trace) ·
+**MCP agent layer** (`agents/` — `IntelligentAnalystAgent`, `RiskRadarAgent`,
+`GovernanceShadowAgent` on `OneMcpServer` + `IsolationContext`; engine capabilities
+exposed as JSON-RPC tools for agentic orchestration — landed `a6ab7db`) ·
+**shared static mock store** (`GlobalMockDb` in `SupabaseClient` — fixes
+multi-instance DB isolation across concurrent tests — landed `a6ab7db`).
 
-**One conformance gap (non-blocking):** `getOverdueJobs` + `updateJobStatus` are two
-separate calls — not an atomic `UPDATE … RETURNING`. In mock mode this is fine;
-against real Postgres under concurrent workers a race can double-run a job. Needs
-a single RPC / CTE before running multiple worker processes. Single-process Phase 1
-is safe; flag before scaling to multi-instance.
+**One conformance gap (non-blocking for single-process):** `getOverdueJobs` +
+`updateJobStatus` are two separate calls — race risk under concurrent workers.
+Needs `FOR UPDATE SKIP LOCKED` RPC before horizontal scale. Spec: `PHASE_B_BUILD_SPEC.md §B5`.
 
 **Open (Phase 1 tail):** real bank connections (RBI AA / Plaid).
+
+**Public launch build in progress:** `PHASE_A/B/C_BUILD_SPEC.md`.
 
 ---
 
