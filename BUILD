@@ -386,6 +386,7 @@ ts_library(
     srcs = ["user_auth.ts"],
     deps = [
         ":auth",
+        ":config",
         ":errors",
         ":supabase_client",
         "//third_party/javascript/typings/node",
@@ -499,6 +500,7 @@ ts_library(
         "phase2_test.ts",
         "phase3_test.ts",
         "phase4_test.ts",
+        "gdpr_legal_test.ts",
         "plaid_adapter_test.ts",
         "poas_scheduler_test.ts",
         "server_test.ts",
@@ -508,6 +510,7 @@ ts_library(
         "user_auth_test.ts",
     ],
     deps = [
+        ":auth",
         ":account_health",
         ":agency_os",
         ":agency_os_types",
@@ -662,4 +665,47 @@ jasmine_node_test(
 jasmine_node_test(
     name = "user_auth_test",
     srcs = [":brand_twin_tests"],
+)
+
+jasmine_node_test(
+    name = "gdpr_legal_test",
+    srcs = [":brand_twin_tests"],
+)
+
+ts_library(
+    name = "e2e_test_lib",
+    testonly = True,
+    srcs = [
+        "tests/e2e/claim_concurrency_test.ts",
+        "tests/e2e/specs/data_rights_e2e_test.ts",
+        "tests/e2e/specs/job_claiming_e2e_test.ts",
+        "tests/e2e/specs/legal_consent_e2e_test.ts",
+        "tests/e2e/specs/public_abuse_e2e_test.ts",
+        "tests/e2e/specs/ready_health_e2e_test.ts",
+    ],
+    deps = [
+        ":auth",
+        ":config",
+        ":errors",
+        ":event_bus",
+        ":google_ads_adapter",
+        ":governance_engine",
+        ":observability",
+        ":orchestrator",
+        ":platform_adapter",
+        ":poas_calculator",
+        ":poas_scheduler",
+        ":rate_limiter",
+        ":server",
+        ":supabase_client",
+        ":unified_brain",
+        ":user_auth",
+        "//third_party/javascript/typings/jasmine",
+        "//third_party/javascript/typings/node",
+    ],
+)
+
+jasmine_node_test(
+    name = "e2e_test",
+    srcs = [":e2e_test_lib"],
 )

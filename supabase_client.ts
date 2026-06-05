@@ -197,6 +197,7 @@ export interface UserEntry {
   email: string;
   pw_hash: string;
   status: 'pending_verification' | 'active' | 'disabled';
+  deleted_at?: string;
   created_at: string;
 }
 
@@ -213,7 +214,16 @@ export interface OrgEntry {
   name: string;
   owner_user: string;
   plan: string;
+  deleted_at?: string;
   created_at: string;
+}
+
+export interface LegalAcceptanceEntry {
+  acceptance_id: string;
+  user_id: string;
+  doc_version: string;
+  ip_address: string | null;
+  accepted_at: string;
 }
 
 export interface OrgMemberEntry {
@@ -281,12 +291,14 @@ export interface VariantEntry {
 export interface PendingJobEntry {
   job_id: string;
   tenant_id: string;
-  type: 'poas_daily' | 'settling_window';
+  type: 'poas_daily' | 'settling_window' | 'hard_delete_account';
   action_id: string | null;
   run_at: string;
   payload: any | null;
   status: 'pending' | 'processing' | 'completed' | 'failed';
   created_at: string;
+  locked_by?: string | null;
+  expires_at?: string | null;
 }
 
 export interface OnboardingEventEntry {
@@ -341,6 +353,7 @@ interface MockDbContainer {
   mockRefreshTokens: RefreshTokenEntry[];
   mockOrgs: OrgEntry[];
   mockOrgMembers: OrgMemberEntry[];
+  mockLegalAcceptances: LegalAcceptanceEntry[];
 }
 
 class GlobalMockDb {
@@ -384,6 +397,7 @@ class GlobalMockDb {
   static mockRefreshTokens: RefreshTokenEntry[] = [];
   static mockOrgs: OrgEntry[] = [];
   static mockOrgMembers: OrgMemberEntry[] = [];
+  static mockLegalAcceptances: LegalAcceptanceEntry[] = [];
 }
 
 /**
@@ -433,6 +447,7 @@ export class SupabaseClient {
     mockRefreshTokens: [],
     mockOrgs: [],
     mockOrgMembers: [],
+    mockLegalAcceptances: [],
   };
 
   static resetGlobalMockDb() {
@@ -476,6 +491,7 @@ export class SupabaseClient {
     GlobalMockDb.mockRefreshTokens = [];
     GlobalMockDb.mockOrgs = [];
     GlobalMockDb.mockOrgMembers = [];
+    GlobalMockDb.mockLegalAcceptances = [];
   }
 
   private get mockTrust(): TrustEntry[] { return SupabaseClient.useSharedMockDb ? GlobalMockDb.mockTrust : this.localMockDb.mockTrust; }
@@ -597,6 +613,8 @@ export class SupabaseClient {
 
   private get mockOrgMembers(): OrgMemberEntry[] { return SupabaseClient.useSharedMockDb ? GlobalMockDb.mockOrgMembers : this.localMockDb.mockOrgMembers; }
   private set mockOrgMembers(v: OrgMemberEntry[]) { if (SupabaseClient.useSharedMockDb) GlobalMockDb.mockOrgMembers = v; else this.localMockDb.mockOrgMembers = v; }
+  private get mockLegalAcceptances(): LegalAcceptanceEntry[] { return SupabaseClient.useSharedMockDb ? GlobalMockDb.mockLegalAcceptances : this.localMockDb.mockLegalAcceptances; }
+  private set mockLegalAcceptances(v: LegalAcceptanceEntry[]) { if (SupabaseClient.useSharedMockDb) GlobalMockDb.mockLegalAcceptances = v; else this.localMockDb.mockLegalAcceptances = v; }
 
   private activeTenantId: string | null = null;
   private snapshots: {
@@ -640,6 +658,7 @@ export class SupabaseClient {
     mockRefreshTokens: RefreshTokenEntry[];
     mockOrgs: OrgEntry[];
     mockOrgMembers: OrgMemberEntry[];
+    mockLegalAcceptances: LegalAcceptanceEntry[];
   } | null = null;
 
   private readonly logger: PinoLogger;
@@ -694,6 +713,11 @@ export class SupabaseClient {
     copy.mockVariants = this.mockVariants;
     copy.mockPendingJobs = this.mockPendingJobs;
     copy.mockOnboardingEvents = this.mockOnboardingEvents;
+    copy.mockUsers = this.mockUsers;
+    copy.mockRefreshTokens = this.mockRefreshTokens;
+    copy.mockOrgs = this.mockOrgs;
+    copy.mockOrgMembers = this.mockOrgMembers;
+    copy.mockLegalAcceptances = this.mockLegalAcceptances;
     return copy;
   }
 
@@ -1866,17 +1890,87 @@ export class SupabaseClient {
 
   async claimNextOverdueJob(currentTimeMs: number, ownerId: string): Promise<PendingJobEntry | null> {
     if (this.mockMode) {
-      const job = this.mockPendingJobs.find(
-        (j) => j.status === 'pending' && Date.parse(j.run_at) <= currentTimeMs
-      );
+      const job = this.mockPendingJobs.find((j) => {
+        const isPending = j.status === 'pending' && Date.parse(j.run_at) <= currentTimeMs;
+        const isLeaseExpired =
+          j.status === 'processing' &&
+          j.expires_at &&
+          Date.parse(j.expires_at) <= currentTimeMs;
+        return isPending || isLeaseExpired;
+      });
       if (job) {
         job.status = 'processing';
+        job.locked_by = ownerId;
+        job.expires_at = new Date(currentTimeMs + 10000).toISOString(); // 10s lease by default
         this.logger.info(`[Mock DB] Atomically claimed job ${job.job_id} for owner ${ownerId}`);
         return {...job};
       }
       return null;
     }
     return null;
+  }
+
+  async claimJob(
+    jobId: string,
+    workerId: string,
+    currentTimeMs: number,
+    leaseDurationMs: number
+  ): Promise<boolean> {
+    if (this.mockMode) {
+      const job = this.mockPendingJobs.find((j) => j.job_id === jobId);
+      if (!job) return false;
+
+      const isClaimable =
+        job.status === 'pending' ||
+        job.status === 'failed' ||
+        (job.status === 'processing' &&
+          job.expires_at &&
+          Date.parse(job.expires_at) <= currentTimeMs);
+
+      if (isClaimable) {
+        job.status = 'processing';
+        job.locked_by = workerId;
+        job.expires_at = new Date(currentTimeMs + leaseDurationMs).toISOString();
+        return true;
+      }
+      return false;
+    }
+    return false;
+  }
+
+  async heartbeatJob(
+    jobId: string,
+    workerId: string,
+    currentTimeMs: number,
+    leaseDurationMs: number
+  ): Promise<boolean> {
+    if (this.mockMode) {
+      const job = this.mockPendingJobs.find((j) => j.job_id === jobId);
+      if (!job) return false;
+
+      if (job.status === 'processing' && job.locked_by === workerId) {
+        job.expires_at = new Date(currentTimeMs + leaseDurationMs).toISOString();
+        return true;
+      }
+      return false;
+    }
+    return false;
+  }
+
+  async completeJob(jobId: string, workerId: string): Promise<boolean> {
+    if (this.mockMode) {
+      const job = this.mockPendingJobs.find((j) => j.job_id === jobId);
+      if (!job) return false;
+
+      if (job.status === 'processing' && job.locked_by === workerId) {
+        job.status = 'completed';
+        job.locked_by = null;
+        job.expires_at = null;
+        return true;
+      }
+      return false;
+    }
+    return false;
   }
 
   async updateJobStatus(jobId: string, status: PendingJobEntry['status']): Promise<void> {
@@ -2027,6 +2121,132 @@ export class SupabaseClient {
     return [];
   }
 
+  // --- LEGAL CONSENT & DATA RIGHTS (GDPR) ---
+
+  async saveLegalAcceptance(entry: LegalAcceptanceEntry): Promise<void> {
+    if (this.mockMode) {
+      this.mockLegalAcceptances.push(entry);
+      return;
+    }
+  }
+
+  async getLatestLegalAcceptance(userId: string): Promise<LegalAcceptanceEntry | null> {
+    if (this.mockMode) {
+      const userAcceptances = this.mockLegalAcceptances
+        .filter((a) => a.user_id === userId)
+        .sort((a, b) => Date.parse(b.accepted_at) - Date.parse(a.accepted_at));
+      return userAcceptances.length > 0 ? userAcceptances[0] : null;
+    }
+    return null;
+  }
+
+  async deleteUser(userId: string): Promise<void> {
+    if (this.mockMode) {
+      this.mockUsers = this.mockUsers.filter((u) => u.user_id !== userId);
+      this.mockRefreshTokens = this.mockRefreshTokens.filter((t) => t.user_id !== userId);
+      this.mockOrgMembers = this.mockOrgMembers.filter((m) => m.user_id !== userId);
+      this.mockLegalAcceptances = this.mockLegalAcceptances.filter((a) => a.user_id !== userId);
+      return;
+    }
+  }
+
+  async deleteOrg(orgId: string): Promise<void> {
+    if (this.mockMode) {
+      this.mockOrgs = this.mockOrgs.filter((o) => o.org_id !== orgId);
+      this.mockOrgMembers = this.mockOrgMembers.filter((m) => m.org_id !== orgId);
+      return;
+    }
+  }
+
+  async hardDeleteTenantData(tenantId: string): Promise<void> {
+    if (this.mockMode) {
+      // 1. Delete all platform accounts, account links, credentials, Variants
+      this.mockPlatformAccounts = this.mockPlatformAccounts.filter((pa) => pa.tenant_id !== tenantId);
+      this.mockAccountLinks = this.mockAccountLinks.filter((al) => al.tenant_id !== tenantId);
+      this.mockAccountCredentials = this.mockAccountCredentials.filter((ac) => ac.tenant_id !== tenantId);
+      this.mockVariants = this.mockVariants.filter((v) => v.tenant_id !== tenantId);
+      this.mockProductAdLinks = this.mockProductAdLinks.filter((pl) => pl.tenant_id !== tenantId);
+
+      // 2. Delete all client profile configurations
+      this.mockClients = this.mockClients.filter((c) => c.tenantId !== tenantId);
+
+      // 3. Delete Campaign and Orders transaction data
+      this.mockCampaigns = this.mockCampaigns.filter((c) => c.tenant_id !== tenantId);
+      this.mockOrders = this.mockOrders.filter((o) => o.tenant_id !== tenantId);
+      this.mockOrderLines = this.mockOrderLines.filter((ol) => ol.tenant_id !== tenantId);
+      this.mockSpendFacts = this.mockSpendFacts.filter((s) => s.tenant_id !== tenantId);
+      this.mockCustomers = this.mockCustomers.filter((c) => c.tenant_id !== tenantId);
+      this.mockIdentityLinks = this.mockIdentityLinks.filter((i) => i.tenant_id !== tenantId);
+      this.mockRefunds = this.mockRefunds.filter((r) => r.tenant_id !== tenantId);
+      this.mockFulfillmentCosts = this.mockFulfillmentCosts.filter((fc) => fc.tenant_id !== tenantId);
+      this.mockTouchpoints = this.mockTouchpoints.filter((tp) => tp.tenant_id !== tenantId);
+
+      // 4. Delete Signals, Integrations, and Social
+      this.mockBrandSignals = this.mockBrandSignals.filter((bs) => bs.tenantId !== tenantId);
+      this.mockIntegrationStates = this.mockIntegrationStates.filter((is) => is.tenantId !== tenantId);
+      this.mockSocialMentions = this.mockSocialMentions.filter((sm) => sm.tenantId !== tenantId);
+      this.mockCompetitorSignals = this.mockCompetitorSignals.filter((cs) => cs.tenantId !== tenantId);
+      this.mockFinancialTransactions = this.mockFinancialTransactions.filter((ft) => ft.tenantId !== tenantId);
+      this.mockCreativeAssets = this.mockCreativeAssets.filter((ca) => ca.tenantId !== tenantId);
+      this.mockStakeholderAssociations = this.mockStakeholderAssociations.filter((sa) => sa.tenantId !== tenantId);
+
+      // 5. Delete scheduler / job states
+      this.mockPendingJobs = this.mockPendingJobs.filter((pj) => pj.tenant_id !== tenantId);
+      this.mockOnboardingEvents = this.mockOnboardingEvents.filter((oe) => oe.tenant_id !== tenantId);
+      this.mockBaselineContexts = this.mockBaselineContexts.filter((bc) => bc.tenant_id !== tenantId);
+      this.mockCategoryBenchmarks = this.mockCategoryBenchmarks.filter((cb) => cb.tenant_id !== tenantId);
+
+      // 6. Delete other structures (Team members, briefings, approvals, trust logs)
+      this.mockTeamMembers = this.mockTeamMembers.filter((tm) => tm.tenantId !== tenantId);
+      this.mockCampaignBriefs = this.mockCampaignBriefs.filter((cb) => cb.tenantId !== tenantId);
+      this.mockApprovals = this.mockApprovals.filter((ap) => ap.tenantId !== tenantId);
+      this.mockActivityFeed = this.mockActivityFeed.filter((af) => af.tenantId !== tenantId);
+      this.mockClientPortals = this.mockClientPortals.filter((cp) => cp.tenantId !== tenantId);
+
+      this.mockTrust = this.mockTrust.filter((t) => t.tenant !== tenantId);
+      const tenantCampaigns = this.mockCampaigns.filter((c) => c.tenant_id === tenantId).map(c => c.campaign_id);
+      this.mockLocks = this.mockLocks.filter((l) => !tenantCampaigns.includes(l.campaign_id));
+      this.mockCredentials = this.mockCredentials.filter((c) => c.tenant_id !== tenantId);
+    }
+  }
+
+  async anonymizeLogs(tenantId: string): Promise<void> {
+    if (this.mockMode) {
+      // Scrub from audit logs
+      for (const log of this.mockAuditLogs) {
+        if (log.tenant === tenantId) {
+          log.reason = '[SCRUBBED]';
+        }
+      }
+      // Scrub from governance events
+      for (const event of this.mockGovernanceEvents) {
+        if (event.tenant_id === tenantId) {
+          event.actor = '[REDACTED]';
+          event.reason = '[SCRUBBED]';
+        }
+      }
+    }
+  }
+
+  async exportTenantData(tenantId: string, userId?: string): Promise<any> {
+    if (this.mockMode) {
+      const user = userId ? this.mockUsers.find((u) => u.user_id === userId) || null : null;
+      return {
+        tenantId,
+        user,
+        clients: this.mockClients.filter((c) => c.tenantId === tenantId),
+        platformAccounts: this.mockPlatformAccounts.filter((pa) => pa.tenant_id === tenantId),
+        campaigns: this.mockCampaigns.filter((c) => c.tenant_id === tenantId),
+        customers: this.mockCustomers.filter((c) => c.tenant_id === tenantId),
+        orders: this.mockOrders.filter((o) => o.tenant_id === tenantId),
+        brandSignals: this.mockBrandSignals.filter((bs) => bs.tenantId === tenantId),
+        teamMembers: this.mockTeamMembers.filter((tm) => tm.tenantId === tenantId),
+      };
+    }
+    return {};
+  }
+
+
   // --- TRANSACTION SIMULATION ---
   private transactionActive = false;
 
@@ -2073,6 +2293,7 @@ export class SupabaseClient {
       mockRefreshTokens: JSON.parse(JSON.stringify(this.mockRefreshTokens)) as RefreshTokenEntry[],
       mockOrgs: JSON.parse(JSON.stringify(this.mockOrgs)) as OrgEntry[],
       mockOrgMembers: JSON.parse(JSON.stringify(this.mockOrgMembers)) as OrgMemberEntry[],
+      mockLegalAcceptances: JSON.parse(JSON.stringify(this.mockLegalAcceptances)) as LegalAcceptanceEntry[],
     };
     this.logger.info('Transaction boundary started');
   }
@@ -2126,6 +2347,7 @@ export class SupabaseClient {
       this.mockRefreshTokens = this.snapshots.mockRefreshTokens;
       this.mockOrgs = this.snapshots.mockOrgs;
       this.mockOrgMembers = this.snapshots.mockOrgMembers;
+      this.mockLegalAcceptances = this.snapshots.mockLegalAcceptances;
       this.snapshots = null;
     }
     this.logger.info('Transaction boundary rolled back');

@@ -8,10 +8,10 @@ import * as http from 'http';
 import * as url from 'url';
 import {createHash} from 'node:crypto';
 import {config} from './config';
-import {sendErrorResponse, ValidationError, RateLimitError} from './errors';
+import {sendErrorResponse, ValidationError, RateLimitError, PayloadTooLargeError} from './errors';
 import {eventBus} from './event_bus';
 import {GoogleAdsAdapter} from './google_ads_adapter';
-import {authMiddleware, DecodedJwt} from './auth';
+import {authMiddleware, DecodedJwt, signJwt, verifyJwt} from './auth';
 import {validateActionRequest, validateContext} from './validation';
 import {TokenBucket, RateLimitingAdapterWrapper} from './rate_limiter';
 import {
@@ -20,7 +20,7 @@ import {
   TrustLedger,
   Waiver,
 } from './governance_engine';
-import {SupabaseClient, OrgEntry} from './supabase_client';
+import {SupabaseClient, OrgEntry, PendingJobEntry, LegalAcceptanceEntry} from './supabase_client';
 import {signup, verifyEmail, login, rotateRefreshToken} from './user_auth';
 import * as crypto from 'crypto';
 import {UnifiedIntelligenceBrain} from './unified_brain';
@@ -90,9 +90,17 @@ function checkRateLimit(req: http.IncomingMessage): void {
 }
 
 function parseRequestBody(req: http.IncomingMessage): Promise<any> {
+  const maxLimit = 10 * 1024 * 1024; // 10MB limit
   return new Promise((resolve, reject) => {
     let body = '';
+    let bytesReceived = 0;
     req.on('data', (chunk) => {
+      const buf = typeof chunk === 'string' ? Buffer.from(chunk) : chunk;
+      bytesReceived += buf.length;
+      if (bytesReceived > maxLimit) {
+        reject(new PayloadTooLargeError('Payload exceeds 10MB limit'));
+        return;
+      }
       body += chunk.toString();
     });
     req.on('end', () => {
@@ -375,6 +383,67 @@ export function startServer(port: number, db: SupabaseClient): http.Server {
         return;
       }
 
+      // Static Legal Content endpoints
+      if (path === '/api/v1/legal/tos' && req.method === 'GET') {
+        sendSuccessResponse(res, {
+          title: 'Terms of Service',
+          version: config.legal.activeVersion,
+          content: 'Standard Terms of Service content for Brand Digital Twin OS...',
+        });
+        return;
+      }
+
+      if (path === '/api/v1/legal/privacy' && req.method === 'GET') {
+        sendSuccessResponse(res, {
+          title: 'Privacy Policy',
+          version: config.legal.activeVersion,
+          content: 'Standard Privacy Policy content for Brand Digital Twin OS...',
+        });
+        return;
+      }
+
+      if (path === '/api/v1/legal/dpa' && req.method === 'GET') {
+        sendSuccessResponse(res, {
+          title: 'Data Processing Addendum',
+          version: config.legal.activeVersion,
+          content: 'Standard DPA content for Brand Digital Twin OS...',
+        });
+        return;
+      }
+
+      // GDPR Download Endpoint - Public verification via token query param
+      if (path === '/api/v1/account/export/download' && req.method === 'GET') {
+        const token = parsedUrl.query['token'] as string;
+        if (!token) {
+          res.writeHead(400, {'Content-Type': 'application/json'});
+          res.end(JSON.stringify({error: 'Missing export token'}));
+          return;
+        }
+        try {
+          const payload = verifyJwt(token, config.auth.jwtSecret);
+          if (payload.purpose !== 'gdpr_export') {
+            res.writeHead(403, {'Content-Type': 'application/json'});
+            res.end(JSON.stringify({error: 'Invalid token purpose'}));
+            return;
+          }
+          const data = await db.exportTenantData(payload.orgId, payload.userId);
+          res.writeHead(200, {
+            'Content-Type': 'application/json',
+            'Content-Disposition': `attachment; filename="gdpr-export-${payload.orgId}.json"`,
+          });
+          res.end(JSON.stringify(data));
+        } catch (err) {
+          res.writeHead(401, {'Content-Type': 'application/json'});
+          res.end(JSON.stringify({error: 'Expired or invalid export token'}));
+        }
+      }
+      
+      // Readiness Probe (Public)
+      if ((path === '/ready' || path === '/readyz') && req.method === 'GET') {
+        sendSuccessResponse(res, { status: 'ready' });
+        return;
+      }
+
       // Centralized Authentication for all v1 API endpoints
       let decodedToken: DecodedJwt;
       try {
@@ -394,6 +463,111 @@ export function startServer(port: number, db: SupabaseClient): http.Server {
       }
 
       const tenantId = decodedToken.orgId;
+
+      // Legal Acceptance Endpoint (authenticated, exempt from compliance block)
+      if (path === '/api/v1/legal/accept' && req.method === 'POST') {
+        const body = await parseRequestBody(req);
+        const {version} = body;
+        if (!version) {
+          res.writeHead(400, {'Content-Type': 'application/json'});
+          res.end(JSON.stringify({error: 'Missing terms version'}));
+          return;
+        }
+        const ip = (req.headers['x-forwarded-for'] as string) || req.socket.remoteAddress || 'unknown';
+        const acceptance: LegalAcceptanceEntry = {
+          acceptance_id: `acpt_${crypto.randomUUID()}`,
+          user_id: decodedToken.userId,
+          doc_version: version,
+          ip_address: ip,
+          accepted_at: new Date().toISOString(),
+        };
+        await db.saveLegalAcceptance(acceptance);
+        sendSuccessResponse(res, {status: 'accepted', version});
+        return;
+      }
+
+      // Policy Compliance Middleware
+      if (config.legal.activeVersion) {
+        const latestAcceptance = await db.getLatestLegalAcceptance(decodedToken.userId);
+        if (!latestAcceptance || latestAcceptance.doc_version !== config.legal.activeVersion) {
+          res.writeHead(403, {'Content-Type': 'application/json'});
+          res.end(
+            JSON.stringify({
+              status: 'error',
+              error: {
+                code: 'POLICY_REACCEPTANCE_REQUIRED',
+                message: `You must accept the updated terms and conditions (${config.legal.activeVersion}) before continuing.`,
+              },
+            }),
+          );
+          return;
+        }
+      }
+
+      // Jobs management routes (for E2E verification)
+      if (path === '/api/v1/jobs/claim' && req.method === 'POST') {
+        const body = await parseRequestBody(req);
+        const {jobId, workerId, leaseDurationMs} = body;
+        if (!jobId || !workerId) {
+          res.writeHead(400, {'Content-Type': 'application/json'});
+          res.end(JSON.stringify({error: 'Missing jobId or workerId'}));
+          return;
+        }
+        const success = await db.claimJob(
+          jobId,
+          workerId,
+          Date.now(),
+          leaseDurationMs || 10000,
+        );
+        if (success) {
+          sendSuccessResponse(res, {status: 'claimed'});
+        } else {
+          res.writeHead(409, {'Content-Type': 'application/json'});
+          res.end(JSON.stringify({status: 'conflict', error: 'Job already locked or not claimable'}));
+        }
+        return;
+      }
+
+      if (path === '/api/v1/jobs/heartbeat' && req.method === 'POST') {
+        const body = await parseRequestBody(req);
+        const {jobId, workerId, leaseDurationMs} = body;
+        if (!jobId || !workerId) {
+          res.writeHead(400, {'Content-Type': 'application/json'});
+          res.end(JSON.stringify({error: 'Missing jobId or workerId'}));
+          return;
+        }
+        const success = await db.heartbeatJob(
+          jobId,
+          workerId,
+          Date.now(),
+          leaseDurationMs || 10000,
+        );
+        if (success) {
+          sendSuccessResponse(res, {status: 'extended'});
+        } else {
+          res.writeHead(403, {'Content-Type': 'application/json'});
+          res.end(JSON.stringify({status: 'error', error: 'Lease lost or worker mismatch'}));
+        }
+        return;
+      }
+
+      if (path === '/api/v1/jobs/complete' && req.method === 'POST') {
+        const body = await parseRequestBody(req);
+        const {jobId, workerId} = body;
+        if (!jobId || !workerId) {
+          res.writeHead(400, {'Content-Type': 'application/json'});
+          res.end(JSON.stringify({error: 'Missing jobId or workerId'}));
+          return;
+        }
+        const success = await db.completeJob(jobId, workerId);
+        if (success) {
+          sendSuccessResponse(res, {status: 'completed'});
+        } else {
+          res.writeHead(403, {'Content-Type': 'application/json'});
+          res.end(JSON.stringify({status: 'error', error: 'Failed to complete job'}));
+        }
+        return;
+      }
 
       // 1. GET /me (Retrieve current user, their orgs, and associated brands)
       if (path === '/api/v1/me' && req.method === 'GET') {
@@ -417,6 +591,80 @@ export function startServer(port: number, db: SupabaseClient): http.Server {
           email: user.email,
           status: user.status,
           orgs: orgProfiles,
+        });
+        return;
+      }
+
+      // 1.5 DELETE /account (Schedule account deletion)
+      if (path === '/api/v1/account' && req.method === 'DELETE') {
+        const userId = decodedToken.userId;
+        const user = await db.getUserById(userId);
+        if (!user) {
+          res.writeHead(404, {'Content-Type': 'application/json'});
+          res.end(JSON.stringify({error: 'User not found'}));
+          return;
+        }
+
+        // Soft delete: set disabled status and deleted_at
+        user.status = 'disabled';
+        user.deleted_at = new Date().toISOString();
+        await db.saveUser(user);
+
+        // Revoke active refresh tokens
+        const tokens = await db.getRefreshTokensForUser(userId);
+        for (const t of tokens) {
+          t.revoked = true;
+          await db.saveRefreshToken(t);
+        }
+
+        // Mark org as deleted if user is owner of the tenant org
+        const org = await db.getOrg(tenantId);
+        if (org && org.owner_user === userId) {
+          org.deleted_at = new Date().toISOString();
+          await db.saveOrg(org);
+        }
+
+        // Schedule hard deletion job in 30 days
+        const runAt = new Date(Date.now() + 30 * 24 * 3600 * 1000).toISOString();
+        const job: PendingJobEntry = {
+          job_id: `job-hard-delete-${tenantId}-${Date.now()}`,
+          tenant_id: tenantId,
+          type: 'hard_delete_account',
+          action_id: null,
+          run_at: runAt,
+          payload: {
+            userId,
+            orgId: tenantId,
+          },
+          status: 'pending',
+          created_at: new Date().toISOString(),
+        };
+        await db.savePendingJob(job);
+
+        sendSuccessResponse(res, {
+          status: 'scheduled',
+          message: 'Account scheduled for deletion. You have a 30-day grace period to cancel.',
+          deletionDate: runAt,
+        });
+        return;
+      }
+
+      // 1.6 POST /account/export (Request data export)
+      if (path === '/api/v1/account/export' && req.method === 'POST') {
+        const token = signJwt(
+          {
+            userId: decodedToken.userId,
+            orgId: decodedToken.orgId,
+            role: decodedToken.role,
+            purpose: 'gdpr_export',
+          },
+          config.auth.jwtSecret,
+          15 * 60 * 1000, // 15 minutes TTL
+        );
+        const downloadUrl = `${config.server.baseUrl}/api/v1/account/export/download?token=${token}`;
+        sendSuccessResponse(res, {
+          downloadUrl,
+          expiresIn: '15m',
         });
         return;
       }
