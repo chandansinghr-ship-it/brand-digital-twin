@@ -3,16 +3,16 @@
 The customer-facing SPA. This is **A3.1 (scaffold) + A3.2 first screen (POAS
 dashboard hero)** from `A-PHASE_BUILD_SPEC.md` / `A3-SCAFFOLD_SPEC.md`.
 
-It is a **standalone Next.js project** living in the Wellness-Foods working repo.
-It is intentionally **not** part of the Tanmatra pnpm workspace (the workspace
-globs `artifacts/*` and `lib/*`, not `app/`). When the engine team is ready,
-copy this `app/` directory into `chandansinghr-ship-it/brand-digital-twin` and
-point it at the live server.
+It is a **standalone Next.js project** living under `brand-twin/app/` — kept
+separate from the Tanmatra project at the repo root, and **not** part of the
+Tanmatra pnpm workspace (the workspace globs `artifacts/*` and `lib/*`, not
+`brand-twin/`). When the engine team is ready, copy this `app/` directory into
+`chandansinghr-ship-it/brand-digital-twin` and point it at the live server.
 
 ## Run it
 
 ```bash
-cd app
+cd brand-twin/app
 npm install
 npm run dev        # http://localhost:3002
 ```
