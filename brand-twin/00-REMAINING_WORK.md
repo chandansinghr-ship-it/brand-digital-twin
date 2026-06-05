@@ -74,7 +74,7 @@ COGS + billing. **A stranger still can't connect a platform or click anything.**
 | # | Item | Size | File(s) |
 |---|------|------|---------|
 | A3.1 | ✅ **DONE** — Next.js `app/` scaffold + auth-gated root routing (root routes by auth state, logout in nav) | L | `app/` |
-| A3.2 | ◐ **NEARLY DONE** — built: **auth (login/signup/verify/reset)** + connect-your-stack + POAS dashboard + readiness gauge + live sweep + three-zone healing + autonomy/approvals + `Nav`. **Full loop signup→connect→insight walkable.** Only SSE live-updates + per-route auth guard remain | XL | `app/` |
+| A3.2 | ✅ **DONE (core loop)** — auth (login/signup/verify/reset) + connect + POAS dashboard + readiness gauge + live sweep + three-zone healing + autonomy/approvals + **per-route auth guard** (`(app)/` group) + **SSE live updates** + `Nav`/logout. Full signup→connect→insight loop, MOCK-demoable + live where endpoints exist. Remaining: small backend endpoints (A2.4/A3.4/A3.5) + B-phase legal/billing UI | XL | `app/` |
 | A3.3 | ✅ **DONE** — endpoint (`dd9045a`) + `ReadinessGauge` UI on dashboard, wired to live `/profit-readiness` | M | `server.ts`, `profit_readiness.ts`, `app/` |
 | A3.4 | ☐ `GET /api/v1/sweep` endpoint — expose rich `SweepFinding[]` (today `/risks` returns only `string[]`); UI already built against it | S | `server.ts`, `risk_radar.ts` |
 | A3.5 | ☐ `GET/POST /api/v1/autonomy` — read/set current trust tier; UI dial already built against it (approvals already wired to live `/approvals`) | S | `server.ts`, `governance_engine.ts` |
