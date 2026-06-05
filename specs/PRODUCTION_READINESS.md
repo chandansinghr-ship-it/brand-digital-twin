@@ -70,6 +70,7 @@ from day 1**. They gate P4, not the build. Start them now.
 - **B3 — Production ops:**
   - [ ] Error tracking + metrics + alerting wired into `observability.ts`.
   - [ ] CI/CD pipeline; staging environment mirroring prod.
+  - [x] **CI typecheck/lint/build gate for `brand-twin/app`** (runs `npm ci` → typecheck → lint → `next build` via `.github/workflows/brand-twin-app-ci.yml` on frontend file updates).
   - [ ] DB backup + tested restore; migration runner with rollback.
   - [ ] Secret management out of env files (vault/KMS) in prod.
   - [ ] `incident_response.ts` fleshed out; on-call + support channel.
