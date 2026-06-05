@@ -739,4 +739,77 @@ describe('Native HTTP & SSE Server Integration Test', () => {
       expect(res.data.status).toBe('directional_only');
     });
   });
+
+  describe('User Authentication API Integration', () => {
+    it('should signup, verify, request password reset, confirm it, and login with new password', async () => {
+      const email = 'srv_reset@example.com';
+      const pw = 'OldPassword123!';
+      const newPw = 'NewPassword789!';
+      const org = 'Srv Org';
+
+      // 1. Signup
+      const signupRes = await postJson('/api/v1/auth/signup', {
+        email,
+        password: pw,
+        orgName: org,
+      });
+      expect(signupRes.status).toBe('success');
+      expect(signupRes.data.userId).toBeDefined();
+      const verificationToken = signupRes.data.verificationToken;
+      expect(verificationToken).toBeDefined();
+
+      // 2. Verify
+      const verifyRes = await postJson('/api/v1/auth/verify', {
+        token: verificationToken,
+      });
+      expect(verifyRes.status).toBe('success');
+
+      // 3. Request reset
+      const resetRes = await postJson('/api/v1/auth/reset', {
+        email,
+      });
+      expect(resetRes.status).toBe('success');
+      const resetToken = resetRes.data.resetToken;
+      expect(resetToken).toBeDefined();
+
+      // 4. Confirm reset
+      const confirmRes = await postJson('/api/v1/auth/reset/confirm', {
+        token: resetToken,
+        newPassword: newPw,
+      });
+      expect(confirmRes.status).toBe('success');
+
+      // 5. Try login with old password -> should fail
+      const loginFailRes = await postJson('/api/v1/auth/login', {
+        email,
+        password: pw,
+      });
+      expect(loginFailRes.error).toContain('Invalid credentials');
+
+      // 6. Login with new password -> should succeed
+      const loginSuccessRes = await postJson('/api/v1/auth/login', {
+        email,
+        password: newPw,
+      });
+      expect(loginSuccessRes.status).toBe('success');
+      expect(loginSuccessRes.data.accessToken).toBeDefined();
+      expect(loginSuccessRes.data.refreshToken).toBeDefined();
+    });
+
+    it('should return error if password reset requested for non-existent email', async () => {
+      const res = await postJson('/api/v1/auth/reset', {
+        email: 'ghost@example.com',
+      });
+      expect(res.error).toBeDefined();
+    });
+
+    it('should return error if reset confirmation has invalid token', async () => {
+      const res = await postJson('/api/v1/auth/reset/confirm', {
+        token: 'invalid_token',
+        newPassword: 'SomePassword123!',
+      });
+      expect(res.error).toBeDefined();
+    });
+  });
 });
+

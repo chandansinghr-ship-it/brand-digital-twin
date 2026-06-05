@@ -23,7 +23,7 @@ import {
   Waiver,
 } from './governance_engine';
 import {SupabaseClient, OrgEntry, PendingJobEntry, LegalAcceptanceEntry} from './supabase_client';
-import {signup, verifyEmail, login, rotateRefreshToken} from './user_auth';
+import {signup, verifyEmail, login, rotateRefreshToken, requestPasswordReset, confirmPasswordReset} from './user_auth';
 import * as crypto from 'crypto';
 import {UnifiedIntelligenceBrain} from './unified_brain';
 import {IdentityResolver} from './identity_resolver';
@@ -384,6 +384,49 @@ export function startServer(port: number, db: SupabaseClient): http.Server {
         }
         return;
       }
+
+      if (path === '/api/v1/auth/reset' && req.method === 'POST') {
+        const body = await parseRequestBody(req);
+        const {email} = body;
+        if (!email) {
+          res.writeHead(400, {'Content-Type': 'application/json'});
+          res.end(JSON.stringify({error: 'Missing email'}));
+          return;
+        }
+        try {
+          const resetToken = await requestPasswordReset(db, email, config.auth.jwtSecret);
+          sendSuccessResponse(res, {
+            status: 'success',
+            resetToken,
+          });
+        } catch (err: any) {
+          res.writeHead(400, {'Content-Type': 'application/json'});
+          res.end(JSON.stringify({error: err.message || String(err)}));
+        }
+        return;
+      }
+
+      if (path === '/api/v1/auth/reset/confirm' && req.method === 'POST') {
+        const body = await parseRequestBody(req);
+        const {token, newPassword} = body;
+        if (!token || !newPassword) {
+          res.writeHead(400, {'Content-Type': 'application/json'});
+          res.end(JSON.stringify({error: 'Missing token or newPassword'}));
+          return;
+        }
+        try {
+          await confirmPasswordReset(db, token, newPassword, config.auth.jwtSecret);
+          sendSuccessResponse(res, {
+            status: 'success',
+            message: 'Password reset successful.',
+          });
+        } catch (err: any) {
+          res.writeHead(400, {'Content-Type': 'application/json'});
+          res.end(JSON.stringify({error: err.message || String(err)}));
+        }
+        return;
+      }
+
 
       // Static Legal Content endpoints
       if (path === '/api/v1/legal/tos' && req.method === 'GET') {

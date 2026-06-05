@@ -1,5 +1,6 @@
 import 'jasmine';
-import {hashPassword, verifyPassword, signup, verifyEmail, login, rotateRefreshToken} from './user_auth';
+import * as crypto from 'crypto';
+import {hashPassword, verifyPassword, signup, verifyEmail, login, rotateRefreshToken, requestPasswordReset, confirmPasswordReset} from './user_auth';
 import {SupabaseClient} from './supabase_client';
 import {AuthError} from './errors';
 
@@ -98,6 +99,61 @@ describe('UserAuth Systems', () => {
       const storedTokens = await db.getRefreshTokensForUser(user.user_id);
       expect(storedTokens.length).toBeGreaterThan(0);
       expect(storedTokens.every(t => t.revoked)).toBeTrue();
+    });
+  });
+
+  describe('Password Reset Flow', () => {
+    it('should request and confirm password reset, updating password and revoking refresh tokens', async () => {
+      const email = 'reset_test@example.com';
+      const pw = 'OldPassword123!';
+      const newPw = 'NewPassword789!';
+
+      // Signup and verify user
+      const {user, verificationToken} = await signup(db, email, pw, 'Reset Org', jwtSecret);
+      await verifyEmail(db, verificationToken, jwtSecret);
+
+      // Login to generate a refresh token session
+      const {refreshToken} = await login(db, email, pw, jwtSecret);
+      let tokens = await db.getRefreshTokensForUser(user.user_id);
+      expect(tokens.find(t => t.user_id === user.user_id && !t.revoked)).toBeDefined();
+
+      // Request reset
+      const resetToken = await requestPasswordReset(db, email, jwtSecret);
+      expect(resetToken).toBeDefined();
+
+      // Confirm reset
+      await confirmPasswordReset(db, resetToken, newPw, jwtSecret);
+
+      // Verify that old credentials no longer work
+      await expectAsync(login(db, email, pw, jwtSecret)).toBeRejectedWithError(
+        AuthError,
+        'Invalid credentials',
+      );
+
+      // Verify that new credentials work
+      const loginSession = await login(db, email, newPw, jwtSecret);
+      expect(loginSession.accessToken).toBeDefined();
+
+      // Verify that all previous refresh tokens were revoked during reset
+      tokens = await db.getRefreshTokensForUser(user.user_id);
+      const oldTokenHash = crypto.createHash('sha256').update(refreshToken).digest('hex');
+
+      const oldStoredToken = tokens.find(t => t.token_hash === oldTokenHash);
+      expect(oldStoredToken?.revoked).toBeTrue();
+    });
+
+    it('should reject password reset request if user is not found', async () => {
+      await expectAsync(requestPasswordReset(db, 'nonexistent@example.com', jwtSecret)).toBeRejectedWithError(
+        AuthError,
+        'User not found',
+      );
+    });
+
+    it('should reject password reset confirmation with invalid token', async () => {
+      await expectAsync(confirmPasswordReset(db, 'invalid_token', 'NewPw123!', jwtSecret)).toBeRejectedWithError(
+        AuthError,
+        'Expired or invalid reset token',
+      );
     });
   });
 });

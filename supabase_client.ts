@@ -2114,6 +2114,17 @@ export class SupabaseClient {
     return [];
   }
 
+  async revokeAllRefreshTokensForUser(userId: string): Promise<void> {
+    if (this.mockMode) {
+      const tokens = this.mockRefreshTokens.filter(t => t.user_id === userId);
+      for (const t of tokens) {
+        t.revoked = true;
+      }
+      return;
+    }
+  }
+
+
   async saveOrg(org: OrgEntry): Promise<void> {
     if (this.mockMode) {
       const idx = this.mockOrgs.findIndex(o => o.org_id === org.org_id);

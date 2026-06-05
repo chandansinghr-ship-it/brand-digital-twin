@@ -1,6 +1,6 @@
 import * as crypto from 'crypto';
 import {config} from './config';
-import {DecodedJwt, signJwt, verifyJwt} from './auth';
+import {signJwt, verifyJwt} from './auth';
 import {SupabaseClient, UserEntry, RefreshTokenEntry, OrgEntry, LegalAcceptanceEntry} from './supabase_client';
 import {AuthError} from './errors';
 
@@ -17,7 +17,10 @@ export function hashPassword(password: string): Promise<string> {
   return new Promise((resolve, reject) => {
     const salt = crypto.randomBytes(16).toString('hex');
     crypto.scrypt(password, salt, 64, (err, derivedKey) => {
-      if (err) return reject(err);
+      if (err) {
+        reject(err);
+        return;
+      }
       resolve(`${salt}:${derivedKey.toString('hex')}`);
     });
   });
@@ -30,13 +33,22 @@ export function hashPassword(password: string): Promise<string> {
 export function verifyPassword(password: string, storedHash: string): Promise<boolean> {
   return new Promise((resolve) => {
     const parts = storedHash.split(':');
-    if (parts.length !== 2) return resolve(false);
+    if (parts.length !== 2) {
+      resolve(false);
+      return;
+    }
     const [salt, hash] = parts;
     crypto.scrypt(password, salt, 64, (err, derivedKey) => {
-      if (err) return resolve(false);
+      if (err) {
+        resolve(false);
+        return;
+      }
       const a = Buffer.from(derivedKey.toString('hex'), 'hex');
       const b = Buffer.from(hash, 'hex');
-      if (a.length !== b.length) return resolve(false);
+      if (a.length !== b.length) {
+        resolve(false);
+        return;
+      }
       resolve(crypto.timingSafeEqual(new Uint8Array(a), new Uint8Array(b)));
     });
   });
@@ -281,3 +293,71 @@ export async function rotateRefreshToken(
 
   return {accessToken: newAccessToken, refreshToken: newRawRefreshToken};
 }
+
+/**
+ * Initiates the password reset flow.
+ * Returns a signed, short-lived reset token.
+ */
+export async function requestPasswordReset(
+  db: SupabaseClient,
+  email: string,
+  secret: string
+): Promise<string> {
+  const user = await db.getUserByEmail(email);
+  if (!user) {
+    throw new AuthError('User not found');
+  }
+
+  const orgs = await db.getUserOrgs(user.user_id);
+  const orgId = orgs[0]?.org_id || '';
+  const members = await db.getOrgMembers(orgId);
+  const role = members.find(m => m.user_id === user.user_id)?.role || 'member';
+
+  const resetToken = signJwt(
+    {
+      userId: user.user_id,
+      orgId,
+      role,
+      purpose: 'password_reset',
+    },
+    secret,
+    60 * 60 * 1000 // 1 hour expiration
+  );
+
+  return resetToken;
+}
+
+/**
+ * Confirms and updates the user's password using a verification token.
+ * Invalidate all refresh tokens to force re-login.
+ */
+export async function confirmPasswordReset(
+  db: SupabaseClient,
+  token: string,
+  newPassword: string,
+  secret: string
+): Promise<void> {
+  let payload;
+  try {
+    payload = verifyJwt(token, secret);
+  } catch {
+    throw new AuthError('Expired or invalid reset token');
+  }
+
+  if (payload.purpose !== 'password_reset') {
+    throw new AuthError('Invalid token purpose');
+  }
+
+  const user = await db.getUserById(payload.userId);
+  if (!user || user.status === 'disabled') {
+    throw new AuthError('User account inactive or not found');
+  }
+
+  const pwHash = await hashPassword(newPassword);
+  user.pw_hash = pwHash;
+  await db.saveUser(user);
+
+  // Invalidate all refresh tokens for user
+  await db.revokeAllRefreshTokensForUser(user.user_id);
+}
+

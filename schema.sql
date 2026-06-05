@@ -371,11 +371,22 @@ END;
 $$ LANGUAGE plpgsql;
 
 -- Auth & Org Hierarchy tables
+-- legal_acceptances table to log consent history
+CREATE TABLE IF NOT EXISTS brand_twin.legal_acceptances(
+  acceptance_id  STRING NOT NULL, -- PK
+  user_id        STRING NOT NULL,
+  doc_version    STRING NOT NULL, -- e.g. 'v1.0'
+  ip_address     STRING,
+  accepted_at    TIMESTAMP NOT NULL
+)
+CLUSTER BY user_id;
+
 CREATE TABLE IF NOT EXISTS brand_twin.users(
   user_id       STRING NOT NULL, -- PK
   email         STRING NOT NULL, -- UNIQUE
   pw_hash       STRING NOT NULL,
   status        STRING NOT NULL, -- 'pending_verification' | 'active' | 'disabled'
+  deleted_at    TIMESTAMP,
   created_at    TIMESTAMP)
   CLUSTER BY user_id;
 
@@ -392,6 +403,7 @@ CREATE TABLE IF NOT EXISTS brand_twin.orgs(
   name       STRING NOT NULL,
   owner_user STRING NOT NULL,
   plan       STRING NOT NULL,
+  deleted_at TIMESTAMP,
   created_at TIMESTAMP)
   CLUSTER BY org_id;
 
@@ -400,4 +412,14 @@ CREATE TABLE IF NOT EXISTS brand_twin.org_members(
   user_id STRING NOT NULL,
   role STRING NOT NULL,
   PRIMARY KEY (org_id, user_id));
+
+CREATE TABLE IF NOT EXISTS brand_twin.brand_twin_trust(
+  tenant STRING NOT NULL,
+  op STRING NOT NULL,
+  tier INT64 NOT NULL,
+  updated_at TIMESTAMP,
+  PRIMARY KEY(tenant, op)
+);
+
+
 
