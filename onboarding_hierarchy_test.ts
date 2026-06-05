@@ -179,7 +179,7 @@ describe('Account Hierarchy Onboarding & Linking integration', () => {
     const scanResults = await radar.scanStockouts(ctx);
 
     // Risk Radar should pause the targeted Ad Group via DB mapping lookup
-    expect(scanResults).toContain(`paused_ad_group_${adsAdGroupId}_for_nike-air-max-sku`);
+    expect(scanResults.map(f => f.code)).toContain(`paused_ad_group_${adsAdGroupId}_for_nike-air-max-sku`);
 
     // Verify ad group simulation status in Google Ads Adapter
     const adgState = adsAdapter.getSimulatedAdGroup(adsAdGroupId);
@@ -232,11 +232,16 @@ describe('Account Hierarchy Onboarding & Linking integration', () => {
     );
 
     expect(result).toBeDefined();
-    expect(result?.targetSkus).toContain('HIGH-MARGIN-SKU');
-    expect(result?.targetSkus).not.toContain('LOW-MARGIN-SKU');
+    expect(result).not.toBe('needs_cogs');
+    expect(result).not.toBeNull();
+
+    const campResult = result as {campaignId: string; targetSkus: string[]; marginBasis: string};
+    expect(campResult.marginBasis).toBe('orders');
+    expect(campResult.targetSkus).toContain('HIGH-MARGIN-SKU');
+    expect(campResult.targetSkus).not.toContain('LOW-MARGIN-SKU');
 
     // 3. Verify campaign was created in PAUSED status in simulated google ads adapter
-    const simCamp = adsAdapter.getSimulatedCampaign(result!.campaignId);
+    const simCamp = adsAdapter.getSimulatedCampaign(campResult.campaignId);
     expect(simCamp).toBeDefined();
     expect(simCamp?.name).toBe('Twin-Discovery: High Margin Catalog');
     expect(simCamp?.status).toBe('PAUSED');
@@ -246,9 +251,90 @@ describe('Account Hierarchy Onboarding & Linking integration', () => {
     const links = await db.getProductAdLinks(tenantId);
     const linkForHigh = links.find((l) => l.variant_id === 'v-p1');
     expect(linkForHigh).toBeDefined();
-    expect(linkForHigh?.ads_campaign_id).toBe(result!.campaignId);
+    expect(linkForHigh?.ads_campaign_id).toBe(campResult.campaignId);
 
     const linkForLow = links.find((l) => l.variant_id === 'v-p2');
     expect(linkForLow).toBeUndefined(); // Should not link low margin product
+  });
+
+  it('should generate a paused discovery campaign using catalog variants when no order history exists', async () => {
+    // Seed catalog variants in the database
+    // Variant 1 (High margin: 60% margin) -> Price $150, Cost $60
+    // Variant 2 (Low margin: 25% margin) -> Price $80, Cost $60
+    await db.saveVariant({
+      variant_id: 'v-cat-1',
+      tenant_id: tenantId,
+      sku: 'CAT-HIGH-MARGIN',
+      price: 150,
+      cost: 60,
+      title: 'High Margin Shoe',
+      ingested_at: new Date().toISOString()
+    });
+    await db.saveVariant({
+      variant_id: 'v-cat-2',
+      tenant_id: tenantId,
+      sku: 'CAT-LOW-MARGIN',
+      price: 80,
+      cost: 60,
+      title: 'Low Margin Shoe',
+      ingested_at: new Date().toISOString()
+    });
+
+    // Run onboarding margin discovery campaign generator
+    const result = await wizard.generateMarginDiscoveryCampaign(
+      tenantId,
+      'ads-sub-a',
+      adsAdapter,
+      governance,
+      ctx
+    );
+
+    expect(result).toBeDefined();
+    expect(result).not.toBe('needs_cogs');
+    expect(result).not.toBeNull();
+
+    const campResult = result as {campaignId: string; targetSkus: string[]; marginBasis: string};
+    expect(campResult.marginBasis).toBe('catalog');
+    expect(campResult.targetSkus).toContain('CAT-HIGH-MARGIN');
+    expect(campResult.targetSkus).not.toContain('CAT-LOW-MARGIN');
+
+    // Verify campaign was created in PAUSED status in simulated google ads adapter
+    const simCamp = adsAdapter.getSimulatedCampaign(campResult.campaignId);
+    expect(simCamp).toBeDefined();
+    expect(simCamp?.name).toBe('Twin-Discovery: High Margin Catalog');
+    expect(simCamp?.status).toBe('PAUSED');
+    expect(simCamp?.budget).toBe(500);
+
+    // Verify product ad link was created linking variant to discovery campaign
+    const links = await db.getProductAdLinks(tenantId);
+    const linkForHigh = links.find((l) => l.variant_id === 'v-cat-1');
+    expect(linkForHigh).toBeDefined();
+    expect(linkForHigh?.ads_campaign_id).toBe(campResult.campaignId);
+
+    const linkForLow = links.find((l) => l.variant_id === 'v-cat-2');
+    expect(linkForLow).toBeUndefined();
+  });
+
+  it('should return needs_cogs when catalog variants have no cost data', async () => {
+    // Seed catalog variant with zero/null cost in the database
+    await db.saveVariant({
+      variant_id: 'v-cat-no-cost',
+      tenant_id: tenantId,
+      sku: 'CAT-NO-COST',
+      price: 150,
+      cost: 0, // No cost info
+      title: 'No Cost Shoe',
+      ingested_at: new Date().toISOString()
+    });
+
+    const result = await wizard.generateMarginDiscoveryCampaign(
+      tenantId,
+      'ads-sub-a',
+      adsAdapter,
+      governance,
+      ctx
+    );
+
+    expect(result).toBe('needs_cogs');
   });
 });

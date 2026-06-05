@@ -437,7 +437,7 @@ describe('Advanced Risk & Observability Features', () => {
       });
 
       const actions = await radar.scanStockouts(ctx);
-      expect(actions).toContain('scaled_down_campaign_c1_for_BLUE-SHIRT-M');
+      expect(actions.map(f => f.code)).toContain('scaled_down_campaign_c1_for_BLUE-SHIRT-M');
 
       const campState = googleAds.getSimulatedCampaign('c1');
       expect(campState?.budget).toBe(500); // 1000 * 0.5
@@ -462,7 +462,7 @@ describe('Advanced Risk & Observability Features', () => {
       });
 
       const actions = await radar.scanStockouts(ctx);
-      expect(actions).toContain('reallocated_campaign_c1_to_BLUE-SHIRT-L');
+      expect(actions.map(f => f.code)).toContain('reallocated_campaign_c1_to_BLUE-SHIRT-L');
 
       const campState = googleAds.getSimulatedCampaign('c1');
       expect(campState?.activeVariantId).toBe('v2');
@@ -477,7 +477,7 @@ describe('Advanced Risk & Observability Features', () => {
       });
 
       const actions = await radar.scanStockouts(ctx);
-      expect(actions).toContain('paused_campaign_c1_for_BLUE-SHIRT-M');
+      expect(actions.map(f => f.code)).toContain('paused_campaign_c1_for_BLUE-SHIRT-M');
 
       const campState = googleAds.getSimulatedCampaign('c1');
       expect(campState?.status).toBe('PAUSED');
@@ -501,10 +501,10 @@ describe('Advanced Risk & Observability Features', () => {
       });
 
       const actions = await radar.scanROIEfficiency(ctx);
-      expect(actions).toContain(
+      expect(actions.map(f => f.code)).toContain(
         'scaled_up_campaign_c1_for_high_roi_HIGH-ROI-SKU',
       );
-      expect(actions).toContain(
+      expect(actions.map(f => f.code)).toContain(
         'scaled_down_campaign_888_for_low_roi_LOW-ROI-SKU',
       );
 
@@ -573,8 +573,8 @@ describe('Advanced Risk & Observability Features', () => {
 
     it('should scale down budgets by 40% if runway is low (e.g. 2-4 months)', async () => {
       const actions = await radar.scanFinancialRunway(ctx, rbiAdapter, 1200000);
-      expect(actions).toContain('scaled_campaign_c1_low_runway');
-      expect(actions).toContain('scaled_campaign_888_low_runway');
+      expect(actions.map(f => f.code)).toContain('scaled_campaign_c1_low_runway');
+      expect(actions.map(f => f.code)).toContain('scaled_campaign_888_low_runway');
 
       expect(googleAds.getSimulatedCampaign('c1')?.budget).toBe(600); // 1000 * 0.6
       expect(googleAds.getSimulatedCampaign('888')?.budget).toBe(300); // 500 * 0.6
@@ -582,8 +582,8 @@ describe('Advanced Risk & Observability Features', () => {
 
     it('should pause all active campaigns if runway is critical (e.g. < 2 months)', async () => {
       const actions = await radar.scanFinancialRunway(ctx, rbiAdapter, 2500000);
-      expect(actions).toContain('paused_campaign_c1_critical_runway');
-      expect(actions).toContain('paused_campaign_888_critical_runway');
+      expect(actions.map(f => f.code)).toContain('paused_campaign_c1_critical_runway');
+      expect(actions.map(f => f.code)).toContain('paused_campaign_888_critical_runway');
 
       expect(googleAds.getSimulatedCampaign('c1')?.status).toBe('PAUSED');
       expect(googleAds.getSimulatedCampaign('888')?.status).toBe('PAUSED');

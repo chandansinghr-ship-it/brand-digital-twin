@@ -34,9 +34,11 @@ describe('OnboardingSimulator', () => {
 
     await (simulator as any).screen4Insights();
 
-    // Reconciles 30-day POAS and returns $2,400 of unprofitable spend across 2 Meta campaigns
-    expect(logs.some(l => l.includes('Found $2,400 of unprofitable ad spend on 2 campaigns'))).toBe(true);
-    // Finds 1 variant out of stock with active ads running (BLUE-SHIRT-M, qty: 0)
-    expect(logs.some(l => l.includes('1 variant(s) are out of stock with active ads running'))).toBe(true);
+    // Reconciles 30-day POAS and returns SweepFindings
+    expect(logs.some(l => l.includes('Unprofitable spend on campaign Meta Lookalike Purchase'))).toBe(true);
+    expect(logs.some(l => l.includes('Unprofitable spend on campaign Meta Retargeting Catalog'))).toBe(true);
+    expect(logs.some(l => l.includes('Out of Stock safety pause for SKU BLUE-SHIRT-M'))).toBe(true);
+    expect(logs.some(l => l.includes('Budget-capped winner: Meta Catalog Winner [SCALABLE]'))).toBe(true);
+    expect(logs.some(l => l.includes('Purchase conversion tracking signal loss'))).toBe(true);
   });
 });

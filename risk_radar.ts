@@ -14,6 +14,8 @@ import {
   DiagnosisInput,
   CampaignPoasReport,
   CampaignCostBreakdown,
+  SweepFinding,
+  Severity,
 } from './healing_types';
 
 export interface VariantInventory {
@@ -47,8 +49,8 @@ export class RiskRadar {
   /**
    * Scans inventory levels and applies low-stock warnings or stockout actions.
    */
-  async scanStockouts(ctx: Context): Promise<string[]> {
-    const actionsTaken: string[] = [];
+  async scanStockouts(ctx: Context): Promise<SweepFinding[]> {
+    const findings: SweepFinding[] = [];
     const links = this.db && this.tenantId ? await this.db.getProductAdLinks(this.tenantId) : [];
 
     for (const item of this.inventories) {
@@ -93,11 +95,19 @@ export class RiskRadar {
                 req,
                 ctx,
               );
-              actionsTaken.push(
-                outcome.status === 'executed'
+              const isExecuted = outcome.status === 'executed';
+              findings.push({
+                code: isExecuted
                   ? `reallocated_${tgt.entity}_${tgt.targetId}_to_${sibling.sku}`
                   : `queued_reallocation_${tgt.entity}_${tgt.targetId}_to_${sibling.sku}`,
-              );
+                severity: isExecuted ? 'WARNING' : 'CRITICAL',
+                check: 'inventory_level',
+                entityId: tgt.targetId,
+                title: `Reallocated budget to sibling SKU ${sibling.sku}`,
+                detail: `SKU ${item.sku} is out of stock. Budget shifted to in-stock sibling ${sibling.sku}.`,
+                dollarImpact: 0,
+                suggestedAction: req,
+              });
             }
           }
         }
@@ -120,15 +130,19 @@ export class RiskRadar {
               req,
               ctx,
             );
-            if (outcome.status === 'executed') {
-              actionsTaken.push(
-                `paused_${tgt.entity}_${tgt.targetId}_for_${item.sku}`,
-              );
-            } else {
-              actionsTaken.push(
-                `queued_pause_${tgt.entity}_${tgt.targetId}_for_${item.sku}`,
-              );
-            }
+            const isExecuted = outcome.status === 'executed';
+            findings.push({
+              code: isExecuted
+                ? `paused_${tgt.entity}_${tgt.targetId}_for_${item.sku}`
+                : `queued_pause_${tgt.entity}_${tgt.targetId}_for_${item.sku}`,
+              severity: 'CRITICAL',
+              check: 'inventory_level',
+              entityId: tgt.targetId,
+              title: `Out of Stock safety pause for SKU ${item.sku}`,
+              detail: `SKU ${item.sku} is out of stock with active campaigns running.`,
+              dollarImpact: 0,
+              suggestedAction: req,
+            });
           }
         }
       } else if (
@@ -155,24 +169,28 @@ export class RiskRadar {
             req,
             ctx,
           );
-          if (outcome.status === 'executed') {
-            actionsTaken.push(
-              `scaled_down_campaign_${tgt.targetId}_for_${item.sku}`,
-            );
-          } else {
-            actionsTaken.push(
-              `queued_scale_down_campaign_${tgt.targetId}_for_${item.sku}`,
-            );
-          }
+          const isExecuted = outcome.status === 'executed';
+          findings.push({
+            code: isExecuted
+              ? `scaled_down_campaign_${tgt.targetId}_for_${item.sku}`
+              : `queued_scale_down_campaign_${tgt.targetId}_for_${item.sku}`,
+            severity: 'WARNING',
+            check: 'inventory_level',
+            entityId: tgt.targetId,
+            title: `Low stock warning for SKU ${item.sku}`,
+            detail: `Low stock warning for variant ${item.sku} (qty=${item.qty}). Scaling budget.`,
+            dollarImpact: 0,
+            suggestedAction: req,
+          });
         }
       }
     }
 
-    return actionsTaken;
+    return findings;
   }
 
-  async scanROIEfficiency(ctx: Context): Promise<string[]> {
-    const actionsTaken: string[] = [];
+  async scanROIEfficiency(ctx: Context): Promise<SweepFinding[]> {
+    const findings: SweepFinding[] = [];
     const links = this.db && this.tenantId ? await this.db.getProductAdLinks(this.tenantId) : [];
 
     for (const item of this.inventories) {
@@ -210,9 +228,16 @@ export class RiskRadar {
             ctx,
           );
           if (outcome.status === 'executed') {
-            actionsTaken.push(
-              `scaled_up_campaign_${tgt.targetId}_for_high_roi_${item.sku}`,
-            );
+            findings.push({
+              code: `scaled_up_campaign_${tgt.targetId}_for_high_roi_${item.sku}`,
+              severity: 'OPPORTUNITY',
+              check: 'budget_capped_winner',
+              entityId: tgt.targetId,
+              title: `High performance ROI scaling for ${item.sku}`,
+              detail: `SKU ${item.sku} is performing well (ROI=${item.roi}). Scaling budget up by 20%.`,
+              dollarImpact: 0,
+              suggestedAction: req,
+            });
           }
         }
       } else if (item.roi <= 1.5) {
@@ -235,17 +260,23 @@ export class RiskRadar {
             ctx,
           );
           if (outcome.status === 'executed') {
-            actionsTaken.push(
-              `scaled_down_campaign_${tgt.targetId}_for_low_roi_${item.sku}`,
-            );
+            findings.push({
+              code: `scaled_down_campaign_${tgt.targetId}_for_low_roi_${item.sku}`,
+              severity: 'WARNING',
+              check: 'unprofitable_spend',
+              entityId: tgt.targetId,
+              title: `Low performance ROI scaling for ${item.sku}`,
+              detail: `SKU ${item.sku} is underperforming (ROI=${item.roi}). Scaling budget down by 30%.`,
+              dollarImpact: 0,
+              suggestedAction: req,
+            });
           }
         }
       }
     }
 
-    return actionsTaken;
+    return findings;
   }
-
   /**
    * Monitors financial runway and downscales or pauses campaigns if runway is short.
    */
@@ -253,8 +284,8 @@ export class RiskRadar {
     ctx: Context,
     rbiAdapter: RbiAaAdapter,
     monthlyBurnInr: number,
-  ): Promise<string[]> {
-    const actionsTaken: string[] = [];
+  ): Promise<SweepFinding[]> {
+    const findings: SweepFinding[] = [];
     const runwayMonths = await rbiAdapter.calculateRunwayMonths(monthlyBurnInr);
 
     if (runwayMonths <= 0) return [];
@@ -278,7 +309,16 @@ export class RiskRadar {
         };
         const outcome = await this.governance.govern(this.googleAdapter, req, ctx);
         if (outcome.status === 'executed') {
-          actionsTaken.push(`paused_campaign_${c.campaign_id}_critical_runway`);
+          findings.push({
+            code: `paused_campaign_${c.campaign_id}_critical_runway`,
+            severity: 'CRITICAL',
+            check: 'runway_alert',
+            entityId: c.campaign_id,
+            title: `Critical runway safety pause for campaign ${c.name}`,
+            detail: `Only ${runwayMonths.toFixed(1)} months of cash runway remaining. Pausing active campaigns.`,
+            dollarImpact: 0,
+            suggestedAction: req,
+          });
         }
       } else if (runwayMonths < 4) {
         const req: ActionRequest = {
@@ -294,12 +334,23 @@ export class RiskRadar {
         };
         const outcome = await this.governance.govern(this.googleAdapter, req, ctx);
         if (outcome.status === 'executed') {
-          actionsTaken.push(`scaled_campaign_${c.campaign_id}_low_runway`);
+          findings.push({
+            code: `scaled_campaign_${c.campaign_id}_low_runway`,
+            severity: 'WARNING',
+            check: 'runway_alert',
+            entityId: c.campaign_id,
+            title: `Low runway budget scaling for campaign ${c.name}`,
+            detail: `${runwayMonths.toFixed(1)} months of cash runway remaining. Scaling budget down to 60%.`,
+            dollarImpact: 0,
+            suggestedAction: req,
+          });
         }
       }
     }
-    return actionsTaken;
+    return findings;
   }
+
+
 
   static diagnoseRootCause(input: DiagnosisInput): RootCauseDiagnosis {
     const {report, breakdown, clicks, orders, context, benchmarks} = input;
@@ -661,5 +712,177 @@ export class RiskRadar {
       confidence,
       completeness,
     };
+  }
+
+  async scanConversionTracking(ctx: Context): Promise<SweepFinding[]> {
+    const findings: SweepFinding[] = [];
+    if (!this.db || !this.tenantId) return [];
+
+    const campaigns = await this.db.getCampaigns(this.tenantId);
+    const spendFacts = await this.db.getSpendFacts(this.tenantId);
+    const touchpoints = await this.db.getTouchpoints(this.tenantId);
+
+    const windowDays = 30;
+    const windowStartMs = Date.now() - windowDays * 24 * 60 * 60 * 1000;
+
+    for (const c of campaigns) {
+      const campaignSpend = spendFacts
+        .filter((s) => s.campaign_id === c.campaign_id && Date.parse(s.day) >= windowStartMs)
+        .reduce((sum, s) => sum + s.amount, 0);
+
+      if (campaignSpend <= 0) continue;
+
+      const conversionTps = touchpoints.filter(
+        (tp) =>
+          tp.campaign_id === c.campaign_id &&
+          (tp.type === 'purchase' || tp.type === 'conversion') &&
+          Date.parse(tp.occurred_at) >= windowStartMs
+      );
+
+      if (conversionTps.length === 0) {
+        const campaignAgeMs = Date.now() - Date.parse(c.ingested_at);
+        const isTooNew = campaignAgeMs < 3 * 24 * 60 * 60 * 1000;
+        const hasLowSpend = campaignSpend < 500;
+
+        if (isTooNew || hasLowSpend) {
+          continue;
+        }
+
+        findings.push({
+          code: `no_conv_tracking_${c.campaign_id}`,
+          severity: 'CRITICAL',
+          check: 'conversion_tracking',
+          entityId: c.campaign_id,
+          title: `${c.name} has no conversion tracking`,
+          detail: `$${campaignSpend.toLocaleString()} spent with no conversion events received — you cannot know if this campaign earns or loses.`,
+          dollarImpact: campaignSpend,
+        });
+      }
+    }
+
+    return findings;
+  }
+
+  async scanBudgetCappedWinners(
+    ctx: Context,
+    poasReports: CampaignPoasReport[],
+    incrementalityFlags?: Record<string, boolean>
+  ): Promise<SweepFinding[]> {
+    const findings: SweepFinding[] = [];
+    if (!this.db || !this.tenantId) return [];
+
+    const campaigns = await this.db.getCampaigns(this.tenantId);
+    const spendFacts = await this.db.getSpendFacts(this.tenantId);
+
+    const windowDays = 30;
+    const windowStartMs = Date.now() - windowDays * 24 * 60 * 60 * 1000;
+
+    for (const c of campaigns) {
+      if (c.daily_budget === undefined || c.daily_budget === null || c.daily_budget <= 0) continue;
+
+      const report = poasReports.find((r) => r.campaignId === c.campaign_id);
+      if (!report || report.poas === null || report.poas < 2.0) continue;
+
+      const campaignSpendFacts = spendFacts.filter(
+        (s) => s.campaign_id === c.campaign_id && Date.parse(s.day) >= windowStartMs
+      );
+
+      let daysCapped = 0;
+      for (const s of campaignSpendFacts) {
+        if (s.amount >= 0.95 * c.daily_budget) {
+          daysCapped++;
+        }
+      }
+
+      const thresholdDays = Math.ceil(0.7 * windowDays);
+      if (daysCapped >= thresholdDays) {
+        const currentDailyBudget = c.daily_budget;
+        const suggestedBudgetDelta = currentDailyBudget * 0.3;
+        const dollarImpact = Math.round((report.poas - 1) * suggestedBudgetDelta * 30);
+
+        const isNonIncremental = incrementalityFlags?.[c.campaign_id] ?? false;
+
+        const req: ActionRequest = {
+          idempotencyKey: `radar_scale_winner_${c.campaign_id}_${Date.now()}`,
+          op: 'scale_budget',
+          entity: 'campaign',
+          targetId: c.campaign_id,
+          payload: {
+            scaleFactor: 1.3,
+            reason: `Budget capped winner optimization: increase budget by 30% to capture high POAS (poas=${report.poas})`,
+          },
+          confidence: 0.9,
+        };
+
+        findings.push({
+          code: `budget_capped_winner_${c.campaign_id}`,
+          severity: 'OPPORTUNITY',
+          check: 'budget_capped_winner',
+          entityId: c.campaign_id,
+          title: `Budget-capped winner: ${c.name}`,
+          detail: `POAS ${report.poas}× and budget-capped ${daysCapped}/${windowDays} days. Raising budget could add ~$${dollarImpact.toLocaleString()}/mo in margin.`,
+          dollarImpact,
+          suggestedAction: isNonIncremental ? undefined : req,
+        });
+      }
+    }
+
+    return findings;
+  }
+
+  async scanCheckoutEvents(ctx: Context): Promise<SweepFinding[]> {
+    const findings: SweepFinding[] = [];
+    if (!this.db || !this.tenantId) return [];
+
+    const windowDays = 30;
+    const windowStartMs = Date.now() - windowDays * 24 * 60 * 60 * 1000;
+
+    const orders = await this.db.getOrders(this.tenantId);
+    const touchpoints = await this.db.getTouchpoints(this.tenantId);
+
+    const windowOrders = orders.filter((o) => Date.parse(o.placed_at) >= windowStartMs);
+    const windowTouchpoints = touchpoints.filter((tp) => Date.parse(tp.occurred_at) >= windowStartMs);
+
+    const storefrontOrdersCount = windowOrders.length;
+    const purchaseEventsCount = windowTouchpoints.filter((tp) => tp.type === 'purchase').length;
+    const beginCheckoutCount = windowTouchpoints.filter((tp) => tp.type === 'begin_checkout').length;
+
+    const totalStorefrontRevenue = windowOrders.reduce((sum, o) => sum + o.gross_revenue, 0);
+
+    const coverage = storefrontOrdersCount > 0 ? purchaseEventsCount / storefrontOrdersCount : 1.0;
+
+    // Dedupe against coverage_monitor's brand signal
+    const signals = await this.db.getBrandSignals(this.tenantId);
+    const hasExistingAlert = signals.some((s) => s.type === 'signal_loss_alert');
+
+    if (coverage < 0.85 && !hasExistingAlert) {
+      const missingOrders = Math.max(0, storefrontOrdersCount - purchaseEventsCount);
+      const dollarImpact = Math.round((1 - coverage) * totalStorefrontRevenue);
+      const coveragePct = Math.round(coverage * 100);
+
+      findings.push({
+        code: 'checkout_events_mismatch',
+        severity: 'CRITICAL',
+        check: 'checkout_events',
+        entityId: null,
+        title: 'Purchase conversion tracking signal loss',
+        detail: `Only ${coveragePct}% of your orders fired a purchase event. ${missingOrders} orders are invisible to optimisation — ad platforms are bidding on incomplete data.`,
+        dollarImpact,
+      });
+    }
+
+    if (beginCheckoutCount > 0 && purchaseEventsCount === 0) {
+      findings.push({
+        code: 'funnel_break_purchase_misfire',
+        severity: 'CRITICAL',
+        check: 'checkout_events',
+        entityId: null,
+        title: 'Funnel broken: purchases misfiring',
+        detail: 'Checkout starts are tracked but purchases are not — the final conversion event is misfiring.',
+        dollarImpact: totalStorefrontRevenue,
+      });
+    }
+
+    return findings;
   }
 }

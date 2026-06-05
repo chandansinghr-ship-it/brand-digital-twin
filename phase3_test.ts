@@ -136,7 +136,7 @@ describe('Phase 3 Multi-Surface, Messaging & Financials Suite', () => {
       const actions = await radar.scanStockouts(ctx);
 
       expect(actions.length).toBe(1);
-      expect(actions[0]).toBe('paused_campaign_c1_for_SHOE-RED-10');
+      expect(actions[0].code).toBe('paused_campaign_c1_for_SHOE-RED-10');
 
       // Verify campaign status in google ads simulator is updated to PAUSED
       const camp = google.getSimulatedCampaign('c1');

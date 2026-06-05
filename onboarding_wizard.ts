@@ -262,19 +262,45 @@ export class OnboardingWizard {
     adsAdapter: GoogleAdsAdapter,
     governance: GovernanceEngine,
     ctx: Context,
-  ): Promise<{campaignId: string; targetSkus: string[]} | null> {
+  ): Promise<{campaignId: string; targetSkus: string[]; marginBasis: 'orders' | 'catalog'} | 'needs_cogs' | null> {
     const orderLines = await this.db.getOrderLines(tenantId);
+    const variants = await this.db.getVariants(tenantId);
 
+    const hasOrderCogs = orderLines.some((ol) => ol.unit_cost !== null && ol.unit_cost !== undefined && ol.unit_cost > 0);
+    const hasCatalogCogs = variants.some((v) => v.cost !== null && v.cost !== undefined && v.cost > 0);
+
+    if (!hasOrderCogs && !hasCatalogCogs) {
+      if (orderLines.length > 0 || variants.length > 0) {
+        return 'needs_cogs';
+      }
+    }
+
+    let marginBasis: 'orders' | 'catalog' = 'orders';
     const skuMargins = new Map<string, {sku: string; variantId: string; marginPct: number}>();
-    for (const ol of orderLines) {
-      if (!ol.sku || !ol.variant_id) continue;
-      const margin = ol.unit_price - (ol.unit_cost ?? 0);
-      const marginPct = ol.unit_price > 0 ? margin / ol.unit_price : 0;
-      skuMargins.set(ol.sku, {
-        sku: ol.sku,
-        variantId: ol.variant_id,
-        marginPct,
-      });
+    if (orderLines.length > 0) {
+      for (const ol of orderLines) {
+        if (!ol.sku || !ol.variant_id) continue;
+        const margin = ol.unit_price - (ol.unit_cost ?? 0);
+        const marginPct = ol.unit_price > 0 ? margin / ol.unit_price : 0;
+        skuMargins.set(ol.sku, {
+          sku: ol.sku,
+          variantId: ol.variant_id,
+          marginPct,
+        });
+      }
+    }
+
+    if (skuMargins.size === 0) {
+      marginBasis = 'catalog';
+      for (const v of variants) {
+        const margin = v.price - (v.cost ?? 0);
+        const marginPct = v.price > 0 ? margin / v.price : 0;
+        skuMargins.set(v.sku, {
+          sku: v.sku,
+          variantId: v.variant_id,
+          marginPct,
+        });
+      }
     }
 
     const highMarginProducts = Array.from(skuMargins.values())
@@ -332,7 +358,7 @@ export class OnboardingWizard {
         });
       }
 
-      return { campaignId, targetSkus };
+      return { campaignId, targetSkus, marginBasis };
     }
 
     return null;

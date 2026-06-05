@@ -143,6 +143,7 @@ export interface CampaignEntry {
   source_id: string;
   source_version: string;
   ingested_at: string;
+  daily_budget?: number;
 }
 
 export interface SpendFactEntry {

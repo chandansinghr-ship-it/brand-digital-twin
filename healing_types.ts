@@ -113,3 +113,16 @@ export interface RecommendationCard {
   userApproves: Prescription[];
   adsCantFix: Prescription[];
 }
+
+export type Severity = 'CRITICAL' | 'WARNING' | 'OPPORTUNITY';
+
+export interface SweepFinding {
+  code: string;             // e.g. 'no_conv_tracking_c1' — back-compat with current counts
+  severity: Severity;
+  check: string;            // 'conversion_tracking' | 'budget_capped_winner' | 'checkout_events' | 'inventory_level' | 'runway_alert' | 'unprofitable_spend'
+  entityId: string | null;         // campaignId / null
+  title: string;            // human-readable
+  detail: string;           // evidence line for the card
+  dollarImpact: number;     // ₹ at stake (wasted, or recoverable upside)
+  suggestedAction?: ActionRequest; // present when 1-tap fixable
+}

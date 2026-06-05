@@ -244,6 +244,7 @@ ts_library(
         ":analyst_agent",
         ":google_ads_adapter",
         ":governance_engine",
+        ":healing_types",
         ":poas_calculator",
         ":risk_radar",
         ":supabase_client",

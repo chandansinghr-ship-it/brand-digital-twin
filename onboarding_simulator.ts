@@ -4,6 +4,7 @@ import {PoasCalculator} from './poas_calculator';
 import {RiskRadar} from './risk_radar';
 import {GoogleAdsAdapter} from './google_ads_adapter';
 import {GovernanceEngine} from './governance_engine';
+import {CampaignPoasReport, SweepFinding, Severity} from './healing_types';
 
 export interface OnboardingState {
   storefrontUrl: string;
@@ -62,6 +63,20 @@ export class OnboardingSimulator {
     source_version: 'v18',
     ingested_at: new Date().toISOString(),
   });
+  await db.saveCampaign({
+    campaign_id: 'c-meta-3',
+    tenant_id: tenantId,
+    name: 'Meta Catalog Winner [SCALABLE]',
+    platform: 'meta',
+    objective: 'CONVERSIONS',
+    status: 'active',
+    surface: 'meta_ads',
+    source_id: 'c-meta-3',
+    source_system: 'meta',
+    source_version: 'v18',
+    ingested_at: new Date().toISOString(),
+    daily_budget: 10,
+  });
 
   await db.saveSpendFact({
     campaign_id: 'c-meta-1',
@@ -83,6 +98,19 @@ export class OnboardingSimulator {
     source_system: 'meta',
     ingested_at: new Date().toISOString(),
   });
+  for (let i = 0; i < 25; i++) {
+    const dayStr = new Date(Date.now() - i * 24 * 3600 * 1000).toISOString().split('T')[0];
+    await db.saveSpendFact({
+      campaign_id: 'c-meta-3',
+      platform: 'meta',
+      day: dayStr,
+      amount: 10.0,
+      currency: 'USD',
+      tenant_id: tenantId,
+      source_system: 'meta',
+      ingested_at: new Date().toISOString(),
+    });
+  }
 
   await db.saveOrder({
     order_id: 'o1',
@@ -168,6 +196,52 @@ export class OnboardingSimulator {
     ingested_at: new Date().toISOString(),
   });
 
+  await db.saveVariant({
+    variant_id: 'v3',
+    tenant_id: tenantId,
+    sku: 'GREEN-SHIRT-XL',
+    price: 1000,
+    cost: 500,
+    title: 'Green Shirt XL',
+    ingested_at: new Date().toISOString(),
+  });
+
+  await db.saveOrder({
+    order_id: 'o3',
+    customer_id: 'cust3',
+    account_id: null,
+    channel: 'online',
+    surface: 'shopify',
+    placed_at: new Date().toISOString(),
+    currency: 'USD',
+    gross_revenue: 1000,
+    total_discounts: 0,
+    total_tax: 0,
+    shipping_charged: 0,
+    status: 'PAID',
+    tenant_id: tenantId,
+    source_system: 'shopify',
+    source_id: 'o3',
+    source_version: '1.0',
+    ingested_at: new Date().toISOString(),
+  });
+
+  await db.saveOrderLine({
+    order_line_id: 'ol3',
+    order_id: 'o3',
+    variant_id: 'v3',
+    sku: 'GREEN-SHIRT-XL',
+    qty: 1,
+    unit_price: 1000,
+    line_discount: 0,
+    unit_cost: 500,
+    tenant_id: tenantId,
+    source_system: 'shopify',
+    source_id: 'ol3',
+    source_version: '1.0',
+    ingested_at: new Date().toISOString(),
+  });
+
   await db.saveTouchpoint({
     touchpoint_id: 'tp1',
     customer_id: 'cust1',
@@ -187,6 +261,30 @@ export class OnboardingSimulator {
     order_id: 'o2',
     occurred_at: new Date(Date.now() - 3600 * 1000).toISOString(),
     type: 'click',
+    tenant_id: tenantId,
+    source_system: 'meta',
+    ingested_at: new Date().toISOString(),
+  });
+
+  await db.saveTouchpoint({
+    touchpoint_id: 'tp3',
+    customer_id: 'cust3',
+    campaign_id: 'c-meta-3',
+    order_id: 'o3',
+    occurred_at: new Date(Date.now() - 3600 * 1000).toISOString(),
+    type: 'click',
+    tenant_id: tenantId,
+    source_system: 'meta',
+    ingested_at: new Date().toISOString(),
+  });
+
+  await db.saveTouchpoint({
+    touchpoint_id: 'tp3-conv',
+    customer_id: 'cust3',
+    campaign_id: 'c-meta-3',
+    order_id: 'o3',
+    occurred_at: new Date(Date.now() - 3600 * 1000).toISOString(),
+    type: 'purchase',
     tenant_id: tenantId,
     source_system: 'meta',
     ingested_at: new Date().toISOString(),
@@ -351,28 +449,6 @@ export class OnboardingSimulator {
     }
     console.log('----------------------------------------------------------------------\n');
 
-    let unprofitableSpend = 0;
-    let unprofitableCampaignCount = 0;
-
-    for (const r of reports) {
-      if (r.poas !== null && r.poas < 1.0) {
-        unprofitableCampaignCount++;
-        unprofitableSpend += r.spend;
-      }
-    }
-
-    if (unprofitableCampaignCount > 0) {
-      console.log(
-        `[!] Found $${unprofitableSpend.toLocaleString()} of unprofitable ad spend on ${unprofitableCampaignCount} campaigns`
-      );
-      console.log(
-        '    that reported positive ROAS but are net-negative after COGS & refunds'
-      );
-    } else {
-      console.log('[x] All campaigns are profitable based on true POAS!');
-    }
-
-    // 2. Inventory Sweep
     const googleAds = new GoogleAdsAdapter(
       '888-888-8888',
       'dev_token',
@@ -393,7 +469,7 @@ export class OnboardingSimulator {
     radar.seedInventory({
       variantId: 'v1',
       sku: 'BLUE-SHIRT-M',
-      qty: 0, // Out of stock
+      qty: 0,
       promotedCampaignIds: ['c-meta-1'],
     });
 
@@ -403,20 +479,64 @@ export class OnboardingSimulator {
       verifyWindowMs: 100,
     };
 
-    const radarActions = await radar.scanStockouts(ctx);
-    let outOfStockAdsPausedCount = 0;
-    for (const action of radarActions) {
-      if (action.startsWith('paused_') || action.startsWith('queued_pause_')) {
-        outOfStockAdsPausedCount++;
-      }
-    }
+    const stockoutFindings = await radar.scanStockouts(ctx);
+    const trackingFindings = await radar.scanConversionTracking(ctx);
+    const checkoutFindings = await radar.scanCheckoutEvents(ctx);
+    const budgetCappedWinners = await radar.scanBudgetCappedWinners(ctx, reports);
 
-    if (outOfStockAdsPausedCount > 0) {
-      console.log(
-        `[!] ${outOfStockAdsPausedCount} variant(s) are out of stock with active ads running`
-      );
-      console.log('    (Safe-governance trigger is queued to pause these campaigns)\n');
+    const unprofitableSpendFindings = (reps: CampaignPoasReport[]): SweepFinding[] => {
+      const fn: SweepFinding[] = [];
+      for (const r of reps) {
+        if (r.poas !== null && r.poas < 1.0) {
+          fn.push({
+            code: `unprofitable_spend_${r.campaignId}`,
+            severity: 'WARNING',
+            check: 'unprofitable_spend',
+            entityId: r.campaignId,
+            title: `Unprofitable spend on campaign ${r.campaignName}`,
+            detail: `$${r.spend.toLocaleString()} spent on campaign ${r.campaignName} with POAS of ${r.poas.toFixed(2)} (unprofitable after COGS).`,
+            dollarImpact: r.spend,
+          });
+        }
+      }
+      return fn;
+    };
+
+    const poasFindings = unprofitableSpendFindings(reports);
+
+    const findings: SweepFinding[] = [
+      ...stockoutFindings,
+      ...trackingFindings,
+      ...checkoutFindings,
+      ...poasFindings,
+      ...budgetCappedWinners,
+    ];
+
+    const severityOrder: Record<Severity, number> = {
+      'CRITICAL': 0,
+      'WARNING': 1,
+      'OPPORTUNITY': 2,
+    };
+
+    findings.sort((a, b) => {
+      if (a.severity !== b.severity) {
+        return severityOrder[a.severity] - severityOrder[b.severity];
+      }
+      return b.dollarImpact - a.dollarImpact;
+    });
+
+    console.log('\nDiagnostic Sweep Findings:');
+    console.log('----------------------------------------------------------------------');
+    for (const f of findings) {
+      console.log(`[${f.severity}] ${f.title}`);
+      console.log(`    Detail: ${f.detail}`);
+      console.log(`    Dollar Impact: $${f.dollarImpact.toLocaleString()}`);
+      if (f.suggestedAction) {
+        console.log(`    Suggested Auto-Action: ${f.suggestedAction.op} on ${f.suggestedAction.entity} ${f.suggestedAction.targetId}`);
+      }
+      console.log('----------------------------------------------------------------------');
     }
+    console.log('');
 
     console.log('Current Configuration Summary:');
     console.log(JSON.stringify(this.state, null, 2));
