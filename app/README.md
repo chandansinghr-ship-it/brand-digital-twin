@@ -75,6 +75,8 @@ Per `A-PHASE_BUILD_SPEC.md §A3`, still to build on this scaffold:
 - [x] Profit Readiness gauge (`ReadinessGauge.tsx` on `/dashboard`) — wired to the **live** `GET /api/v1/profit-readiness` (landed upstream `dd9045a`); score ring + factor checklist + gating status
 - [x] Connect-your-stack (`/connect` — `ConnectCard.tsx`). Buttons kick off the **live** OAuth flow (`GET /connect/:platform`, A2 `a09e913`); reflects integration state incl. reconnect. Needs `GET /api/v1/integrations` to read linked state (A2.4), and a cookie/signed-token for the redirect (headers can't ride a top-level navigation)
 - [x] Auth screens (`/login`, `/signup`, `/verify`, `/reset`) — wired to the **live** A1 endpoints (signup/verify/login/refresh/reset, incl. `81b8161` reset). Token storage in sessionStorage, logout in nav, root routes by auth state
+- [x] Per-route auth guard — all product screens under `(app)/` route group with a shared layout that bounces unauthed users to `/login` (URLs unchanged)
+- [x] SSE live updates (`useStream.ts`) — connects to `/api/v1/stream`, invalidates matching queries on `risk_alert` / `recommendation` / `phase_update`. No-op in MOCK; needs auth-on-stream (A2.5, same redirect constraint)
 - [ ] Profit Readiness gauge (`GET /api/v1/profit-readiness` — endpoint TBD)
 - [ ] SSE client for `/api/v1/stream`
 - [ ] Auth screens (signup/login/verify) once A1 UI is wired

@@ -846,6 +846,12 @@ describe('Native HTTP & SSE Server Integration Test', () => {
         expect(getRes.status).toBe('success');
         expect(getRes.data.tier).toBe('OBSERVE');
 
+        // Seed earned tiers to allow elevation to AUTONOMOUS (level 3)
+        const ops = ['read', 'update_budget', 'pause', 'activate', 'scale_budget'];
+        for (const op of ops) {
+          await db.saveTrustTier('test-tenant', op, 3);
+        }
+
         // POST should update tier successfully as admin
         const adminToken = signJwt(
           {

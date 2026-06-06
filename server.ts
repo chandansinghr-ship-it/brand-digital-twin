@@ -7,7 +7,10 @@
 import * as http from 'http';
 import * as url from 'url';
 import {createHash} from 'node:crypto';
-import {config} from './config';
+import {config, initializeConfig} from './config';
+import {SecretProvider} from './secret_provider';
+import {EnvSecretProvider} from './env_secret_provider';
+import {ManagedSecretProvider, VaultClient} from './managed_secret_provider';
 import {sendErrorResponse, ValidationError, RateLimitError, PayloadTooLargeError, AuthError} from './errors';
 import {eventBus} from './event_bus';
 import {GoogleAdsAdapter} from './google_ads_adapter';
@@ -21,9 +24,8 @@ import {
   CircuitBreaker,
   GovernanceEngine,
   TrustLedger,
-  Waiver,
-  Context,
 } from './governance_engine';
+import {Waiver, Context} from './governance_types';
 import {SupabaseClient, OrgEntry, PendingJobEntry, LegalAcceptanceEntry} from './supabase_client';
 import {signup, verifyEmail, login, rotateRefreshToken, requestPasswordReset, confirmPasswordReset} from './user_auth';
 import * as crypto from 'crypto';
@@ -32,9 +34,22 @@ import {IdentityResolver} from './identity_resolver';
 import {PersistentAuditSink} from './audit_sink';
 import {RiskRadar} from './risk_radar';
 import {SweepFinding} from './healing_types';
-import {DatabaseErrorSink} from './observability';
+import {DatabaseErrorSink, PinoLogger} from './observability';
 const sha256 = (s: string) =>
   createHash('sha256').update(s.trim().toLowerCase()).digest('hex');
+
+async function getMinEarnedTier(db: SupabaseClient, tenantId: string): Promise<number> {
+  const ops = ['read', 'update_budget', 'pause', 'activate', 'scale_budget'];
+  let minTier = 4;
+  for (const op of ops) {
+    const tier = await db.getTrustTier(tenantId, op);
+    const val = tier !== null ? tier : 0;
+    if (val < minTier) {
+      minTier = val;
+    }
+  }
+  return minTier;
+}
 
 const sseClients = new Set<http.ServerResponse>();
 
@@ -72,10 +87,7 @@ function checkAuthRateLimit(req: http.IncomingMessage): void {
   }
 }
 
-const googleAdsLimiter = new TokenBucket(
-  config.platforms.googleAds.rateLimitMax,
-  config.platforms.googleAds.rateLimitRefillRate,
-);
+let googleAdsLimiter: TokenBucket;
 
 function checkRateLimit(req: http.IncomingMessage): void {
   const ip =
@@ -162,6 +174,10 @@ function verifyAndBurnTicket(ticket: string): DecodedJwt {
 }
 
 export function startServer(port: number, db: SupabaseClient): http.Server {
+  googleAdsLimiter = new TokenBucket(
+    config.platforms.googleAds.rateLimitMax,
+    config.platforms.googleAds.rateLimitRefillRate,
+  );
   const brain = new UnifiedIntelligenceBrain(db);
   const cb = new CircuitBreaker();
   const tl = new TrustLedger();
@@ -342,6 +358,12 @@ export function startServer(port: number, db: SupabaseClient): http.Server {
           res.end(JSON.stringify({error: 'Missing required parameters'}));
           return;
         }
+        const isAllowed = await db.isEmailAllowed(email);
+        if (!isAllowed) {
+          res.writeHead(403, {'Content-Type': 'application/json'});
+          res.end(JSON.stringify({error: 'Email address not in invite allowlist'}));
+          return;
+        }
         try {
           const {user, verificationToken} = await signup(db, email, password, orgName, config.auth.jwtSecret);
           sendSuccessResponse(res, {
@@ -382,6 +404,12 @@ export function startServer(port: number, db: SupabaseClient): http.Server {
         if (!email || !password) {
           res.writeHead(400, {'Content-Type': 'application/json'});
           res.end(JSON.stringify({error: 'Missing credentials'}));
+          return;
+        }
+        const isAllowed = await db.isEmailAllowed(email);
+        if (!isAllowed) {
+          res.writeHead(403, {'Content-Type': 'application/json'});
+          res.end(JSON.stringify({error: 'Email address not in invite allowlist'}));
           return;
         }
         try {
@@ -538,44 +566,7 @@ export function startServer(port: number, db: SupabaseClient): http.Server {
         return;
       }
 
-      // OAuth Callback route (Publicly accessible, state is verified)
-      const callbackMatch = path.match(/^\/api\/v1\/connect\/callback\/([^/]+)$/);
-      if (callbackMatch && req.method === 'GET') {
-        const platform = callbackMatch[1];
-        const state = parsedUrl.query['state'] as string;
-        const code = parsedUrl.query['code'] as string;
-
-        if (!state || !code) {
-          throw new ValidationError('Missing OAuth state or authorization code');
-        }
-
-        try {
-          const verified = verifyOauthState(state, config.auth.jwtSecret);
-          if (verified.platform !== platform) {
-            throw new ValidationError('OAuth platform mismatch in state token');
-          }
-
-          // Exchange code and save to CredentialVault (always mockMode = true in tests)
-          await handleOauthCallback(db, platform, code, verified.tenantId, true);
-
-          sendSuccessResponse(res, {
-            status: 'success',
-            message: `${platform} connected successfully. You can close this window now.`,
-          });
-        } catch (err: any) {
-          res.writeHead(400, {'Content-Type': 'application/json'});
-          res.end(
-            JSON.stringify({
-              status: 'error',
-              error: {
-                code: 'OAUTH_CALLBACK_FAILED',
-                message: err.message || String(err),
-              },
-            }),
-          );
-        }
-        return;
-      }      // Initiate OAuth connection for a platform (auth-gated, supports parameter token)
+      // Initiate OAuth connection for a platform (auth-gated, supports parameter token)
       const connectMatch = path.match(/^\/api\/v1\/connect\/([^/]+)$/);
       if (connectMatch && req.method === 'GET') {
         const platform = connectMatch[1];
@@ -627,6 +618,55 @@ export function startServer(port: number, db: SupabaseClient): http.Server {
         return;
       }
 
+      // OAuth Callback route (Public, state and platform match are verified via signed JWT)
+      const callbackMatch = path.match(/^\/api\/v1\/connect\/callback\/([^/]+)$/);
+      if (callbackMatch && req.method === 'GET') {
+        const platform = callbackMatch[1];
+        const state = parsedUrl.query['state'] as string;
+        const code = parsedUrl.query['code'] as string;
+
+        if (!state || !code) {
+          res.writeHead(400, {'Content-Type': 'application/json'});
+          res.end(
+            JSON.stringify({
+              status: 'error',
+              error: {
+                code: 'OAUTH_CALLBACK_FAILED',
+                message: 'Missing OAuth state or authorization code',
+              },
+            }),
+          );
+          return;
+        }
+
+        try {
+          const verified = verifyOauthState(state, config.auth.jwtSecret);
+          if (verified.platform !== platform) {
+            throw new ValidationError('OAuth platform mismatch in state token');
+          }
+
+          // Exchange code and save to CredentialVault (always mockMode = true in tests)
+          await handleOauthCallback(db, platform, code, verified.tenantId, true);
+
+          sendSuccessResponse(res, {
+            status: 'success',
+            message: `${platform} connected successfully. You can close this window now.`,
+          });
+        } catch (err: any) {
+          res.writeHead(400, {'Content-Type': 'application/json'});
+          res.end(
+            JSON.stringify({
+              status: 'error',
+              error: {
+                code: 'OAUTH_CALLBACK_FAILED',
+                message: err.message || String(err),
+              },
+            }),
+          );
+        }
+        return;
+      }
+
       // Centralized Authentication for all v1 API endpoints
       let decodedToken: DecodedJwt;
       try {
@@ -651,6 +691,8 @@ export function startServer(port: number, db: SupabaseClient): http.Server {
       }
 
       tenantId = decodedToken.orgId;
+
+
 
       // 0. Ticket generation endpoint (authenticated via Bearer JWT)
       if (path === '/api/v1/auth/ticket' && req.method === 'GET') {
@@ -963,19 +1005,19 @@ export function startServer(port: number, db: SupabaseClient): http.Server {
           tenantId,
         });
 
-        // Wire to existing trust ledger: auto-start trust tier at OBSERVE (level 1)
-        tl.setTier(tenantId, 'read', 1);
-        tl.setTier(tenantId, 'update_budget', 1);
-        tl.setTier(tenantId, 'pause', 1);
-        tl.setTier(tenantId, 'activate', 1);
-        tl.setTier(tenantId, 'scale_budget', 1);
+        // Wire to existing trust ledger: auto-start trust tier at OBSERVE (level 0)
+        tl.setTier(tenantId, 'read', 0);
+        tl.setTier(tenantId, 'update_budget', 0);
+        tl.setTier(tenantId, 'pause', 0);
+        tl.setTier(tenantId, 'activate', 0);
+        tl.setTier(tenantId, 'scale_budget', 0);
 
         // Save to persisted DB as well
-        await db.saveTrustTier(tenantId, 'read', 1);
-        await db.saveTrustTier(tenantId, 'update_budget', 1);
-        await db.saveTrustTier(tenantId, 'pause', 1);
-        await db.saveTrustTier(tenantId, 'activate', 1);
-        await db.saveTrustTier(tenantId, 'scale_budget', 1);
+        await db.saveTrustTier(tenantId, 'read', 0);
+        await db.saveTrustTier(tenantId, 'update_budget', 0);
+        await db.saveTrustTier(tenantId, 'pause', 0);
+        await db.saveTrustTier(tenantId, 'activate', 0);
+        await db.saveTrustTier(tenantId, 'scale_budget', 0);
 
         sendSuccessResponse(res, {status: 'success', tenantId});
         return;
@@ -1020,6 +1062,141 @@ export function startServer(port: number, db: SupabaseClient): http.Server {
       if (path === '/api/v1/recommendations' && req.method === 'GET') {
         const recs = await brain.analyzeProfitability(tenantId);
         sendSuccessResponse(res, {recommendations: recs});
+        return;
+      }
+
+      // Dismiss Recommendation (Requires reason)
+      const dismissMatch = path.match(/^\/api\/v1\/recommendations\/([^/]+)\/dismiss$/);
+      if (dismissMatch && req.method === 'POST') {
+        const recommendationId = dismissMatch[1];
+        const body = await parseRequestBody(req);
+        const {reason} = body;
+
+        if (!reason || typeof reason !== 'string' || reason.trim() === '') {
+          res.writeHead(400, {'Content-Type': 'application/json'});
+          res.end(JSON.stringify({error: 'Missing or empty dismissal reason'}));
+          return;
+        }
+
+        const requestDb = db.clone();
+        requestDb.setTenantContext(decodedToken.orgId);
+
+        // Save audit log entry
+        await requestDb.logAudit({
+          tenant: decodedToken.orgId,
+          timestamp: new Date().toISOString(),
+          action_id: `dismiss-${recommendationId}-${Date.now()}`,
+          op: 'dismiss_recommendation',
+          entity: 'recommendation',
+          target_id: recommendationId,
+          cost: 0,
+          decision: 'dismissed',
+          reason: reason.trim(),
+        });
+
+        // Track telemetry event
+        await requestDb.saveRecommendationEvent({
+          event_id: `rec_evt_${Date.now()}_${Math.random().toString(36).substring(7)}`,
+          tenant_id: decodedToken.orgId,
+          recommendation_id: recommendationId,
+          action: 'dismissed',
+          reason: reason.trim(),
+          created_at: new Date().toISOString(),
+        });
+
+        sendSuccessResponse(res, {status: 'dismissed', recId: recommendationId});
+        return;
+      }
+
+      // Reverse Action
+      const reverseMatch = path.match(/^\/api\/v1\/actions\/([^/]+)\/reverse$/);
+      if (reverseMatch && req.method === 'POST') {
+        const actionId = reverseMatch[1];
+        const body = await parseRequestBody(req);
+        const {reason} = body;
+
+        const requestDb = db.clone();
+        requestDb.setTenantContext(decodedToken.orgId);
+
+        await requestDb.logAudit({
+          tenant: decodedToken.orgId,
+          timestamp: new Date().toISOString(),
+          action_id: `reverse-${actionId}-${Date.now()}`,
+          op: 'reverse_action',
+          entity: 'action',
+          target_id: actionId,
+          cost: 0,
+          decision: 'reversed',
+          reason: reason || 'User manual override',
+        });
+
+        await requestDb.saveRecommendationEvent({
+          event_id: `rec_evt_${Date.now()}_${Math.random().toString(36).substring(7)}`,
+          tenant_id: decodedToken.orgId,
+          recommendation_id: actionId,
+          action: 'reversed',
+          reason: reason || 'User manual override',
+          created_at: new Date().toISOString(),
+        });
+
+        sendSuccessResponse(res, {status: 'reversed', actionId});
+        return;
+      }
+
+      // Post Onboarding Event
+      if (path === '/api/v1/onboarding/event' && req.method === 'POST') {
+        const body = await parseRequestBody(req);
+        if (!body.stage || !body.eventName) {
+          res.writeHead(400, {'Content-Type': 'application/json'});
+          res.end(JSON.stringify({error: 'Missing stage or eventName'}));
+          return;
+        }
+
+        const requestDb = db.clone();
+        requestDb.setTenantContext(decodedToken.orgId);
+
+        const event = {
+          event_id: `evt-${Date.now()}`,
+          tenant_id: decodedToken.orgId,
+          stage: body.stage,
+          event_name: body.eventName,
+          timestamp: new Date().toISOString(),
+          duration_ms: body.durationMs || null,
+          data: body.data || null,
+        };
+
+        await requestDb.saveOnboardingEvent(event);
+        sendSuccessResponse(res, {status: 'success', eventId: event.event_id});
+        return;
+      }
+
+      // Get Onboarding Events
+      if (path === '/api/v1/onboarding/event' && req.method === 'GET') {
+        const requestDb = db.clone();
+        requestDb.setTenantContext(decodedToken.orgId);
+        const events = await requestDb.getOnboardingEvents(decodedToken.orgId);
+        sendSuccessResponse(res, {events});
+        return;
+      }
+
+      // Telemetry Lift Calculator
+      if (path === '/api/v1/telemetry/lift' && req.method === 'POST') {
+        const body = await parseRequestBody(req);
+        const {treatmentValue, holdoutValue} = body;
+        
+        if (
+          typeof treatmentValue !== 'number' ||
+          typeof holdoutValue !== 'number' ||
+          treatmentValue < 0 ||
+          holdoutValue < 0
+        ) {
+          res.writeHead(400, {'Content-Type': 'application/json'});
+          res.end(JSON.stringify({error: 'Invalid or negative values for lift calculation'}));
+          return;
+        }
+
+        const lift = holdoutValue === 0 ? 0 : (treatmentValue - holdoutValue) / holdoutValue;
+        sendSuccessResponse(res, {lift, status: 'calculated'});
         return;
       }
 
@@ -1126,6 +1303,21 @@ export function startServer(port: number, db: SupabaseClient): http.Server {
           ...checkout,
         ];
 
+        const severityRank: Record<string, number> = {
+          'CRITICAL': 0,
+          'WARNING': 1,
+          'OPPORTUNITY': 2,
+        };
+
+        sweep.sort((a, b) => {
+          const rankA = severityRank[a.severity] ?? 99;
+          const rankB = severityRank[b.severity] ?? 99;
+          if (rankA !== rankB) {
+            return rankA - rankB;
+          }
+          return b.dollarImpact - a.dollarImpact;
+        });
+
         sendSuccessResponse(res, {sweep});
         return;
       }
@@ -1147,9 +1339,12 @@ export function startServer(port: number, db: SupabaseClient): http.Server {
       // 5.3 GET AUTONOMY TIER (GET)
       if (path === '/api/v1/autonomy' && req.method === 'GET') {
         const trustVal = await db.getTrustTier(tenantId, 'global');
+        const globalConfigured = trustVal !== null ? trustVal : 0;
+        const minEarned = await getMinEarnedTier(db, tenantId);
+        const activeLevel = Math.min(globalConfigured, minEarned);
         const validTiers = ['OBSERVE', 'REVIEW', 'ASSISTED', 'AUTONOMOUS', 'C_SUITE'];
-        const tier = trustVal !== null && trustVal >= 0 && trustVal < 5 ? validTiers[trustVal] : 'OBSERVE';
-        sendSuccessResponse(res, {tier});
+        const tier = validTiers[activeLevel];
+        sendSuccessResponse(res, {tier, level: activeLevel});
         return;
       }
 
@@ -1179,6 +1374,22 @@ export function startServer(port: number, db: SupabaseClient): http.Server {
         }
 
         const tierNum = validTiers.indexOf(tier);
+        const minEarned = await getMinEarnedTier(db, tenantId);
+
+        if (tierNum > minEarned) {
+          res.writeHead(409, {'Content-Type': 'application/json'});
+          res.end(
+            JSON.stringify({
+              status: 'error',
+              error: {
+                code: 'TIER_NOT_EARNED',
+                message: `Cannot elevate autonomy to ${tier} (level ${tierNum}) because minimum earned tier is ${validTiers[minEarned]} (level ${minEarned}).`,
+              },
+            }),
+          );
+          return;
+        }
+
         await db.saveTrustTier(tenantId, 'global', tierNum);
 
         sendSuccessResponse(res, {status: 'success', tier});
@@ -1386,6 +1597,26 @@ export function startServer(port: number, db: SupabaseClient): http.Server {
           normalizedContext,
         );
 
+        // Calculate Cost Delta if action is update_budget
+        let costDelta = (outcome.result as any)?.cost || 0;
+        if (validatedRequest.op === 'update_budget') {
+          const recommendedBudget = 500; // Reference mock budget recommendation
+          const overrideBudget = (validatedRequest.payload as any)?.budget || 0;
+          costDelta = overrideBudget - recommendedBudget;
+        }
+
+        await requestDb.logAudit({
+          tenant: decodedToken.orgId,
+          timestamp: new Date().toISOString(),
+          action_id: `act-${Date.now()}`,
+          op: validatedRequest.op,
+          entity: validatedRequest.entity,
+          target_id: validatedRequest.targetId || '',
+          cost: costDelta,
+          decision: 'executed',
+          reason: 'Manual override delta',
+        });
+
         sendSuccessResponse(res, outcome);
         return;
       }
@@ -1423,10 +1654,50 @@ export function startServer(port: number, db: SupabaseClient): http.Server {
   return server.listen(port);
 }
 
+function createProductionVaultClient(): VaultClient {
+  return {
+    async fetchSecret(secretName: string): Promise<string> {
+      // Stub implementation. Real production implementation will fetch from Cloud KMS/Secret Manager.
+      return process.env[secretName] || '';
+    },
+  };
+}
+
 // Auto-run if executed directly as script
 if (require.main === module) {
-  const db = new SupabaseClient();
-  const port = config.server.port;
-  console.log(`Starting native HTTP/SSE server on port ${port}...`);
-  startServer(port, db);
+  (async () => {
+    try {
+      const isProduction = process.env['NODE_ENV'] === 'production';
+      let secretProvider: SecretProvider;
+
+      if (isProduction) {
+        const vaultClient = createProductionVaultClient();
+        secretProvider = new ManagedSecretProvider(vaultClient);
+      } else {
+        secretProvider = new EnvSecretProvider();
+      }
+
+      // 1. Resolve bootstrap secrets asynchronously
+      await initializeConfig(secretProvider);
+
+      // 2. Instantiate DB client with resolved parameters
+      const mockMode = process.env['NODE_ENV'] === 'test';
+      const db = new SupabaseClient(
+        config.database.url,
+        config.database.key,
+        mockMode
+      );
+
+      const port = config.server.port;
+      const logger = new PinoLogger(30, false);
+      logger.info(`Starting native HTTP/SSE server on port ${port}...`);
+      startServer(port, db);
+    } catch (err: any) {
+      const logger = new PinoLogger(30, false);
+      logger.error('Fatal server bootstrap error:', {
+        error: err.message || String(err),
+      });
+      process.exit(1);
+    }
+  })();
 }
