@@ -327,3 +327,29 @@ export interface TenantLimits {
   maxDailyLimit: number;
   maxPerActionLimit: number;
 }
+
+/* ── Agency portfolio (Option B / CUJ-6) ────────────────────────────────────
+ * One row per client brand an agency manages, summarized for the portfolio
+ * console. Each entry is enough to triage at a glance and drill into the
+ * brand's full views by switching tenant context.
+ * GET /api/v1/agency/portfolio
+ */
+export interface PortfolioEntry {
+  orgId: string;
+  orgName: string;
+  /** Mock-mode only: index into the MOCK_BRAND_* arrays for drill-down. */
+  brandIndex?: number;
+  /** Headline (blended) POAS across the brand's active campaigns. */
+  poas: number;
+  /** Total monthly ad spend under management for this brand. */
+  monthlyAdSpend: number;
+  /** Total profit-at-risk across the brand's campaigns. */
+  dollarDrag: number;
+  /** Count of open CRITICAL + WARNING sweep findings. */
+  leaksFlagged: number;
+  readinessStatus: ProfitReadiness["status"];
+  tier: SemanticTrustTier;
+  billingStatus: BillingStatus;
+  /** Rollup health used to sort + colour the row. */
+  attention: "critical" | "watch" | "healthy";
+}

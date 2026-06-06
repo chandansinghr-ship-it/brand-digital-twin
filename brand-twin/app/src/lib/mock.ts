@@ -12,6 +12,7 @@ import type {
   CogsCoverage,
   CogsGap,
   IntegrationState,
+  PortfolioEntry,
   ProfitReadiness,
   Receipt,
   RecommendationCard,
@@ -145,7 +146,14 @@ export const MOCK_TRUST_TIER: SemanticTrustTier = "ASSISTED";
 // ── 3 beta brand presets for demo mode ────────────────────────────────────────
 // Index 0 = Glow & Co · Index 1 = Nutra Boost · Index 2 = Cleansly
 
-export const MOCK_BRAND_NAMES = ["Glow & Co", "Nutra Boost", "Cleansly"];
+export const MOCK_BRAND_NAMES = [
+  "Glow & Co",
+  "Nutra Boost",
+  "Cleansly",
+  "Pawsh",
+  "Lumen Tea",
+  "Forte Apparel",
+];
 
 export const MOCK_BRAND_RECOMMENDATIONS: RecommendationCard[][] = [
   // Brand 0 — Glow & Co (beauty/skincare): high ROAS masking thin margins
@@ -303,6 +311,111 @@ export const MOCK_BRAND_RECOMMENDATIONS: RecommendationCard[][] = [
       adsCantFix: [],
     },
   ],
+  // Brand 3 — Pawsh (pet care): borderline, COGS gaps drag confidence down
+  [
+    {
+      campaignId: "pw-g-001",
+      campaignName: "Grain-Free Food — Google Shopping",
+      poas: 1.12,
+      roas: 2.7,
+      dollarDrag: 6200,
+      dominantCause: "COGS_TOO_HIGH",
+      side: "ECONOMICS",
+      confidence: "medium",
+      caveat: "Several SKU costs estimated from category average — verify to raise confidence.",
+      osActs: [],
+      userApproves: [
+        { tier: 2, action: "Confirm unit cost on top 5 food SKUs to firm up POAS", estimatedRecovery: 3800 },
+      ],
+      adsCantFix: [],
+    },
+    {
+      campaignId: "pw-meta-002",
+      campaignName: "Chew Toys — Meta Prospecting",
+      poas: 1.94,
+      roas: 2.5,
+      dollarDrag: 0,
+      dominantCause: "INSUFFICIENT_DATA",
+      side: "UNKNOWN",
+      confidence: "high",
+      caveat: "Healthy — POAS above break-even.",
+      osActs: [],
+      userApproves: [],
+      adsCantFix: [],
+    },
+  ],
+  // Brand 4 — Lumen Tea (wellness beverages): healthy, running autonomous
+  [
+    {
+      campaignId: "lt-meta-001",
+      campaignName: "Sampler Box — Meta Advantage+",
+      poas: 2.81,
+      roas: 3.4,
+      dollarDrag: 0,
+      dominantCause: "INSUFFICIENT_DATA",
+      side: "UNKNOWN",
+      confidence: "high",
+      caveat: "Strong performer; twin auto-managing budget within cap.",
+      osActs: [
+        { tier: 1, action: "Auto-scaled daily budget +12% within AUTONOMOUS cap", estimatedRecovery: 2400 },
+      ],
+      userApproves: [],
+      adsCantFix: [],
+    },
+    {
+      campaignId: "lt-g-002",
+      campaignName: "Subscriptions — Google Search",
+      poas: 1.36,
+      roas: 2.2,
+      dollarDrag: 2900,
+      dominantCause: "CPC_TOO_HIGH",
+      side: "ADVERTISING",
+      confidence: "high",
+      caveat: "CPC 1.7× account average on competitor-conquest terms.",
+      osActs: [
+        { tier: 1, action: "Lower bids 15% on competitor-conquest keywords above target CPA", estimatedRecovery: 2900 },
+      ],
+      userApproves: [],
+      adsCantFix: [],
+    },
+  ],
+  // Brand 5 — Forte Apparel (fashion): discounts + returns eroding margin
+  [
+    {
+      campaignId: "fa-meta-001",
+      campaignName: "New Arrivals — Meta Prospecting",
+      poas: 0.84,
+      roas: 2.9,
+      dollarDrag: 12800,
+      dominantCause: "HIGH_REFUND_RATE",
+      side: "ECONOMICS",
+      confidence: "high",
+      caveat: "Returns rate 31% on apparel — net revenue well below gross.",
+      osActs: [],
+      userApproves: [
+        { tier: 2, action: "Exclude high-return SKUs (size-fit issues) from prospecting audience", estimatedRecovery: 7400 },
+      ],
+      adsCantFix: [
+        { tier: 3, action: "31% return rate is a sizing/product issue ads cannot fix — needs fit guidance on PDP", estimatedRecovery: 5400 },
+      ],
+    },
+    {
+      campaignId: "fa-g-002",
+      campaignName: "Sale — Google Shopping",
+      poas: 0.97,
+      roas: 2.1,
+      dollarDrag: 5300,
+      dominantCause: "DISCOUNT_OVERUSE",
+      side: "ECONOMICS",
+      confidence: "medium",
+      caveat: "Stacked promo codes cutting into already-thin sale margins.",
+      osActs: [],
+      userApproves: [
+        { tier: 2, action: "Block promo-code stacking on already-discounted sale collection", estimatedRecovery: 5300 },
+      ],
+      adsCantFix: [],
+    },
+  ],
 ];
 
 export const MOCK_BRAND_SWEEP: SweepFinding[][] = [
@@ -396,6 +509,69 @@ export const MOCK_BRAND_SWEEP: SweepFinding[][] = [
       dollarImpact: 4600,
     },
   ],
+  // Brand 3 — Pawsh
+  [
+    {
+      code: "cogs_estimated_pw_001",
+      severity: "WARNING",
+      check: "unprofitable_spend",
+      entityId: "pw-g-001",
+      title: "Food campaign POAS resting on estimated costs",
+      detail: "POAS 1.12× but several SKU costs are category estimates — confirm to trust the number.",
+      dollarImpact: 6200,
+    },
+    {
+      code: "checkout_friction_pw",
+      severity: "WARNING",
+      check: "checkout_events",
+      entityId: null,
+      title: "Subscription opt-in drop-off at checkout",
+      detail: "Auto-ship toggle being dismissed by 71% of buyers — friction or unclear value.",
+      dollarImpact: 2300,
+    },
+  ],
+  // Brand 4 — Lumen Tea
+  [
+    {
+      code: "budget_capped_lt_001",
+      severity: "OPPORTUNITY",
+      check: "budget_capped_winner",
+      entityId: "lt-meta-001",
+      title: "Sampler Box (POAS 2.8×) has headroom to scale",
+      detail: "Profitable and stable — twin is auto-scaling within the AUTONOMOUS cap; raising the cap unlocks more.",
+      dollarImpact: 4100,
+    },
+    {
+      code: "cpc_high_lt_002",
+      severity: "WARNING",
+      check: "unprofitable_spend",
+      entityId: "lt-g-002",
+      title: "Competitor-conquest terms running hot on CPC",
+      detail: "CPC 1.7× account average; trimming bids protects POAS without losing volume.",
+      dollarImpact: 2900,
+    },
+  ],
+  // Brand 5 — Forte Apparel
+  [
+    {
+      code: "refund_rate_fa_001",
+      severity: "CRITICAL",
+      check: "unprofitable_spend",
+      entityId: "fa-meta-001",
+      title: "31% return rate turning a 2.9× ROAS into a 0.84× POAS",
+      detail: "Net revenue after returns is far below gross; prospecting is acquiring returners.",
+      dollarImpact: 12800,
+    },
+    {
+      code: "discount_stack_fa_002",
+      severity: "WARNING",
+      check: "unprofitable_spend",
+      entityId: "fa-g-002",
+      title: "Promo codes stacking on already-discounted sale items",
+      detail: "Combined discounts pushing sale-collection orders below contribution margin.",
+      dollarImpact: 5300,
+    },
+  ],
 ];
 
 export const MOCK_BRAND_READINESS: ProfitReadiness[] = [
@@ -438,6 +614,45 @@ export const MOCK_BRAND_READINESS: ProfitReadiness[] = [
     },
     status: "ready",
   },
+  // Brand 3 — Pawsh: COGS gaps keep it directional
+  {
+    score: 64,
+    factors: {
+      cogsCoverage: 61,
+      shopifyLinked: true,
+      googleAdsLinked: true,
+      metaAdsLinked: false,
+      bankLinked: false,
+      historicalOrdersLoaded: true,
+    },
+    status: "directional_only",
+  },
+  // Brand 4 — Lumen Tea: all platforms, QuickBooks-synced COGS
+  {
+    score: 90,
+    factors: {
+      cogsCoverage: 88,
+      shopifyLinked: true,
+      googleAdsLinked: true,
+      metaAdsLinked: true,
+      bankLinked: false,
+      historicalOrdersLoaded: true,
+    },
+    status: "ready",
+  },
+  // Brand 5 — Forte Apparel: good coverage, returns muddy the picture
+  {
+    score: 82,
+    factors: {
+      cogsCoverage: 84,
+      shopifyLinked: true,
+      googleAdsLinked: true,
+      metaAdsLinked: true,
+      bankLinked: false,
+      historicalOrdersLoaded: true,
+    },
+    status: "ready",
+  },
 ];
 
 export const MOCK_BRAND_INTEGRATIONS: IntegrationState[][] = [
@@ -457,6 +672,23 @@ export const MOCK_BRAND_INTEGRATIONS: IntegrationState[][] = [
     { integrationId: "int-cl-s", tenantId: "org-cleansly", provider: "shopify", status: "active", settings: { shop: "cleansly.myshopify.com" }, updatedAt: Date.now() - 1000 * 60 * 60 * 72 },
     { integrationId: "int-cl-g", tenantId: "org-cleansly", provider: "google_ads", status: "active", settings: { account: "456-789-0123" }, updatedAt: Date.now() - 1000 * 60 * 60 * 72 },
     { integrationId: "int-cl-m", tenantId: "org-cleansly", provider: "meta_ads", status: "active", settings: { accountId: "act_556712" }, updatedAt: Date.now() - 1000 * 60 * 60 * 72 },
+  ],
+  // Brand 3 — Pawsh: Shopify + Google connected; Meta not yet
+  [
+    { integrationId: "int-pw-s", tenantId: "org-pawsh", provider: "shopify", status: "active", settings: { shop: "pawsh.myshopify.com" }, updatedAt: Date.now() - 1000 * 60 * 60 * 20 },
+    { integrationId: "int-pw-g", tenantId: "org-pawsh", provider: "google_ads", status: "active", settings: { account: "321-654-0987" }, updatedAt: Date.now() - 1000 * 60 * 60 * 20 },
+  ],
+  // Brand 4 — Lumen Tea: all 3 connected
+  [
+    { integrationId: "int-lt-s", tenantId: "org-lumen", provider: "shopify", status: "active", settings: { shop: "lumen-tea.myshopify.com" }, updatedAt: Date.now() - 1000 * 60 * 60 * 96 },
+    { integrationId: "int-lt-g", tenantId: "org-lumen", provider: "google_ads", status: "active", settings: { account: "111-222-3333" }, updatedAt: Date.now() - 1000 * 60 * 60 * 96 },
+    { integrationId: "int-lt-m", tenantId: "org-lumen", provider: "meta_ads", status: "active", settings: { accountId: "act_778812" }, updatedAt: Date.now() - 1000 * 60 * 60 * 96 },
+  ],
+  // Brand 5 — Forte Apparel: all 3 connected
+  [
+    { integrationId: "int-fa-s", tenantId: "org-forte", provider: "shopify", status: "active", settings: { shop: "forte-apparel.myshopify.com" }, updatedAt: Date.now() - 1000 * 60 * 60 * 50 },
+    { integrationId: "int-fa-g", tenantId: "org-forte", provider: "google_ads", status: "active", settings: { account: "444-555-6666" }, updatedAt: Date.now() - 1000 * 60 * 60 * 50 },
+    { integrationId: "int-fa-m", tenantId: "org-forte", provider: "meta_ads", status: "active", settings: { accountId: "act_993211" }, updatedAt: Date.now() - 1000 * 60 * 60 * 50 },
   ],
 ];
 
@@ -635,3 +867,89 @@ export const MOCK_TENANT_LIMITS: TenantLimits = {
   maxDailyLimit: 2000,
   maxPerActionLimit: 500,
 };
+
+/* ── Agency portfolio (Option B / CUJ-6) ─────────────────────────────────────
+ * The agency's book of business. `brandIndex` maps each row to the MOCK_BRAND_*
+ * arrays so drilling into a client switches the demo's active brand context.
+ * Stats are summarized from each brand's recommendations / sweep / readiness.
+ */
+export const MOCK_PORTFOLIO: PortfolioEntry[] = [
+  {
+    orgId: "org-glowco",
+    orgName: "Glow & Co",
+    brandIndex: 0,
+    poas: 0.62,
+    monthlyAdSpend: 38000,
+    dollarDrag: 17300,
+    leaksFlagged: 2,
+    readinessStatus: "directional_only",
+    tier: "REVIEW",
+    billingStatus: "active",
+    attention: "critical",
+  },
+  {
+    orgId: "org-nutra",
+    orgName: "Nutra Boost",
+    brandIndex: 1,
+    poas: 0.29,
+    monthlyAdSpend: 61000,
+    dollarDrag: 31000,
+    leaksFlagged: 2,
+    readinessStatus: "ready",
+    tier: "ASSISTED",
+    billingStatus: "active",
+    attention: "critical",
+  },
+  {
+    orgId: "org-forte",
+    orgName: "Forte Apparel",
+    brandIndex: 5,
+    poas: 0.84,
+    monthlyAdSpend: 52000,
+    dollarDrag: 18100,
+    leaksFlagged: 2,
+    readinessStatus: "ready",
+    tier: "REVIEW",
+    billingStatus: "past_due",
+    attention: "critical",
+  },
+  {
+    orgId: "org-pawsh",
+    orgName: "Pawsh",
+    brandIndex: 3,
+    poas: 1.12,
+    monthlyAdSpend: 24000,
+    dollarDrag: 6200,
+    leaksFlagged: 2,
+    readinessStatus: "directional_only",
+    tier: "REVIEW",
+    billingStatus: "trial",
+    attention: "watch",
+  },
+  {
+    orgId: "org-lumen",
+    orgName: "Lumen Tea",
+    brandIndex: 4,
+    poas: 2.81,
+    monthlyAdSpend: 33000,
+    dollarDrag: 2900,
+    leaksFlagged: 1,
+    readinessStatus: "ready",
+    tier: "AUTONOMOUS",
+    billingStatus: "active",
+    attention: "healthy",
+  },
+  {
+    orgId: "org-cleansly",
+    orgName: "Cleansly",
+    brandIndex: 2,
+    poas: 3.18,
+    monthlyAdSpend: 29000,
+    dollarDrag: 6000,
+    leaksFlagged: 2,
+    readinessStatus: "ready",
+    tier: "ASSISTED",
+    billingStatus: "active",
+    attention: "healthy",
+  },
+];

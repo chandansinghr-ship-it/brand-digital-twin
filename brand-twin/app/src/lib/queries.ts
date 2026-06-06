@@ -13,6 +13,7 @@ import {
   MOCK_BRAND_SWEEP,
   MOCK_COGS_COVERAGE,
   MOCK_COGS_GAPS,
+  MOCK_PORTFOLIO,
   MOCK_READINESS,
   MOCK_RECEIPTS,
   MOCK_SUBSCRIPTION,
@@ -26,6 +27,7 @@ import type {
   CogsGap,
   DismissReason,
   IntegrationState,
+  PortfolioEntry,
   ProfitReadiness,
   Receipt,
   RecommendationCard,
@@ -331,6 +333,27 @@ export function useSetTenantLimits() {
       });
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ["tenant-limits"] }),
+  });
+}
+
+/* ── Agency portfolio (Option B / CUJ-6) ─────────────────────────────────── */
+
+export function usePortfolio() {
+  return useQuery({
+    queryKey: ["portfolio"],
+    queryFn: async (): Promise<PortfolioEntry[]> => {
+      if (USE_MOCK) {
+        await new Promise((r) => setTimeout(r, 350));
+        return MOCK_PORTFOLIO;
+      }
+      // Needs `GET /api/v1/agency/portfolio` — one summarized row per managed
+      // client brand, scoped to the agency's tenant memberships (CUJ-6).
+      const data = await apiFetch<{ portfolio: PortfolioEntry[] }>(
+        "/api/v1/agency/portfolio",
+      );
+      return data.portfolio;
+    },
+    staleTime: 60_000,
   });
 }
 

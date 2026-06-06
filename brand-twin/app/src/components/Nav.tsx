@@ -17,7 +17,8 @@ const LINKS = [
   { href: "/costs", label: "Costs" },
   { href: "/autonomy", label: "Autonomy" },
   { href: "/billing", label: "Billing" },
-  { href: "/admin/billing", label: "Admin" },
+  { href: "/agency", label: "Portfolio" },
+  { href: "/admin/billing", label: "Ops" },
 ];
 
 export function Nav() {
