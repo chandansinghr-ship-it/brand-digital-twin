@@ -822,6 +822,10 @@ export class SupabaseClient {
     this.logger = logger || new PinoLogger();
   }
 
+  get isMockMode(): boolean {
+    return this.mockMode;
+  }
+
   async ping(): Promise<boolean> {
     return true;
   }
@@ -2106,7 +2110,18 @@ export class SupabaseClient {
     if (this.mockMode) {
       return this.mockCredentials.filter((c) => c.tenant_id === tenant);
     }
-    return [];
+    const url = `${this.supabaseUrl}/rest/v1/credentials?tenant_id=eq.${encodeURIComponent(tenant)}&select=*`;
+    const response = await fetch(url, {
+      headers: {
+        'apikey': this.supabaseKey,
+        'Authorization': `Bearer ${this.supabaseKey}`,
+      }
+    });
+    if (response.status === 404) return [];
+    if (!response.ok) {
+      throw new Error(`Failed to fetch credentials: ${response.statusText}`);
+    }
+    return await response.json() as CredentialEntry[];
   }
 
   async saveCredential(cred: CredentialEntry): Promise<void> {
@@ -2123,6 +2138,21 @@ export class SupabaseClient {
       } else {
         this.mockCredentials.push(cred);
       }
+      return;
+    }
+    const url = `${this.supabaseUrl}/rest/v1/credentials?tenant_id=eq.${encodeURIComponent(cred.tenant_id)}&platform=eq.${encodeURIComponent(cred.platform)}&credential_key=eq.${encodeURIComponent(cred.credential_key)}`;
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'apikey': this.supabaseKey,
+        'Authorization': `Bearer ${this.supabaseKey}`,
+        'Content-Type': 'application/json',
+        'Prefer': 'resolution=merge-duplicates',
+      },
+      body: JSON.stringify(cred)
+    });
+    if (!response.ok) {
+      throw new Error(`Failed to save credential: ${response.statusText}`);
     }
   }
 
@@ -2137,6 +2167,37 @@ export class SupabaseClient {
             c.credential_key === key
           ),
       );
+      return;
+    }
+    const url = `${this.supabaseUrl}/rest/v1/credentials?tenant_id=eq.${encodeURIComponent(tenant)}&platform=eq.${encodeURIComponent(platform)}&credential_key=eq.${encodeURIComponent(key)}`;
+    const response = await fetch(url, {
+      method: 'DELETE',
+      headers: {
+        'apikey': this.supabaseKey,
+        'Authorization': `Bearer ${this.supabaseKey}`,
+      }
+    });
+    if (!response.ok) {
+      throw new Error(`Failed to delete credential: ${response.statusText}`);
+    }
+  }
+
+  async deleteCredentials(tenant: string): Promise<void> {
+    this.assertRls(tenant);
+    if (this.mockMode) {
+      this.mockCredentials = this.mockCredentials.filter((c) => c.tenant_id !== tenant);
+      return;
+    }
+    const url = `${this.supabaseUrl}/rest/v1/credentials?tenant_id=eq.${encodeURIComponent(tenant)}`;
+    const response = await fetch(url, {
+      method: 'DELETE',
+      headers: {
+        'apikey': this.supabaseKey,
+        'Authorization': `Bearer ${this.supabaseKey}`,
+      }
+    });
+    if (!response.ok) {
+      throw new Error(`Failed to delete tenant credentials: ${response.statusText}`);
     }
   }
 

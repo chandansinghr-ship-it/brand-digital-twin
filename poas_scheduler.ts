@@ -3,11 +3,15 @@ import {PoasCalculator} from './poas_calculator';
 import {BrandSignal} from './agency_os_types';
 import {PlatformAdapter} from './platform_adapter';
 import {GovernanceEngine} from './governance_engine';
+import {PinoLogger} from './observability';
+import {CredentialVault} from './credential_vault';
+import {config} from './config';
 
 export class PoasScheduler {
   private pollingIntervalId: NodeJS.Timeout | null = null;
   private readonly adapters = new Map<string, PlatformAdapter>();
   private engine: GovernanceEngine | null = null;
+  private readonly logger = new PinoLogger(30, false);
 
   constructor(
     private readonly db: SupabaseClient,
@@ -67,7 +71,16 @@ export class PoasScheduler {
 
       try {
         if (job.type === 'poas_daily') {
-          await this.executePoasDaily(job.tenant_id);
+          let success = false;
+          try {
+            await this.executePoasDaily(job.tenant_id);
+            success = true;
+          } catch (err: any) {
+            this.logger.error(`Failed executing daily POAS job ${job.job_id}:`, {
+              error: err.message || String(err),
+            });
+            await this.db.updateJobStatus(job.job_id, 'failed');
+          }
 
           // Reschedule for 24h later
           const nextRun = new Date(now + 24 * 3600 * 1000).toISOString();
@@ -83,8 +96,10 @@ export class PoasScheduler {
           };
           await this.db.savePendingJob(nextJob);
 
-          // Delete old job
-          await this.db.deletePendingJob(job.job_id);
+          if (success) {
+            // Delete old job
+            await this.db.deletePendingJob(job.job_id);
+          }
         } else if (job.type === 'settling_window') {
           const payload = job.payload;
           if (!payload || !payload.platform) {
@@ -109,7 +124,11 @@ export class PoasScheduler {
             throw new Error(`Job ${job.job_id} payload is missing orgId or userId`);
           }
 
-          // 1. Hard delete all tenant data across all mock DB tables
+          // 1. Revoke and clean up credential secrets from secure vault and remote providers
+          const vault = new CredentialVault(this.db, config.auth.masterKey);
+          await vault.revokeAllCredentials(payload.orgId, this.db.isMockMode);
+
+          // 2. Hard delete all tenant data across all mock DB tables
           await this.db.hardDeleteTenantData(payload.orgId);
 
           // 2. Anonymize user details/actor tags in audit logs and governance events
@@ -122,8 +141,10 @@ export class PoasScheduler {
           // 4. Delete the job itself
           await this.db.deletePendingJob(job.job_id);
         }
-      } catch (err) {
-        console.error(`Failed executing job ${job.job_id}:`, err);
+      } catch (err: any) {
+        this.logger.error(`Failed executing job ${job.job_id}:`, {
+          error: err.message || String(err),
+        });
         await this.db.updateJobStatus(job.job_id, 'failed');
       }
     }

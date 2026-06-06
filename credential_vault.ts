@@ -14,6 +14,8 @@ function mapPlatformToProvider(platform: string): string {
 export class CredentialVault {
   private readonly algorithm = 'aes-256-gcm';
   private readonly keyBuffer: Buffer;
+  private readonly inFlightRefreshes = new Map<string, Promise<string>>();
+  private readonly credentialCache = new Map<string, CredentialEntry>();
 
   constructor(
     private readonly db: SupabaseClient,
@@ -41,18 +43,22 @@ export class CredentialVault {
    * Decrypts cipher text using AES-256-GCM.
    */
   decrypt(cipherText: string): string {
-    const parts = cipherText.split(':');
-    if (parts.length !== 3) {
-      throw new Error('Invalid cipher text format');
+    try {
+      const parts = cipherText.split(':');
+      if (parts.length !== 3) {
+        throw new Error('Invalid cipher text format');
+      }
+      const [ivHex, encryptedHex, authTagHex] = parts;
+      const iv = Buffer.from(ivHex, 'hex');
+      const authTag = Buffer.from(authTagHex, 'hex');
+      const decipher = createDecipheriv(this.algorithm, new Uint8Array(this.keyBuffer), new Uint8Array(iv));
+      decipher.setAuthTag(new Uint8Array(authTag));
+      let decrypted = decipher.update(encryptedHex, 'hex', 'utf8');
+      decrypted += decipher.final('utf8');
+      return decrypted;
+    } catch (err: any) {
+      throw new Error('Decryption failed');
     }
-    const [ivHex, encryptedHex, authTagHex] = parts;
-    const iv = Buffer.from(ivHex, 'hex');
-    const authTag = Buffer.from(authTagHex, 'hex');
-    const decipher = createDecipheriv(this.algorithm, new Uint8Array(this.keyBuffer), new Uint8Array(iv));
-    decipher.setAuthTag(new Uint8Array(authTag));
-    let decrypted = decipher.update(encryptedHex, 'hex', 'utf8');
-    decrypted += decipher.final('utf8');
-    return decrypted;
   }
 
   /**
@@ -80,6 +86,8 @@ export class CredentialVault {
       expires_at: expiresAt,
       updated_at: new Date().toISOString(),
     };
+    const cacheKey = `${tenantId}:${platform}:${key}`;
+    this.credentialCache.set(cacheKey, cred);
     await this.db.saveCredential(cred);
   }
 
@@ -96,7 +104,7 @@ export class CredentialVault {
     ) => Promise<{accessToken: string; expiresInSeconds: number}>,
   ): Promise<string> {
     const credentials = await this.db.getCredentials(tenantId);
-    const cred = credentials.find(
+    let cred = credentials.find(
       (c) => c.platform === platform && c.credential_key === key,
     );
     if (!cred) {
@@ -105,41 +113,118 @@ export class CredentialVault {
       );
     }
 
-    if (cred.expires_at && cred.refresh_token && refreshOAuthCallback) {
-      const warningBufferMs = 5 * 60 * 1000; // 5 min warning threshold
-      const expiryMs = new Date(cred.expires_at).getTime();
-      if (expiryMs - Date.now() < warningBufferMs) {
-        // Trigger token refresh
-        try {
-          const refreshed = await refreshOAuthCallback(cred.refresh_token);
-          const newEncryptedVal = this.encrypt(refreshed.accessToken);
-          const newExpiresAt = new Date(
-            Date.now() + refreshed.expiresInSeconds * 1000,
-          ).toISOString();
-
-          cred.encrypted_value = newEncryptedVal;
-          cred.expires_at = newExpiresAt;
-          cred.updated_at = new Date().toISOString();
-
-          await this.db.saveCredential(cred);
-        } catch (refreshErr) {
-          // Flag integration status as suspended in case of refresh failure
-          try {
-            const provider = mapPlatformToProvider(platform);
-            const integration = await this.db.getIntegrationState(tenantId, provider);
-            if (integration) {
-              integration.status = 'suspended';
-              integration.updatedAt = Date.now();
-              await this.db.saveIntegrationState(integration);
-            }
-          } catch (dbErr) {
-            // Ignore DB errors in vault to prioritize propagation of primary refresh error
-          }
-          throw refreshErr;
+    const cacheKey = `${tenantId}:${platform}:${key}`;
+    const cached = this.credentialCache.get(cacheKey);
+    // Override with cached credential if it is still valid and has the same refresh token,
+    // avoiding clock-skew vulnerable comparisons of absolute update timestamps.
+    let useCached = false;
+    if (cached) {
+      if (cached.expires_at) {
+        const cachedExpiryMs = new Date(cached.expires_at).getTime();
+        const isCachedNotExpired = cachedExpiryMs > Date.now();
+        const hasSameRefreshToken = cached.refresh_token === cred.refresh_token;
+        if (isCachedNotExpired && hasSameRefreshToken) {
+          useCached = true;
         }
       }
     }
 
+    if (useCached) {
+      cred = cached!;
+    } else {
+      this.credentialCache.set(cacheKey, cred);
+    }
+
+    if (cred.expires_at && cred.refresh_token && refreshOAuthCallback) {
+      const warningBufferMs = 5 * 60 * 1000; // 5 min warning threshold
+      const expiryMs = new Date(cred.expires_at).getTime();
+      if (expiryMs - Date.now() < warningBufferMs) {
+        let refreshPromise = this.inFlightRefreshes.get(cacheKey);
+        if (!refreshPromise) {
+          refreshPromise = (async () => {
+            try {
+              const refreshed = await refreshOAuthCallback(cred.refresh_token!);
+              const newEncryptedVal = this.encrypt(refreshed.accessToken);
+              const newExpiresAt = new Date(
+                Date.now() + refreshed.expiresInSeconds * 1000,
+              ).toISOString();
+
+              cred.encrypted_value = newEncryptedVal;
+              cred.expires_at = newExpiresAt;
+              cred.updated_at = new Date().toISOString();
+
+              // Update in-memory cache immediately to satisfy concurrent in-memory reads
+              this.credentialCache.set(cacheKey, cred);
+
+              try {
+                await this.db.saveCredential(cred);
+              } catch (dbSaveErr: any) {
+                console.error(
+                  `[CredentialVault] Failed to persist refreshed credential in DB: ${dbSaveErr?.message || dbSaveErr}. Serving from memory cache.`
+                );
+                // Do not rethrow the DB write failure to prevent bricking the credential
+              }
+
+              return refreshed.accessToken;
+            } catch (refreshErr) {
+              // Flag integration status as suspended in case of refresh failure
+              try {
+                const provider = mapPlatformToProvider(platform);
+                const integration = await this.db.getIntegrationState(tenantId, provider);
+                if (integration) {
+                  integration.status = 'suspended';
+                  integration.updatedAt = Date.now();
+                  await this.db.saveIntegrationState(integration);
+                }
+              } catch (dbErr) {
+                // Ignore DB errors in vault to prioritize propagation of primary refresh error
+              }
+              throw refreshErr;
+            } finally {
+              this.inFlightRefreshes.delete(cacheKey);
+            }
+          })();
+          this.inFlightRefreshes.set(cacheKey, refreshPromise);
+        }
+        return refreshPromise;
+      }
+    }
+
     return this.decrypt(cred.encrypted_value);
+  }
+
+  /**
+   * Revokes all credentials for a tenant.
+   * Clears in-memory caches, sends revocation requests to OAuth providers,
+   * and deletes credentials from the database.
+   */
+  async revokeAllCredentials(tenantId: string, mockMode = true): Promise<void> {
+    const credentials = await this.db.getCredentials(tenantId);
+
+    // Clear caches
+    for (const cred of credentials) {
+      const cacheKey = `${tenantId}:${cred.platform}:${cred.credential_key}`;
+      this.credentialCache.delete(cacheKey);
+      this.inFlightRefreshes.delete(cacheKey);
+    }
+
+    // Remote revocation
+    if (!mockMode) {
+      for (const cred of credentials) {
+        if (cred.platform === 'google' && cred.refresh_token) {
+          try {
+            await fetch(`https://oauth2.googleapis.com/revoke?token=${encodeURIComponent(cred.refresh_token)}`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
+            });
+          } catch (err) {
+            console.error(`Failed to revoke Google OAuth token for tenant ${tenantId}:`, err);
+          }
+        }
+      }
+    }
+
+    // Delete credentials from database
+    await this.db.deleteCredentials(tenantId);
   }
 }

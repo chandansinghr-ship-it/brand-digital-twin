@@ -8,6 +8,7 @@ import {SupabaseClient} from './supabase_client';
 import {signup, login, verifyEmail} from './user_auth';
 import {PoasScheduler} from './poas_scheduler';
 import {signJwt} from './auth';
+import {CredentialVault} from './credential_vault';
 
 describe('GDPR & Legal Compliance Systems Integration Tests', () => {
   let server: http.Server;
@@ -118,7 +119,7 @@ describe('GDPR & Legal Compliance Systems Integration Tests', () => {
       config.legal.activeVersion = 'v1.0';
       try {
         await expectAsync(
-          signup(db, 'consent1@example.com', 'Pw123!', 'OrgConsent1', jwtSecret, false, 'v1.0')
+          signup(db, 'consent1@example.com', 'Password123!', 'OrgConsent1', jwtSecret, false, 'v1.0')
         ).toBeRejectedWithError(Error, /Terms and conditions must be accepted to register/);
       } finally {
         config.legal.activeVersion = originalVersion;
@@ -132,7 +133,7 @@ describe('GDPR & Legal Compliance Systems Integration Tests', () => {
 
       try {
         await expectAsync(
-          signup(db, 'consent2@example.com', 'Pw123!', 'OrgConsent2', jwtSecret, true, 'v1.0')
+          signup(db, 'consent2@example.com', 'Password123!', 'OrgConsent2', jwtSecret, true, 'v1.0')
         ).toBeRejectedWithError(Error, /You must accept the active terms version/);
       } finally {
         config.legal.activeVersion = originalVersion;
@@ -144,7 +145,7 @@ describe('GDPR & Legal Compliance Systems Integration Tests', () => {
       config.legal.activeVersion = 'v1.5';
 
       try {
-        const { user } = await signup(db, 'consent3@example.com', 'Pw123!', 'OrgConsent3', jwtSecret, true, 'v1.5');
+        const { user } = await signup(db, 'consent3@example.com', 'Password123!', 'OrgConsent3', jwtSecret, true, 'v1.5');
         expect(user).toBeDefined();
 
         const latestAcceptance = await db.getLatestLegalAcceptance(user.user_id);
@@ -164,11 +165,11 @@ describe('GDPR & Legal Compliance Systems Integration Tests', () => {
       try {
         // Sign up with an older version (bypass constraint via DB directly, or set activeVersion afterwards)
         config.legal.activeVersion = 'v1.0';
-        const { user, verificationToken } = await signup(db, 'block@example.com', 'Pw123!', 'BlockOrg', jwtSecret, true, 'v1.0');
+        const { user, verificationToken } = await signup(db, 'block@example.com', 'Password123!', 'BlockOrg', jwtSecret, true, 'v1.0');
         await verifyEmail(db, verificationToken, jwtSecret);
 
         // Get login token
-        const { accessToken } = await login(db, 'block@example.com', 'Pw123!', jwtSecret);
+        const { accessToken } = await login(db, 'block@example.com', 'Password123!', jwtSecret);
 
         // Update active version to require re-acceptance
         config.legal.activeVersion = 'v2.0';
@@ -205,7 +206,7 @@ describe('GDPR & Legal Compliance Systems Integration Tests', () => {
 
     beforeEach(async () => {
       const email = 'gdpr@example.com';
-      const pw = 'Pw123!';
+      const pw = 'Password123!';
       const orgName = 'GdprOrg';
 
       let user = await db.getUserByEmail(email);
@@ -287,6 +288,15 @@ describe('GDPR & Legal Compliance Systems Integration Tests', () => {
     });
 
     it('should schedule soft delete on DELETE /account, revoke refresh tokens, and run scheduler for permanent hard deletion', async () => {
+      // Store a secret in vault first
+      const vault = new CredentialVault(db, config.auth.masterKey);
+      await vault.storeSecret(orgId, 'google', 'oauth_token', 'my-secret-access-token');
+
+      // Verify it exists in DB
+      let credentials = await db.getCredentials(orgId);
+      expect(credentials.length).toBe(1);
+      expect(credentials[0].credential_key).toBe('oauth_token');
+
       // Request delete
       const delRes = await deleteReq('/api/v1/account', { Authorization: `Bearer ${accessToken}` });
       expect(delRes.status).toBe(200);
@@ -332,6 +342,10 @@ describe('GDPR & Legal Compliance Systems Integration Tests', () => {
 
       const signals = await db.getBrandSignals(orgId);
       expect(signals.length).toBe(0);
+
+      // Verify credentials are also permanently deleted
+      const deletedCreds = await db.getCredentials(orgId);
+      expect(deletedCreds.length).toBe(0);
     });
   });
 });

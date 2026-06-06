@@ -467,6 +467,8 @@ ts_library(
     srcs = ["poas_scheduler.ts"],
     deps = [
         ":agency_os_types",
+        ":config",
+        ":credential_vault",
         ":governance_engine",
         ":observability",
         ":platform_adapter",
@@ -579,9 +581,9 @@ ts_library(
         "phase3_test.ts",
         "phase4_test.ts",
         "plaid_adapter_test.ts",
-        "rate_limiter_test.ts",
         "poas_scheduler_test.ts",
         "profit_readiness_test.ts",
+        "rate_limiter_test.ts",
         "secret_provider_test.ts",
         "server_test.ts",
         "shopify_adapter_test.ts",
@@ -781,7 +783,8 @@ jasmine_node_test(
 jasmine_node_test(
     name = "e2e_test",
     srcs = [
-        "//experimental/brand_twin/github_export/tests/e2e/specs:specs",
+        "//experimental/brand_twin/tests/e2e:claim_concurrency",
+        "//experimental/brand_twin/tests/e2e/specs",
     ],
 )
 
@@ -817,6 +820,6 @@ jasmine_node_test(
 
 jasmine_node_test(
     name = "load_test",
-    srcs = ["//experimental/brand_twin/github_export/tests/e2e/specs:real_load_test_lib"],
+    srcs = ["//experimental/brand_twin/tests/e2e/specs:real_load_test_lib"],
     tags = ["manual"],
 )
