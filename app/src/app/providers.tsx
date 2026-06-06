@@ -7,12 +7,12 @@ import { useRouter } from "next/navigation";
 export function Providers({ children }: { children: ReactNode }) {
   const router = useRouter();
   const [client] = useState(() => {
-    const handlePolicyBlock = (err: any) => {
+    const handlePolicyBlock = (err: unknown) => {
       if (
         err &&
         typeof err === "object" &&
-        err.status === 403 &&
-        err.message === "POLICY_REACCEPTANCE_REQUIRED"
+        (err as { status?: number; message?: string }).status === 403 &&
+        (err as { status?: number; message?: string }).message === "POLICY_REACCEPTANCE_REQUIRED"
       ) {
         router.push("/legal/tos?reaccept=true");
       }
@@ -20,12 +20,8 @@ export function Providers({ children }: { children: ReactNode }) {
 
     return new QueryClient({
       defaultOptions: { queries: { refetchOnWindowFocus: false } },
-      queryCache: new QueryCache({
-        onError: handlePolicyBlock,
-      }),
-      mutationCache: new MutationCache({
-        onError: handlePolicyBlock,
-      }),
+      queryCache: new QueryCache({ onError: handlePolicyBlock }),
+      mutationCache: new MutationCache({ onError: handlePolicyBlock }),
     });
   });
 

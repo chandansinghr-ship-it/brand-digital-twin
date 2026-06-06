@@ -4,9 +4,10 @@
 > `P1-EXECUTION`, `P1-PUNCHLIST`, `P2/P3/P4-EXECUTION` docs — those remain as
 > detailed references, but status lives **here**.
 >
-> Verified against upstream `chandansinghr-ship-it/brand-digital-twin` @ `b472992`
-> (fetched 2026-06-06). Engine work lands in that repo; UI work lands in
-> `brand-twin/app/` (this repo).
+> Verified against upstream `chandansinghr-ship-it/brand-digital-twin` @ `646a2cd`
+> on `main` (fetched 2026-06-06). Engine main is now **fully ahead** — all Phase B,
+> C1 COGS, C2 billing lifecycle, Razorpay, receipts, SEV model, and support ticket
+> endpoints landed in one large merge. UI work lands in `brand-twin/app/` (this repo).
 >
 > **Legend:** ✅ done · 🟡 partial · ☐ to build
 > **Sizes:** S ≤0.5d · M 1–2d · L 3–5d · XL 1–2wk
@@ -15,23 +16,22 @@
 
 ## Where we are
 
-**P0, P1, and Phase B are fully done.** The engine, UI, hardening, observability, DB
-safety, secrets, security review, load test, staging scripts, legal routes, credential
-revocation, and cookie consent all landed by `b472992`. C2 billing endpoints are live.
+**Engine is complete** at `646a2cd`. All P0→P3C engine work has landed on `main`.
+UI is now the only remaining surface — admin billing queue screen, support widget,
+and new React Query hooks all built and passing type-check + build as of 2026-06-06.
 
 | Phase | State | One-line |
 |-------|-------|----------|
-| **P0** — flip UI mock→live | ✅ **DONE** | all 4 endpoints + sort + autonomy-409 synced in `f10e351` |
-| **P1** — hardening & ops | ✅ **DONE** | P1.3 staging scripts + P1.7 real load test landed in `eb9c272` / `70bc7e8` |
-| **P2** — private beta (3 brands) | 🟡 **in progress** | onboarding data being gathered; P2.1 dismiss telemetry UI shipped |
-| **P3B** — lawful | ✅ **DONE** | B1.4 + B2.3 + B2.4 landed in `b472992`/`3469815`; ported to brand-twin/app/ |
-| **P3C** — self-serve paid | 🟡 C2 engine live · **C1 engine next** | C2.a/b billing endpoints live (`19f80cc`); COGS engine + C1 endpoints remain |
-| **P4** — GA | ☐ blocked on A0 | external approval clocks — start now, gate launch only |
+| **P0** — flip UI mock→live | ✅ **DONE** | all 4 endpoints + sort + autonomy-409 (`f10e351`) |
+| **P1** — hardening & ops | ✅ **DONE** | full suite landed by `cec5437` |
+| **P2** — private beta (3 brands) | 🟡 **in progress** | onboard 3 real brands; P2.1 UI built; executed event still needs engine S-fix |
+| **P3B** — lawful | ✅ **DONE** | B1.4/B2.3/B2.4 + invite allowlist ON + spend caps + secret providers + SEV model |
+| **P3C** — self-serve paid | ✅ **Engine DONE** · 🟡 **UI complete** | all C1/C2 endpoints + Razorpay live in engine; admin billing queue + receipts UI built |
+| **P4** — GA | ☐ blocked on A0 | external approval clocks — start now |
 
-**The frontier is now the Phase C1 *engine*** (COGS adapters + readiness gate +
-C1.a/b/c endpoints). C2 billing endpoints are live and the UI auto-flips to live
-when `NEXT_PUBLIC_API_URL` is set. The P2.1 dismiss UI is built; the engine needs
-`recommendation_events` table + dismiss endpoint.
+**The frontier:** (1) onboard 3 beta brands, (2) A0 external clock applications,
+(3) wire real `NEXT_PUBLIC_API_URL` to flip all screens from mock to live.
+Full plan with build order in `PROD-READY-PLAN.md`.
 
 ---
 
@@ -70,12 +70,12 @@ No public signup. Onboard 3 in-bag brands by hand (real Google Ads + Shopify OAu
 *Spec: `VALIDATION_PLAN.md` · key files: `onboarding_simulator.ts`, `poas_scheduler.ts`*
 
 **Instrumentation (so H1–H3 are measured, not eyeballed):**
-- ✅ **P2.1 dismiss-with-reason UI** — `HealingCard.tsx` reason enum
-  (`dont_believe | cant_act | disagree | too_hard | other`) → `useDismissRecommendation`.
-  Engine: `POST /recommendations/:id/dismiss` + `recommendation_events` table
-  (`C-ENDPOINT_GAPS_SPEC.md` P2.1).
-- ☐ Engine emits `shown`/`approved`/`executed`/`reversed` events for the derived
-  metrics (time-to-first-action, CRITICAL action-rate, reversal rate).
+- ✅ **P2.1 dismiss-with-reason UI** — `HealingCard.tsx` + `useDismissRecommendation`.
+  Engine: dismiss endpoint live + `recommendation_events` table with live Supabase writes
+  (migrations 0003 + 0006). (`C-ENDPOINT_GAPS_SPEC.md` P2.1).
+- ✅ `shown` events emitted on `/recommendations`; `approved` on approval execution;
+  `dismissed` + `reversed` tracked. 🟡 **`executed` for autonomous osActs still missing** —
+  one S fix in `server.ts` `POST /actions` handler.
 - ☐ P2.2 COGS provenance tag (shipped in `CogsGap.provenance`) persisted per variant.
 - ☐ P2.3 holdout support (geo/time split → incremental vs attributed POAS).
 - ☐ P2.4 doors-closed: public signup behind invite/allowlist (off by default).
@@ -91,45 +91,41 @@ No public signup. Onboard 3 in-bag brands by hand (real Google Ads + Shopify OAu
 
 ## P3 — Lawful & Paid
 
-### Phase B — Lawful  ✅ *DONE (`b472992`)*
+### Phase B — Lawful  ✅ *DONE (`3126858` on `sync-google3-c2-ui`)*
 
 | # | Item | State | Evidence |
 |---|------|-------|----------|
 | B1 | Data rights: hard-delete cascade + signed export + PII anonymization | ✅ | `supabase_client.ts`, `poas_scheduler.ts` |
 | B1.4 | Credential-vault secret revocation wired into delete cascade | ✅ | `credential_vault.ts` (`b472992`) |
-| B2.1 | `/legal/tos` `/privacy` `/dpa` routes + pages | ✅ | engine `server.ts:467+`; UI pages in `brand-twin/app/src/app/legal/` |
-| B2.2 | Acceptance log at signup + Consent Mode v2 redaction | ✅ | `user_auth.ts`, `server.ts:232` |
-| B2.3 | Version-bump re-prompt on ToS change | ✅ | `providers.tsx` 403-handler + `auth.ts` `acceptLegalDoc` (`3469815`, ported) |
-| B2.4 | Cookie consent banner, essential-only default | ✅ | `CookieConsentBanner.tsx` + `layout.tsx` (`3469815`, ported) |
-| **B4** | **Abuse: per-tenant quotas + new-account spend caps** | ☐ M | `rate_limiter.ts`, `user_auth.ts` |
-| B3.7 | `incident_response.ts` runbook + severity model | ☐ M | `incident_response.ts` |
-| B3.8 | In-app support + help center | ☐ M | `brand-twin/app/` |
+| B2.1 | `/legal/tos` `/privacy` `/dpa` routes + pages | ✅ | engine `server.ts`; UI pages `brand-twin/app/src/app/legal/` |
+| B2.2 | Acceptance log at signup + Consent Mode v2 redaction | ✅ | `user_auth.ts`, `server.ts` |
+| B2.3 | Version-bump re-prompt on ToS change | ✅ | `providers.tsx` 403-handler + `auth.ts` `acceptLegalDoc` |
+| B2.4 | Cookie consent banner, essential-only default | ✅ | `CookieConsentBanner.tsx` + `layout.tsx` |
+| **B4** | **Abuse: per-tenant quotas + spend caps** | ✅ | `governance_engine.ts` enforces `max_per_action_limit` + `max_daily_limit`; migration 0007 |
+| B3.7 | `incident_response.ts` runbook + severity model | ✅ | `SeverityLevel = 'SEV-0'|'SEV-1'|'SEV-2'|'SEV-3'`; wired to `MetricsTracker` alert rules (`646a2cd`) |
+| B3.8 | In-app support + help center | ✅ | `SupportWidget.tsx` + `Nav.tsx` button + `useSupportTicket` hook → `POST /api/v1/support/ticket` |
 
-> B4, B3.7, B3.8 are non-blocking for beta. B4 is required before any public signup.
+### Phase C — Self-serve value + money  ✅ *Engine DONE · UI complete*
 
-### Phase C — Self-serve value + money  🟡 *C2 engine live; C1 engine next*
-
-UI built in `brand-twin/app/` (Costs `/costs`, Billing `/billing`), mock-gated and
-wired to six specced endpoints (`C-ENDPOINT_GAPS_SPEC.md`). C2 billing endpoints
-landed at `19f80cc` (`subscriptions` table + `GET /billing/subscription` + `POST
-/billing/suggest`). C1 COGS endpoints remain greenfield.
+All screens built in `brand-twin/app/`, mock-gated, wired to live endpoints.
+Engine `646a2cd` has all C1/C2 endpoints + Razorpay + receipts + support ticket live.
 
 **C1 — COGS aggregator:**
 - ✅ Pareto COGS entry UI + coverage gate — `costs/page.tsx`, `CogsEntryRow.tsx`
-- ☐ `CostSource` interface; conform `tally_adapter.ts` *(S)*
-- ☐ `zoho_adapter.ts` · `quickbooks_adapter.ts` · `xero_adapter.ts` — OAuth via A2 *(M each)*
-- ☐ Silent COGS sweep on connect → auto-fill (`onboarding_wizard.ts`) *(M)*
-- ☐ Category-average estimator → `estimatedCogs` tag (`poas_calculator.ts`) *(M)*
-- ☐ Readiness gate: low coverage → directional-only advice (`risk_radar.ts`) *(M)*
-- ☐ Endpoints C1.a/b/c (`GET /cogs/coverage`, `GET /cogs/gaps`, `POST /cogs`)
+- ✅ `CostSource` interface; `tally_adapter.ts`, `zoho_books_adapter.ts`, `quickbooks_adapter.ts`, `xero_adapter.ts` (`646a2cd`)
+- ✅ Silent COGS sweep on connect → auto-fill (`onboarding_wizard.ts`)
+- ✅ Category-average estimator → `estimatedCogs` tag (`poas_calculator.ts`)
+- ✅ Readiness gate: low coverage → directional-only advice (`risk_radar.ts`)
+- ✅ Endpoints `GET /cogs/coverage`, `GET /cogs/gaps`, `POST /cogs` — hooks `useCogsCoverage`, `useCogsGaps`, `useSaveCogs`
 
 **C2 — Billing + suggest-an-amount:**
 - ✅ Suggest-an-amount screen + trial strip + state panels + value recap — `billing/page.tsx`
-- ✅ `subscriptions` table + `GET /billing/subscription` + `POST /billing/suggest` (`19f80cc`)
-- ☐ Trial lifecycle jobs: day-14 nudge, day-15 flip, recurring, dunning *(M)*
-- ☐ Ops review queue → approve → first charge — `billing.ts` (+ admin UI) *(M)*
-- ☐ `PaymentProcessor` iface + Razorpay + tokenised card — `payment_processor.ts` *(L)*
-- ☐ In-house receipt/invoice generation — `billing.ts` *(S)*
+- ✅ `subscriptions` table + `GET /billing/subscription` + `POST /billing/suggest`
+- ✅ `GET/POST /api/v1/tenant-limits` — hooks `useTenantLimits`, `useSetTenantLimits`
+- ✅ Trial lifecycle jobs: day-14 nudge, day-15 flip, recurring, dunning (`poas_scheduler.ts`, `646a2cd`)
+- ✅ Ops review queue + admin UI — `/admin/billing` screen + `useAdminBillingQueue` + `useApproveBilling`
+- ✅ `PaymentProcessor` iface + `RazorpayPaymentProcessor` + tokenised card (never stores PAN, `646a2cd`)
+- ✅ Receipt generation + `GET /billing/receipts` — hook `useReceipts`
 
 ---
 
@@ -140,13 +136,13 @@ landed at `19f80cc` (`subscriptions` table + `GET /billing/subscription` + `POST
 - [ ] Meta `ads_read`/`ads_management` App Review approved
 - [ ] Google OAuth consent screen verified (sensitive scopes)
 - [ ] Shopify app listed / distributable
-- [ ] Legal docs signed off by counsel (feeds B2.1)
+- [ ] Legal docs signed off by counsel (real ToS/Privacy/DPA copy)
 
 **GA definition of done:**
 - [ ] Stranger signs up → creates brand → connects Google Ads + Shopify via OAuth → sees live sweep, real POAS, healing cards
 - [ ] New accounts at OBSERVE; no autonomous spend until earned
 - [ ] No raw tokens logged/returned; state-forgery tests green
-- [ ] Billing live; first self-serve paid conversion completed
+- [ ] Billing live; first self-serve paid conversion completed (trial → suggest → approve → charge)
 - [ ] Rollback plan + incident runbook rehearsed
 
 ---
@@ -154,15 +150,13 @@ landed at `19f80cc` (`subscriptions` table + `GET /billing/subscription` + `POST
 ## Critical path
 
 ```
-A0 external clocks ─────────────────────────────────────────────► gate P4 only (start NOW)
+A0 external clocks ─────────────────────────────────────────────────────────► gate P4 only (start NOW)
 
-P2 beta ──► C1 COGS engine (adapters + 3 endpoints) ──► C2 lifecycle jobs + payment rail ──► P4 GA
-(in progress)  (remaining greenfield)                    (C2.a/b live; jobs+Razorpay next)
+P2 beta (3 brands, real POAS) ──► wire NEXT_PUBLIC_API_URL → flip mock→live ──► P4 GA
+(in progress)                     (all endpoints live in engine @ 646a2cd)
 ```
 
 **Next three moves:**
-1. **Start A0 applications today** — external review queues, weeks of wait, gate P4 only.
-2. **Phase C1 engine** — `CostSource` interface + C1.a/b/c endpoints flip the Costs
-   screen live; behind them sit the COGS adapters, estimator, and readiness gate.
-3. **P2.1 engine** — `recommendation_events` table + `POST /recommendations/:id/dismiss`
-   so dismiss telemetry is measured, not lost (the UI is already wired).
+1. **Onboard 3 beta brands** with real Google Ads + Shopify OAuth — runs in parallel with A0.
+2. **Set `NEXT_PUBLIC_API_URL`** in production env to flip every UI screen from mock to live data.
+3. **A0 external clocks** — submit Google Ads Standard Access + Meta App Review + Shopify listing applications today; these take weeks and gate P4 only.

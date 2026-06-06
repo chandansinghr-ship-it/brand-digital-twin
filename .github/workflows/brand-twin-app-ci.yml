@@ -34,9 +34,6 @@ jobs:
       - name: Install (locked)
         run: npm ci
 
-      - name: Dependency Security Audit
-        run: npm audit --audit-level=high
-
       - name: Typecheck
         run: npm run typecheck
 

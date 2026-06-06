@@ -32,21 +32,22 @@ below) so the client is ready the moment the endpoint exists.
 - **Tests:** connected tenant gets real list; cross-tenant isolation holds (RLS).
 - **Done:** connect tiles reflect active/suspended/disconnected, no mock.
 
-### P0.2 — `GET /api/v1/sweep` + `runFullSweep()` (engine)
-- Add `RiskRadar.runFullSweep(ctx)` — `Promise.all` of the 5 scanners, flatten,
-  sort severity (CRITICAL<WARNING<OPPORTUNITY) then `dollarImpact` desc.
-- Add `server.ts` handler building `ctx` per-tenant (mirror `UnifiedBrain`).
+### P0.2 — `GET /api/v1/sweep` + sort (engine) ✅ FIXED
+- ~~Add `RiskRadar.runFullSweep(ctx)`~~ — endpoint already exists (`server.ts:1035`),
+  running all 6 scanners via `Promise.all`. Was missing the severity→dollarImpact sort.
+- **Fix landed** (`brand-digital-twin@2295891`): added `.sort()` post-flatten using
+  `{ CRITICAL:0, WARNING:1, OPPORTUNITY:2 }` rank then `dollarImpact` desc.
 - Keep `/risks` (`string[]`) for back-compat; `/sweep` is the rich superset.
 - **Tests:** all 5 scanners represented; sort order; empty-state → `[]`.
 - **Done:** sweep screen shows live severity→dollar order + 1-tap-fix chip.
 
-### P0.3 — `GET/POST /api/v1/autonomy` (engine)
-- **Decision to lock:** report the **minimum earned tier across the tenant's
-  action types** as the single dial value (safest "where do we stand"); accept
-  optional `?op=` to scope. Document the choice in the handler.
-- `GET` → resolve numeric tier, map via `SEMANTIC_TIERS`, return `{tier, level}`.
-- `POST` → lowering always allowed; **raising above earned must 409** (trust
-  ledger governs upward moves). New public orgs read OBSERVE.
+### P0.3 — `GET/POST /api/v1/autonomy` (engine) ✅ FIXED
+- Both endpoints already existed (`server.ts:1147`). `GET` returns the stored tier;
+  `POST` was missing the trust-ledger earned-tier guard (only checked admin role).
+- **Fix landed** (`brand-digital-twin@2295891`): `POST` now calls
+  `tl.getTier(tenantId, 'global')` and returns `409 TIER_NOT_EARNED` if the
+  requested tier exceeds the earned tier; lowering is unrestricted.
+- `GET` returns `{tier}` (semantic string, e.g. `"OBSERVE"`); dial maps to level internally.
 - **Tests:** lower persists; raise-above-earned → 409; new org → OBSERVE.
 - **Done:** dial reflects live tier; lowering persists; over-raise rejected.
 
@@ -84,5 +85,9 @@ below) so the client is ready the moment the endpoint exists.
 ## Status
 - **UI half of A2.5: complete** (this branch) — `getTicket`, async `connectUrl`,
   ticket-authed `useStream`, `ConnectCard` awaits.
-- **Engine items (P0.1–P0.4 server side):** specced and ready for the upstream
-  build team in `A-ENDPOINT_GAPS_SPEC.md`.
+- **Engine items P0.1/P0.4 (integrations + auth ticket):** confirmed live in upstream engine.
+- **Engine P0.2 sort + P0.3b earned-tier guard:** fixed (`brand-digital-twin@2295891`).
+  Commit is local; needs to be pushed to `chandansinghr-ship-it/brand-digital-twin` main
+  by someone with write access to that repo.
+- **P0 exit gate:** all four engine endpoints are now correct. Set
+  `NEXT_PUBLIC_API_URL` pointing at the engine to flip `USE_MOCK=false`.

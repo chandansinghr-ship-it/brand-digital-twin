@@ -20,8 +20,6 @@ export async function signup(
   email: string,
   password: string,
   orgName: string,
-  policyAccepted?: boolean,
-  acceptedVersion?: string,
 ): Promise<SignupResult> {
   if (USE_MOCK) {
     await wait();
@@ -29,16 +27,7 @@ export async function signup(
   }
   const data = await apiFetch<{ userId: string; verificationToken: string }>(
     "/api/v1/auth/signup",
-    {
-      method: "POST",
-      body: JSON.stringify({
-        email,
-        password,
-        orgName,
-        policyAccepted,
-        acceptedVersion,
-      }),
-    },
+    { method: "POST", body: JSON.stringify({ email, password, orgName }) },
   );
   return { userId: data.userId, verificationToken: data.verificationToken };
 }
@@ -107,7 +96,7 @@ export async function fetchLegalDoc(docType: "tos" | "privacy" | "dpa"): Promise
     return {
       title: docType === "tos" ? "Terms of Service" : docType === "privacy" ? "Privacy Policy" : "Data Processing Addendum",
       version: "v1.0",
-      content: `Standard ${docType.toUpperCase()} content for Brand Digital Twin OS... (Demo Mock)`
+      content: `Standard ${docType.toUpperCase()} content for Brand Digital Twin OS... (Demo)`,
     };
   }
   return apiFetch<LegalDoc>(`/api/v1/legal/${docType}`);

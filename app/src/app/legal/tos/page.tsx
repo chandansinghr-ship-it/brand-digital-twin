@@ -1,11 +1,11 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { fetchLegalDoc, acceptLegalDoc, type LegalDoc } from "@/lib/auth";
 
-export default function TosPage() {
+function TosContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const reaccept = searchParams.get("reaccept") === "true";
@@ -18,7 +18,7 @@ export default function TosPage() {
   useEffect(() => {
     fetchLegalDoc("tos")
       .then(setDoc)
-      .catch((err) => setError(err.message))
+      .catch((err: Error) => setError(err.message))
       .finally(() => setLoading(false));
   }, []);
 
@@ -52,11 +52,7 @@ export default function TosPage() {
             ← Back to App
           </Link>
           <h1 className="mt-2 text-2xl font-bold tracking-tight">{doc?.title ?? "Terms of Service"}</h1>
-          {doc && (
-            <p className="mt-1 text-xs text-text-muted">
-              Version {doc.version}
-            </p>
-          )}
+          {doc && <p className="mt-1 text-xs text-text-muted">Version {doc.version}</p>}
         </div>
       </div>
 
@@ -67,28 +63,29 @@ export default function TosPage() {
       )}
 
       <article className="prose prose-sm prose-invert max-w-none rounded-xl border border-border bg-surface p-8 text-sm leading-relaxed text-text-secondary">
+        <p className="mb-4">Please read these Terms of Service carefully before using our services.</p>
+        <p className="mb-4">{doc?.content ?? "No terms content available."}</p>
+        <h3 className="mb-2 mt-6 text-base font-bold text-text-primary">1. Acceptable Use</h3>
         <p className="mb-4">
-          Please read these Terms of Service carefully before using our services.
+          You agree not to use this service for any illegal or unauthorized purpose, or to automate
+          actions that violate connected third-party platform policies (e.g. Google Ads, Meta Ads).
         </p>
+        <h3 className="mb-2 mt-6 text-base font-bold text-text-primary">2. Data and Privacy</h3>
         <p className="mb-4">
-          {doc?.content ?? "No terms content available."}
-        </p>
-        <h3 className="mt-6 mb-2 text-base font-bold text-text-primary">1. Acceptable Use</h3>
-        <p className="mb-4">
-          You agree not to use this service for any illegal or unauthorized purpose, or to automate actions that violate connected third-party platforms policies (e.g. Google Ads, Meta Ads).
-        </p>
-        <h3 className="mt-6 mb-2 text-base font-bold text-text-primary">2. Data and Privacy</h3>
-        <p className="mb-4">
-          Your use of this service is also governed by our <Link href="/legal/privacy" className="text-accent hover:underline">Privacy Policy</Link>. We ingest ad platform metrics to calculate Profit on Ad Spend (POAS), which may process customer click IDs or transactional totals. All data is processed in compliance with the Data Rights model (GDPR export and deletion).
+          Your use of this service is also governed by our{" "}
+          <Link href="/legal/privacy" className="text-accent hover:underline">Privacy Policy</Link>.
+          We ingest ad platform metrics to calculate Profit on Ad Spend (POAS), which may process
+          customer click IDs or transactional totals. All data is processed in compliance with the
+          Data Rights model (GDPR export and deletion).
         </p>
       </article>
 
       {reaccept && doc && (
         <div className="sticky bottom-6 mt-8 rounded-xl border border-accent/20 bg-accent/5 p-6 shadow-lg backdrop-blur-md">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <h4 className="font-semibold text-text-primary">Terms have been updated</h4>
-              <p className="text-xs text-text-muted mt-0.5">
+              <p className="mt-0.5 text-xs text-text-muted">
                 You must accept version {doc.version} to continue using the dashboard.
               </p>
             </div>
@@ -103,5 +100,13 @@ export default function TosPage() {
         </div>
       )}
     </main>
+  );
+}
+
+export default function TosPage() {
+  return (
+    <Suspense>
+      <TosContent />
+    </Suspense>
   );
 }

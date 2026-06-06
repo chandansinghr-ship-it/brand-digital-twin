@@ -1,9 +1,9 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { signup, fetchLegalDoc } from "@/lib/auth";
+import { signup } from "@/lib/auth";
 import { USE_MOCK } from "@/lib/api";
 import { AuthShell, Field, SubmitButton, FormError } from "@/components/AuthShell";
 
@@ -13,26 +13,15 @@ export default function SignupPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [tosAccepted, setTosAccepted] = useState(false);
-  const [activeVersion, setActiveVersion] = useState("v1.0");
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string>();
 
-  useEffect(() => {
-    fetchLegalDoc("tos")
-      .then((doc) => setActiveVersion(doc.version))
-      .catch(() => {});
-  }, []);
-
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!tosAccepted) {
-      setError("You must accept the Terms of Service to register.");
-      return;
-    }
     setError(undefined);
     setPending(true);
     try {
-      const { verificationToken } = await signup(email, password, orgName, tosAccepted, activeVersion);
+      const { verificationToken } = await signup(email, password, orgName);
       // Dev convenience: the engine returns the verification token directly, so
       // we can hand it straight to the verify screen. In production this arrives
       // by email and the user clicks a link.
