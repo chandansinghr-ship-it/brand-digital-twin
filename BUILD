@@ -567,6 +567,27 @@ ts_library(
 )
 
 ts_library(
+    name = "google_search_console_adapter",
+    srcs = ["google_search_console_adapter.ts"],
+    deps = [
+        ":platform_adapter",
+    ],
+)
+
+ts_library(
+    name = "cplu_optimizer",
+    srcs = ["cplu_optimizer.ts"],
+    deps = [
+        ":google_ads_adapter",
+        ":google_search_console_adapter",
+        ":governance_engine",
+        ":governance_types",
+        ":platform_adapter",
+        ":supabase_client",
+    ],
+)
+
+ts_library(
     name = "poas_scheduler",
     srcs = ["poas_scheduler.ts"],
     deps = [
@@ -682,6 +703,7 @@ ts_library(
         "auth_test.ts",
         "cooldown_manager_test.ts",
         "credential_vault_test.ts",
+        "cplu_optimizer_test.ts",
         "crm_leads_sync_test.ts",
         "easysaas_test.ts",
         "event_bus_test.ts",
@@ -722,6 +744,7 @@ ts_library(
         ":config",
         ":cooldown_manager",
         ":coverage_monitor",
+        ":cplu_optimizer",
         ":credential_vault",
         ":crm_leads_sync",
         ":easysaas_orchestration",
@@ -733,6 +756,7 @@ ts_library(
         ":google_ads_adapter",
         ":google_express",
         ":google_merchant_adapter",
+        ":google_search_console_adapter",
         ":governance_engine",
         ":governance_types",
         ":healing_types",
@@ -974,6 +998,11 @@ jasmine_node_test(
 
 jasmine_node_test(
     name = "crm_leads_sync_test",
+    srcs = [":brand_twin_tests"],
+)
+
+jasmine_node_test(
+    name = "cplu_optimizer_test",
     srcs = [":brand_twin_tests"],
 )
 
