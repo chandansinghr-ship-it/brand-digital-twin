@@ -10,7 +10,7 @@ import * as url from 'url';
 import {config} from './config';
 import {eventBus} from './event_bus';
 import {resetRateLimiters, startServer} from './server';
-import {SupabaseClient} from './supabase_client';
+import {SupabaseClient, CohortApplicationEntry} from './supabase_client';
 import {GoogleAdsAdapter} from './google_ads_adapter';
 
 function signJwt(payload: any, secret: string): string {
@@ -827,6 +827,60 @@ describe('Native HTTP & SSE Server Integration Test', () => {
         newPassword: 'SomePassword123!',
       });
       expect(res.error).toBeDefined();
+    });
+
+    describe('Cohort Recruitment Application API', () => {
+      it('should successfully submit a valid application and save it to the DB', async () => {
+        const payload = {
+          brandName: 'DTC Threads',
+          website: 'https://dtcthreads.co',
+          profileFit: 'paid_heavy',
+          monthlyAdSpend: 45000,
+          platformsConnected: ['shopify', 'google'],
+          untrustedNumberDetail: 'I wish I trusted my blended cost-per-acquisition after coupon codes.',
+          email: 'founder@dtcthreads.co',
+        };
+
+        const res = await postJson('/api/v1/cohort/apply', payload);
+        expect(res.status).toBe('success');
+        expect(res.data.applicationId).toBeDefined();
+        expect(res.data.message).toContain('received successfully');
+
+        // Verify DB persistence
+        const apps = await db.getCohortApplications();
+        const matched = apps.find((a) => a.application_id === res.data.applicationId);
+        expect(matched).toBeDefined();
+        expect(matched?.brand_name).toBe('DTC Threads');
+        expect(matched?.profile_fit).toBe('paid_heavy');
+        expect(matched?.untrusted_number_detail).toContain('blended cost-per-acquisition');
+      });
+
+      it('should reject applications with missing required fields', async () => {
+        const payload = {
+          brandName: 'Missing Fields Co',
+          email: 'missing@fields.co',
+        };
+
+        const res = await postJson('/api/v1/cohort/apply', payload);
+        expect(res.error).toBeDefined();
+        expect(res.error?.code).toBe('VALIDATION_FAILED');
+        expect(res.error?.message).toContain('Missing required cohort application fields');
+      });
+
+      it('should reject applications with invalid profileFit value', async () => {
+        const payload = {
+          brandName: 'Invalid Profile Co',
+          website: 'https://invalid.co',
+          profileFit: 'super_seller', // invalid fit!
+          email: 'invalid@fit.co',
+          untrustedNumberDetail: 'Profit margin.',
+        };
+
+        const res = await postJson('/api/v1/cohort/apply', payload);
+        expect(res.error).toBeDefined();
+        expect(res.error?.code).toBe('VALIDATION_FAILED');
+        expect(res.error?.message).toContain('profileFit must be one of');
+      });
     });
 
     describe('API Wiring and Launch Gaps', () => {

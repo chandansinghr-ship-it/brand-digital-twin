@@ -28,7 +28,7 @@ import {
   TrustLedger,
 } from './governance_engine';
 import {Waiver, Context} from './governance_types';
-import {SupabaseClient, OrgEntry, PendingJobEntry, LegalAcceptanceEntry, RecommendationEventEntry, TenantLimits} from './supabase_client';
+import {SupabaseClient, OrgEntry, PendingJobEntry, LegalAcceptanceEntry, RecommendationEventEntry, TenantLimits, CohortApplicationEntry} from './supabase_client';
 import {signup, verifyEmail, login, rotateRefreshToken, requestPasswordReset, confirmPasswordReset} from './user_auth';
 import * as crypto from 'crypto';
 import {UnifiedIntelligenceBrain} from './unified_brain';
@@ -686,6 +686,82 @@ export function startServer(port: number, db: SupabaseClient): http.Server {
             }),
           );
         }
+        return;
+      }
+
+      // Cohort Application Endpoint (unauthenticated)
+      if (path === '/api/v1/cohort/apply' && req.method === 'POST') {
+        const body = await parseRequestBody(req);
+        const {
+          brandName,
+          website,
+          profileFit,
+          monthlyAdSpend,
+          platformsConnected,
+          untrustedNumberDetail,
+          email,
+        } = body;
+
+        if (
+          !brandName ||
+          !website ||
+          !profileFit ||
+          !email ||
+          !untrustedNumberDetail
+        ) {
+          res.writeHead(400, {'Content-Type': 'application/json'});
+          res.end(
+            JSON.stringify({
+              status: 'error',
+              error: {
+                code: 'VALIDATION_FAILED',
+                message:
+                  'Missing required cohort application fields (brandName, website, profileFit, email, untrustedNumberDetail)',
+              },
+            }),
+          );
+          return;
+        }
+
+        const validFits = ['paid_heavy', 'early', 'organic_led'];
+        if (!validFits.includes(profileFit)) {
+          res.writeHead(400, {'Content-Type': 'application/json'});
+          res.end(
+            JSON.stringify({
+              status: 'error',
+              error: {
+                code: 'VALIDATION_FAILED',
+                message: `profileFit must be one of ${validFits.join(', ')}`,
+              },
+            }),
+          );
+          return;
+        }
+
+        const newApp: CohortApplicationEntry = {
+          application_id: `app_${crypto.randomUUID()}`,
+          brand_name: brandName,
+          website: website,
+          profile_fit: profileFit as 'paid_heavy' | 'early' | 'organic_led',
+          monthly_ad_spend:
+            typeof monthlyAdSpend === 'number' ? monthlyAdSpend : null,
+          platforms_connected: Array.isArray(platformsConnected)
+            ? platformsConnected
+            : [],
+          untrusted_number_detail: untrustedNumberDetail,
+          email: email,
+          status: 'pending',
+          created_at: new Date().toISOString(),
+        };
+
+        await db.saveCohortApplication(newApp);
+
+        sendSuccessResponse(res, {
+          status: 'success',
+          applicationId: newApp.application_id,
+          message:
+            'Founding cohort application received successfully. A human will review and reply within 2 days.',
+        });
         return;
       }
 

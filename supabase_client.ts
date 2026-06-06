@@ -419,9 +419,23 @@ export interface CrmLeadEntry {
   updated_at: string;
 }
 
+export interface CohortApplicationEntry {
+  application_id: string;
+  brand_name: string;
+  website: string;
+  profile_fit: 'paid_heavy' | 'early' | 'organic_led';
+  monthly_ad_spend: number | null;
+  platforms_connected: string[];
+  untrusted_number_detail: string;
+  email: string;
+  status: 'pending' | 'approved' | 'rejected';
+  created_at: string;
+}
+
 interface MockDbContainer {
   mockTrust: TrustEntry[];
   mockErrorEvents: ErrorEventEntry[];
+  mockCohortApplications: CohortApplicationEntry[];
   mockAuditLogs: AuditLogEntry[];
   mockLocks: LockEntry[];
   mockCredentials: CredentialEntry[];
@@ -527,6 +541,7 @@ class GlobalMockDb {
   static mockSupportTickets: SupportTicketEntry[] = [];
   static mockTenantLifts: TenantLiftEntry[] = [];
   static mockCrmLeads: CrmLeadEntry[] = [];
+  static mockCohortApplications: CohortApplicationEntry[] = [];
 }
 
 /**
@@ -588,6 +603,7 @@ export class SupabaseClient {
     mockSupportTickets: [],
     mockTenantLifts: [],
     mockCrmLeads: [],
+    mockCohortApplications: [],
   };
 
   static resetGlobalMockDb() {
@@ -643,6 +659,7 @@ export class SupabaseClient {
     GlobalMockDb.mockErrorEvents = [];
     GlobalMockDb.mockRollbacks = {};
     GlobalMockDb.mockCrmLeads = [];
+    GlobalMockDb.mockCohortApplications = [];
   }
   
   resetLocalMockDb() {
@@ -699,6 +716,7 @@ export class SupabaseClient {
       mockSupportTickets: [],
       mockTenantLifts: [],
       mockCrmLeads: [],
+      mockCohortApplications: [],
     };
   }
 
@@ -846,6 +864,8 @@ export class SupabaseClient {
 
   private get mockCrmLeads(): CrmLeadEntry[] { return SupabaseClient.useSharedMockDb ? GlobalMockDb.mockCrmLeads : this.localMockDb.mockCrmLeads; }
   private set mockCrmLeads(v: CrmLeadEntry[]) { if (SupabaseClient.useSharedMockDb) GlobalMockDb.mockCrmLeads = v; else this.localMockDb.mockCrmLeads = v; }
+  private get mockCohortApplications(): CohortApplicationEntry[] { return SupabaseClient.useSharedMockDb ? GlobalMockDb.mockCohortApplications : this.localMockDb.mockCohortApplications; }
+  private set mockCohortApplications(v: CohortApplicationEntry[]) { if (SupabaseClient.useSharedMockDb) GlobalMockDb.mockCohortApplications = v; else this.localMockDb.mockCohortApplications = v; }
 
   private get mockErrorEvents(): ErrorEventEntry[] { return SupabaseClient.useSharedMockDb ? GlobalMockDb.mockErrorEvents : this.localMockDb.mockErrorEvents; }
   private set mockErrorEvents(v: ErrorEventEntry[]) { if (SupabaseClient.useSharedMockDb) GlobalMockDb.mockErrorEvents = v; else this.localMockDb.mockErrorEvents = v; }
@@ -906,6 +926,8 @@ export class SupabaseClient {
     mockReceipts: ReceiptEntry[];
     mockSupportTickets: SupportTicketEntry[];
     mockTenantLifts: TenantLiftEntry[];
+    mockCrmLeads: CrmLeadEntry[];
+    mockCohortApplications: CohortApplicationEntry[];
   } | null = null;
 
   private readonly logger: PinoLogger;
@@ -1043,6 +1065,8 @@ export class SupabaseClient {
       mockReceipts: this.mockReceipts,
       mockSupportTickets: this.mockSupportTickets,
       mockTenantLifts: this.mockTenantLifts,
+      mockCrmLeads: this.mockCrmLeads,
+      mockCohortApplications: this.mockCohortApplications,
       mockCampaigns: this.mockCampaigns,
       mockSpendFacts: this.mockSpendFacts,
       mockCustomers: this.mockCustomers,
@@ -1136,6 +1160,8 @@ export class SupabaseClient {
       GlobalMockDb.mockReceipts = snapshot.mockReceipts || [];
       GlobalMockDb.mockSupportTickets = snapshot.mockSupportTickets || [];
       GlobalMockDb.mockTenantLifts = snapshot.mockTenantLifts || [];
+      GlobalMockDb.mockCrmLeads = snapshot.mockCrmLeads || [];
+      GlobalMockDb.mockCohortApplications = snapshot.mockCohortApplications || [];
     } else {
       this.localMockDb.mockTrust = snapshot.mockTrust || [];
       this.localMockDb.mockErrorEvents = snapshot.mockErrorEvents || [];
@@ -1185,6 +1211,8 @@ export class SupabaseClient {
       this.localMockDb.mockReceipts = snapshot.mockReceipts || [];
       this.localMockDb.mockSupportTickets = snapshot.mockSupportTickets || [];
       this.localMockDb.mockTenantLifts = snapshot.mockTenantLifts || [];
+      this.localMockDb.mockCrmLeads = snapshot.mockCrmLeads || [];
+      this.localMockDb.mockCohortApplications = snapshot.mockCohortApplications || [];
     }
   }
 
@@ -1240,6 +1268,8 @@ export class SupabaseClient {
     copy.mockReceipts = this.mockReceipts;
     copy.mockSupportTickets = this.mockSupportTickets;
     copy.mockTenantLifts = this.mockTenantLifts;
+    copy.mockCrmLeads = this.mockCrmLeads;
+    copy.mockCohortApplications = this.mockCohortApplications;
     copy.mockRollbacks = this.mockRollbacks;
     copy.mockRecommendationEvents = this.mockRecommendationEvents;
     return copy;
@@ -2323,6 +2353,25 @@ export class SupabaseClient {
         this.mockCrmLeads[idx] = lead;
       } else {
         this.mockCrmLeads.push(lead);
+      }
+    }
+  }
+
+  // --- COHORT APPLICATIONS ---
+  async getCohortApplications(): Promise<CohortApplicationEntry[]> {
+    if (this.mockMode) {
+      return this.mockCohortApplications;
+    }
+    return [];
+  }
+
+  async saveCohortApplication(app: CohortApplicationEntry): Promise<void> {
+    if (this.mockMode) {
+      const idx = this.mockCohortApplications.findIndex((a) => a.application_id === app.application_id);
+      if (idx >= 0) {
+        this.mockCohortApplications[idx] = app;
+      } else {
+        this.mockCohortApplications.push(app);
       }
     }
   }
@@ -3568,6 +3617,8 @@ export class SupabaseClient {
       mockReceipts: JSON.parse(JSON.stringify(this.mockReceipts)) as ReceiptEntry[],
       mockSupportTickets: JSON.parse(JSON.stringify(this.mockSupportTickets)) as SupportTicketEntry[],
       mockTenantLifts: JSON.parse(JSON.stringify(this.mockTenantLifts)) as TenantLiftEntry[],
+      mockCrmLeads: JSON.parse(JSON.stringify(this.mockCrmLeads)) as CrmLeadEntry[],
+      mockCohortApplications: JSON.parse(JSON.stringify(this.mockCohortApplications)) as CohortApplicationEntry[],
     };
     this.logger.info('Transaction boundary started');
   }
@@ -3632,6 +3683,8 @@ export class SupabaseClient {
       this.mockReceipts = this.snapshots.mockReceipts;
       this.mockSupportTickets = this.snapshots.mockSupportTickets;
       this.mockTenantLifts = this.snapshots.mockTenantLifts;
+      this.mockCrmLeads = this.snapshots.mockCrmLeads;
+      this.mockCohortApplications = this.snapshots.mockCohortApplications;
       this.snapshots = null;
     }
     this.logger.info('Transaction boundary rolled back');
