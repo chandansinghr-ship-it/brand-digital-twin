@@ -129,14 +129,14 @@ Engine `646a2cd` has all C1/C2 endpoints + Razorpay + receipts + support ticket 
 
 ---
 
-## P4 — GA  ☐ *blocked on A0 external clocks*
+## P4 — GA  🟡 *platform approvals CLEARED — beta validation is the last gate*
 
-**Start these today — they run in background and can't be compressed:**
-- [ ] Google Ads Standard Access approved
-- [ ] Meta `ads_read`/`ads_management` App Review approved
-- [ ] Google OAuth consent screen verified (sensitive scopes)
-- [ ] Shopify app listed / distributable
-- [ ] Legal docs signed off by counsel (real ToS/Privacy/DPA copy)
+**A0 external clocks — platform approvals all in hand:**
+- ✅ Google Ads Standard Access approved
+- ✅ Meta `ads_read`/`ads_management` App Review approved
+- ✅ Google OAuth consent screen verified (sensitive scopes)
+- ✅ Shopify app listed / distributable
+- ⚠️ Legal docs signed off by counsel (real ToS/Privacy/DPA copy) — **confirm status**
 
 **GA definition of done:**
 - [ ] Stranger signs up → creates brand → connects Google Ads + Shopify via OAuth → sees live sweep, real POAS, healing cards
@@ -150,13 +150,13 @@ Engine `646a2cd` has all C1/C2 endpoints + Razorpay + receipts + support ticket 
 ## Critical path
 
 ```
-A0 external clocks ─────────────────────────────────────────────────────────► gate P4 only (start NOW)
+Platform approvals CLEARED (Google Ads · Meta · OAuth · Shopify) ───────────────────►
 
-P2 beta (3 brands, real POAS) ──► wire NEXT_PUBLIC_API_URL → flip mock→live ──► P4 GA
-(in progress)                     (all endpoints live in engine @ 646a2cd)
+P2 beta (3 brands, real POAS + measured lift) ──► flip NEXT_PUBLIC_API_URL → live ──► P4 GA
+(now the gating work)                              (all endpoints live @ 646a2cd)
 ```
 
 **Next three moves:**
-1. **Onboard 3 beta brands** with real Google Ads + Shopify OAuth — runs in parallel with A0.
-2. **Set `NEXT_PUBLIC_API_URL`** in production env to flip every UI screen from mock to live data.
-3. **A0 external clocks** — submit Google Ads Standard Access + Meta App Review + Shopify listing applications today; these take weeks and gate P4 only.
+1. **Wire `NEXT_PUBLIC_API_URL`** to the engine origin — `USE_MOCK` flips false; every UI screen goes live. Verify all routes render real data with no mock banners.
+2. **Onboard 3 beta brands** with real Google Ads + Shopify OAuth → real POAS + ≥1 recommendation acted on with **measured lift**. This is the P2 trust gate and now the longest pole.
+3. **Confirm legal copy** — counsel-reviewed ToS/Privacy/DPA text replaces the placeholder copy in `brand-twin/app/src/app/legal/`. Then ship the `executed`-event engine S-fix for full H1 telemetry.
