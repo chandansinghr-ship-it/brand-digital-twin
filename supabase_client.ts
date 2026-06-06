@@ -1152,6 +1152,7 @@ export class SupabaseClient {
     copy.mockTenantLimits = this.mockTenantLimits;
     copy.mockSubscriptions = this.mockSubscriptions;
     copy.mockRollbacks = this.mockRollbacks;
+    copy.mockRecommendationEvents = this.mockRecommendationEvents;
     return copy;
   }
 

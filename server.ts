@@ -1765,6 +1765,20 @@ export function startServer(port: number, db: SupabaseClient): http.Server {
           normalizedContext,
         );
 
+        if (outcome.status === 'executed') {
+          const event: RecommendationEventEntry = {
+            event_id: `evt_exec_${validatedRequest.idempotencyKey}_${crypto.randomUUID()}`,
+            recommendation_id: validatedRequest.idempotencyKey,
+            tenant_id: normalizedContext.tenant.tenantId,
+            action: 'executed',
+            reason: null,
+            created_at: new Date().toISOString(),
+          };
+          void requestDb.saveRecommendationEvent(event).catch((err) => {
+            console.error(`Failed to save 'executed' telemetry for ${validatedRequest.idempotencyKey}:`, err);
+          });
+        }
+
         // Calculate Cost Delta if action is update_budget
         let costDelta = (outcome.result as any)?.cost || 0;
         if (validatedRequest.op === 'update_budget') {

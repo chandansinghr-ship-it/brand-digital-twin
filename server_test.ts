@@ -1214,6 +1214,15 @@ describe('Native HTTP & SSE Server Integration Test', () => {
       expect(res1.status).toBe('success');
       expect(res1.data.status).toBe('executed');
 
+      // Verify that the 'executed' telemetry event was saved
+      const events = await db.getRecommendationEvents('test-tenant');
+      const execEvent = events.find(
+        (e) =>
+          e.recommendation_id === 'test-limits-daily-1' &&
+          e.action === 'executed',
+      );
+      expect(execEvent).toBeDefined();
+
       // 3. Try to execute second action: update campaign c1 budget to 1700 (cost = 700) -> should queue because total daily spend would be 1100.00 > 1000.00
       const action2 = {
         idempotencyKey: 'test-limits-daily-2',
