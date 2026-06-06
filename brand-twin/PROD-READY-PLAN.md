@@ -102,11 +102,12 @@ in `onboarding_wizard.ts`.
 | Meta `ads_read`/`ads_management` App Review | ✅ approved |
 | Google OAuth consent screen verification | ✅ verified |
 | Shopify Partner app listing | ✅ listed |
-| Legal counsel: real ToS/Privacy/DPA copy | ⚠️ confirm — placeholder copy still in legal pages |
+| Legal counsel: real ToS/Privacy/DPA copy | 🟡 drafted (`brand-twin/legal/`) — pending counsel review |
 
 All four platform clocks are cleared, so GA is no longer gated on external waits.
-The remaining gate is the **P2 beta validation** (3 brands, real POAS + measured
-lift) plus the legal-copy confirmation.
+Product-specific legal drafts are written and ready for counsel **review-and-approve**
+(faster/cheaper than briefing from scratch). The remaining gate is the **P2 beta
+validation** (3 brands, real POAS + measured lift) plus counsel sign-off on the drafts.
 
 ---
 
@@ -138,5 +139,5 @@ The external waits are gone. GA is now gated only on the **P2 beta validation**
 - [x] Platform approvals received (Google Ads · Meta · OAuth · Shopify)
 - [ ] Stranger signs up (ToS accepted) → connects Google Ads + Shopify → sees live POAS + healing
 - [ ] Trial → suggest → human approve → Razorpay charge succeeds
-- [ ] Real legal copy (counsel-reviewed) in ToS/Privacy/DPA
+- [ ] Real legal copy (counsel-reviewed) in ToS/Privacy/DPA — drafts ready in `brand-twin/legal/`
 - [ ] Rollback rehearsed; SEV model live (`646a2cd`)

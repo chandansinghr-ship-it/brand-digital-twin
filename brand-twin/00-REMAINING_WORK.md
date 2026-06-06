@@ -136,7 +136,7 @@ Engine `646a2cd` has all C1/C2 endpoints + Razorpay + receipts + support ticket 
 - ✅ Meta `ads_read`/`ads_management` App Review approved
 - ✅ Google OAuth consent screen verified (sensitive scopes)
 - ✅ Shopify app listed / distributable
-- ⚠️ Legal docs signed off by counsel (real ToS/Privacy/DPA copy) — **confirm status**
+- 🟡 Legal docs — **product-specific drafts written** (`brand-twin/legal/`); pending counsel review + blanks fill, then wire into engine `/legal/*`
 
 **GA definition of done:**
 - [ ] Stranger signs up → creates brand → connects Google Ads + Shopify via OAuth → sees live sweep, real POAS, healing cards
@@ -159,4 +159,4 @@ P2 beta (3 brands, real POAS + measured lift) ──► flip NEXT_PUBLIC_API_URL
 **Next three moves:**
 1. **Wire `NEXT_PUBLIC_API_URL`** to the engine origin — `USE_MOCK` flips false; every UI screen goes live. Verify all routes render real data with no mock banners.
 2. **Onboard 3 beta brands** with real Google Ads + Shopify OAuth → real POAS + ≥1 recommendation acted on with **measured lift**. This is the P2 trust gate and now the longest pole.
-3. **Confirm legal copy** — counsel-reviewed ToS/Privacy/DPA text replaces the placeholder copy in `brand-twin/app/src/app/legal/`. Then ship the `executed`-event engine S-fix for full H1 telemetry.
+3. **Legal copy** — drafts now in `brand-twin/legal/` (ToS, Privacy, DPA). Counsel reviews + fills the blanks register, then the approved text is served from engine `/legal/*` (replacing the placeholder + hard-coded sections in `brand-twin/app/src/app/legal/`). Then ship the `executed`-event engine S-fix for full H1 telemetry.
