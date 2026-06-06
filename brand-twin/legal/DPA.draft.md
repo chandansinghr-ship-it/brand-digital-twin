@@ -7,7 +7,7 @@
 **Version:** `[VERSION]` · **Effective:** `[EFFECTIVE DATE]`
 
 This Data Processing Addendum ("**DPA**") forms part of the Terms of Service between
-the Customer ("**Controller**") and `[LEGAL ENTITY NAME]` ("**Processor**", "**we**")
+the Customer ("**Controller**") and `Trending Media Service Pvt. Ltd.` ("**Processor**", "**we**")
 and applies to our processing of personal data on the Controller's behalf in providing
 the Service. Where terms are defined in the GDPR or the India DPDP Act, those meanings
 apply. In case of conflict on data protection, this DPA prevails over the Terms.
@@ -118,8 +118,8 @@ frequency, and scope limits. *(Counsel: define cadence and cost-bearing.)*
 ## 11. Liability and miscellany
 
 Each party's liability under this DPA is subject to the limitations of liability in
-the Terms. This DPA is governed by `[GOVERNING LAW]`. If any provision conflicts with a
+the Terms. This DPA is governed by the laws of India. If any provision conflicts with a
 mandatory requirement of applicable data protection law, that law controls.
 
-**Processor contact:** `[LEGAL ENTITY NAME]`, `[REGISTERED ADDRESS]` ·
+**Processor contact:** `Trending Media Service Pvt. Ltd.`, `[REGISTERED ADDRESS]` ·
 `[PRIVACY EMAIL]` · DPO/Grievance Officer: `[DPO / GRIEVANCE OFFICER]`

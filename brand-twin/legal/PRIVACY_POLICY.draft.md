@@ -6,7 +6,7 @@
 
 **Version:** `[VERSION]` · **Effective:** `[EFFECTIVE DATE]`
 
-This Privacy Policy explains how `[LEGAL ENTITY NAME]` ("**we**", "**us**") collects,
+This Privacy Policy explains how `Trending Media Service Pvt. Ltd.` ("**we**", "**us**") collects,
 uses, shares, and protects personal data when you use the Brand Digital Twin platform
 (the "**Service**"). It is incorporated into our Terms of Service.
 
@@ -50,12 +50,15 @@ and (where you authorize) execute recommendations within your Trust Tier and spe
 caps; process billing; provide support; measure and improve the Service; and comply
 with law and enforce our Terms.
 
-Where GDPR/UK GDPR applies, our legal bases are: **performance of a contract** (to
-provide the Service), **legitimate interests** (to secure, measure, and improve the
-Service, balanced against your rights), **consent** (for non-essential cookies and
-certain communications), and **legal obligation**. Where the India DPDP Act applies,
-we process on the basis of your consent or other lawful grounds, with notice as
-required. *(Counsel: confirm bases for `[PRIMARY MARKET]`.)*
+As an India-based service, our primary framework is the **Digital Personal Data
+Protection Act, 2023 (DPDP)**: we process personal data on the basis of your consent
+(obtained via a clear Consent Notice) or other legally permitted grounds, and we honor
+withdrawal of consent. Where GDPR/UK GDPR applies (for example, EU/UK data subjects in
+connected data), our legal bases are **performance of a contract** (to provide the
+Service), **legitimate interests** (to secure, measure, and improve the Service,
+balanced against your rights), **consent** (for non-essential cookies and certain
+communications), and **legal obligation**. *(Counsel: confirm DPDP Consent Notice
+wording and GDPR bases.)*
 
 We do **not** sell personal data, and we do not use Customer Data to train models for
 other customers without your instruction. *(Counsel/Company: confirm this commitment.)*
@@ -79,8 +82,8 @@ Terms, or in a merger or acquisition (with notice where required).
 
 We may process data in countries other than yours. Where required, we use appropriate
 safeguards such as **Standard Contractual Clauses** (GDPR) and equivalent mechanisms
-for other regimes. *(Counsel: confirm transfer mechanisms and any localization
-requirements for `[PRIMARY MARKET]`.)*
+for other regimes. *(Counsel: confirm transfer mechanisms and any cross-border or
+data-localization restrictions notified under India's DPDP Act.)*
 
 ## 6. Retention
 
@@ -128,6 +131,6 @@ above.
 
 ## 12. Contact
 
-**Controller:** `[LEGAL ENTITY NAME]`, `[REGISTERED ADDRESS]`
+**Controller:** `Trending Media Service Pvt. Ltd.`, `[REGISTERED ADDRESS]`
 **Privacy / requests:** `[PRIVACY EMAIL]`
 **DPO / Grievance Officer:** `[DPO / GRIEVANCE OFFICER]`

@@ -26,36 +26,46 @@ become the single source of truth** — the engine `/legal/*` endpoints should s
 the approved text verbatim, and the ad-hoc hard-coded sections in the page JSX
 should be removed so the page and the canonical document never drift.
 
-## Blanks register — counsel + company must fill before publish
+## Blanks register
 
-Every `[BRACKETED]` token below appears across the three documents. Resolve once
-and apply consistently.
+**Resolved:**
+
+| Token | Value |
+|-------|-------|
+| `[LEGAL ENTITY NAME]` | Trending Media Service Pvt. Ltd. |
+| Entity type | Private limited company incorporated under the laws of India |
+| `[PRIMARY MARKET]` | India — lead framework is the **DPDP Act, 2023** (GDPR secondary for EU/UK data subjects) |
+| Governing law | The laws of India |
+
+**Still open** — resolve once and apply consistently across all three documents:
 
 | Token | Meaning | Owner |
 |-------|---------|-------|
-| `[LEGAL ENTITY NAME]` | Registered company name (e.g. "Acme Technologies Pvt. Ltd.") | Company |
-| `[ENTITY TYPE / REG NO.]` | Incorporation type + registration/CIN number | Company |
-| `[REGISTERED ADDRESS]` | Principal place of business | Company |
-| `[GOVERNING LAW]` | Governing law + courts (e.g. "the laws of India; courts at Bengaluru") | Counsel |
-| `[PRIMARY MARKET]` | India-first vs US/EU-first — determines lead framework | Counsel |
+| `[CIN]` | Corporate Identification Number | Company |
+| `[REGISTERED ADDRESS]` | Registered office address | Company |
+| `[CITY]` | Court venue city (match the registered office) | Counsel |
 | `[CONTACT EMAIL]` | General legal/support contact | Company |
 | `[PRIVACY EMAIL]` | Privacy requests inbox | Company |
-| `[DPO / GRIEVANCE OFFICER]` | Name + contact for GDPR DPO and India DPDP Grievance Officer | Counsel + Company |
+| `[DPO / GRIEVANCE OFFICER]` | Name + contact for the DPDP Grievance Officer (and GDPR DPO if appointed) | Counsel + Company |
 | `[RETENTION — ACTIVE]` | Retention while account active (e.g. "duration of the subscription") | Counsel |
 | `[RETENTION — POST-TERMINATION]` | Retention after deletion (e.g. "30 days, then hard-deleted") | Counsel |
 | `[SUBPROCESSOR LIST URL]` | Public URL listing subprocessors | Company |
-| `[ARBITRATION SEAT]` | If arbitration is used, the seat/venue | Counsel |
+| `[ARBITRATION SEAT]` | Arbitration seat under the Arbitration and Conciliation Act, 1996 (if used) | Counsel |
 | `[EFFECTIVE DATE]` | Date the approved version takes effect | Counsel |
 | `[VERSION]` | Semver string returned by the engine + shown on the page | Eng |
 
 ## Regulatory scope assumed in these drafts
 
-Drafted as **dual-market** (the product serves India via Razorpay/Tally/INR and
-global via Xero/QuickBooks/USD). Counsel should confirm and trim:
+**India-first** (Trending Media Service Pvt. Ltd. is India-incorporated; billing via
+Razorpay/INR), with cross-border coverage since the product also serves global brands
+(Xero/QuickBooks/USD). Counsel should confirm and trim:
 
-- **India** — Digital Personal Data Protection Act, 2023 (DPDP); IT Act / SPDI Rules.
-- **EU/UK** — GDPR / UK GDPR (export + erasure rights are already built; SCCs for transfers).
-- **California** — CCPA/CPRA (if US consumers in scope).
+- **India (lead)** — Digital Personal Data Protection Act, 2023 (DPDP); IT Act / SPDI
+  Rules. Consent Notice, Grievance Officer, and consent-withdrawal handling are the
+  key DPDP touchpoints reflected in the drafts.
+- **EU/UK** — GDPR / UK GDPR for EU/UK data subjects (export + erasure rights are
+  already built; SCCs for transfers).
+- **California** — CCPA/CPRA only if US consumers are in scope.
 
 ## Version + re-acceptance
 

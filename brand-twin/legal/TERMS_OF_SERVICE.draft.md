@@ -7,8 +7,9 @@
 **Version:** `[VERSION]` · **Effective:** `[EFFECTIVE DATE]`
 
 These Terms of Service ("**Terms**") are a binding agreement between you and the
-organization you represent ("**you**", "**Customer**") and `[LEGAL ENTITY NAME]`,
-`[ENTITY TYPE / REG NO.]`, with its registered office at `[REGISTERED ADDRESS]`
+organization you represent ("**you**", "**Customer**") and `Trending Media Service Pvt. Ltd.`,
+a private limited company incorporated under the laws of India (CIN: `[CIN]`), with
+its registered office at `[REGISTERED ADDRESS]`
 ("**we**", "**us**", the "**Company**"). They govern your access to and use of the
 Brand Digital Twin platform and related services (the "**Service**"). By creating an
 account, clicking "I agree", or using the Service, you accept these Terms. If you do
@@ -133,8 +134,8 @@ tax, legal, or accounting advice.
 for indirect, incidental, special, consequential, or punitive damages, or lost
 profits or revenues. Our aggregate liability arising out of or relating to the Service
 will not exceed the fees you paid to us in the `[12]` months preceding the event
-giving rise to the claim. *(Counsel: confirm cap, carve-outs, and consumer-law limits
-for `[PRIMARY MARKET]`.)*
+giving rise to the claim. *(Counsel: confirm cap and carve-outs, and any limits under
+the Consumer Protection Act, 2019 for India consumers.)*
 
 ## 10. Indemnification
 
@@ -161,10 +162,11 @@ change. The current version and effective date are shown on this page.
 
 ## 13. Governing law and disputes
 
-These Terms are governed by `[GOVERNING LAW]`, without regard to conflict-of-laws
-rules. The parties submit to the exclusive jurisdiction of the courts described there.
-*(Counsel: insert/confirm any arbitration clause and seat `[ARBITRATION SEAT]`, and any
-market-specific consumer protections.)*
+These Terms are governed by the laws of India, without regard to conflict-of-laws
+rules. Subject to any arbitration clause below, the courts at `[CITY]`, India have
+exclusive jurisdiction. *(Counsel: confirm the venue city to match the registered
+office, insert/confirm any arbitration clause and seat `[ARBITRATION SEAT]` under the
+Arbitration and Conciliation Act, 1996, and any consumer-protection carve-outs.)*
 
 ## 14. General
 
@@ -173,4 +175,4 @@ If a provision is unenforceable, the rest remains in effect. We may assign these
 in connection with a merger or sale; you may not assign without our consent. No waiver
 is implied by delay. Notices to us: `[CONTACT EMAIL]`.
 
-**Contact:** `[LEGAL ENTITY NAME]`, `[REGISTERED ADDRESS]` · `[CONTACT EMAIL]`
+**Contact:** `Trending Media Service Pvt. Ltd.`, `[REGISTERED ADDRESS]` · `[CONTACT EMAIL]`
