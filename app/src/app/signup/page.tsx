@@ -12,7 +12,7 @@ export default function SignupPage() {
   const [orgName, setOrgName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [accepted, setAccepted] = useState(false);
+  const [tosAccepted, setTosAccepted] = useState(false);
   const [activeVersion, setActiveVersion] = useState("v1.0");
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string>();
@@ -25,14 +25,14 @@ export default function SignupPage() {
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!accepted) {
+    if (!tosAccepted) {
       setError("You must accept the Terms of Service to register.");
       return;
     }
     setError(undefined);
     setPending(true);
     try {
-      const { verificationToken } = await signup(email, password, orgName, accepted, activeVersion);
+      const { verificationToken } = await signup(email, password, orgName, tosAccepted, activeVersion);
       // Dev convenience: the engine returns the verification token directly, so
       // we can hand it straight to the verify screen. In production this arrives
       // by email and the user clicks a link.
@@ -81,25 +81,31 @@ export default function SignupPage() {
           onChange={setPassword}
           autoComplete="new-password"
         />
-        <label className="mb-4 flex items-start gap-2.5 cursor-pointer">
+
+        {/* ToS acceptance — required before account creation */}
+        <label className="mt-4 flex items-start gap-2.5">
           <input
             type="checkbox"
-            checked={accepted}
-            onChange={(e) => setAccepted(e.target.checked)}
-            className="mt-0.5 rounded border-border bg-bg text-accent focus:ring-accent outline-none"
+            checked={tosAccepted}
+            onChange={(e) => setTosAccepted(e.target.checked)}
+            className="mt-0.5 h-4 w-4 shrink-0 cursor-pointer accent-accent"
           />
-          <span className="text-xs text-text-muted select-none leading-relaxed">
-            I accept the{" "}
-            <Link href="/legal/tos" target="_blank" className="text-accent hover:underline">
+          <span className="text-xs text-text-muted leading-relaxed">
+            I agree to the{" "}
+            <Link href="/legal/tos" className="text-accent hover:underline" target="_blank">
               Terms of Service
             </Link>{" "}
             and{" "}
-            <Link href="/legal/privacy" target="_blank" className="text-accent hover:underline">
+            <Link href="/legal/privacy" className="text-accent hover:underline" target="_blank">
               Privacy Policy
-            </Link>.
+            </Link>
           </span>
         </label>
-        <SubmitButton pending={pending} disabled={!orgName || !email || !password || !accepted}>
+
+        <SubmitButton
+          pending={pending}
+          disabled={!orgName || !email || !password || !tosAccepted}
+        >
           Create account
         </SubmitButton>
         {USE_MOCK && (
