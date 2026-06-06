@@ -23,12 +23,14 @@ upstream by `cec5437`. A stranger can walk the full loop in MOCK mode today.
 |-------|-------|----------|
 | **P0** — flip UI mock→live | ✅ **DONE** | all 4 endpoints + sort + autonomy-409 synced in `f10e351` |
 | **P1** — hardening & ops | ✅ **DONE** | P1.3 staging scripts + P1.7 real load test landed in `eb9c272` / `70bc7e8` |
-| **P2** — private beta (3 brands) | ☐ **NEXT** | the trust gate before public doors open |
-| **P3** — lawful & paid | 🟡 B mostly done · **C not started** | COGS + billing is the largest unbuilt chunk |
+| **P2** — private beta (3 brands) | 🟡 **in progress** | onboarding data being gathered; P2.1 dismiss telemetry UI shipped |
+| **P3** — lawful & paid | 🟡 B mostly done · **C UI shipped, engine next** | Costs + Billing screens built mock-gated; COGS/billing engine remains |
 | **P4** — GA | ☐ blocked on A0 | external approval clocks — start now, gate launch only |
 
-**The frontier is Phase C (COGS + billing).** That is the one genuinely large
-unbuilt block standing between here and a paying product.
+**The frontier is now the Phase C *engine*** (COGS adapters + billing state
+machine + payment rail). The Phase C **UI** (Costs, Billing) and the **P2.1
+dismiss control** are built and mock-gated in `brand-twin/app/` — six endpoints
+(`C-ENDPOINT_GAPS_SPEC.md`) flip them live. Typecheck/lint/`next build` green.
 
 ---
 
@@ -63,10 +65,21 @@ All four endpoints live and spec-compliant:
 
 ---
 
-## P2 — Private Beta (3 real brands)  ☐ *NEXT UP — the trust gate*
+## P2 — Private Beta (3 real brands)  🟡 *in progress — the trust gate*
 
 No public signup. Onboard 3 in-bag brands by hand (real Google Ads + Shopify OAuth).
 *Spec: `VALIDATION_PLAN.md` · key files: `onboarding_simulator.ts`, `poas_scheduler.ts`*
+
+**Instrumentation (so H1–H3 are measured, not eyeballed):**
+- ✅ **P2.1 dismiss-with-reason UI** — `HealingCard.tsx` reason enum
+  (`dont_believe | cant_act | disagree | too_hard | other`) → `useDismissRecommendation`.
+  Engine: `POST /recommendations/:id/dismiss` + `recommendation_events` table
+  (`C-ENDPOINT_GAPS_SPEC.md` P2.1).
+- ☐ Engine emits `shown`/`approved`/`executed`/`reversed` events for the derived
+  metrics (time-to-first-action, CRITICAL action-rate, reversal rate).
+- ☐ P2.2 COGS provenance tag (shipped in `CogsGap.provenance`) persisted per variant.
+- ☐ P2.3 holdout support (geo/time split → incremental vs attributed POAS).
+- ☐ P2.4 doors-closed: public signup behind invite/allowlist (off by default).
 
 **Exit gate — must pass before any public exposure:**
 - [ ] Each brand produces real POAS + live sweep + healing cards
@@ -93,29 +106,30 @@ No public signup. Onboard 3 in-bag brands by hand (real Google Ads + Shopify OAu
 | B3.7 | `incident_response.ts` runbook + severity model | ☐ M | `incident_response.ts` |
 | B3.8 | In-app support + help center | ☐ M | `brand-twin/app/` |
 
-### Phase C — Self-serve value + money  ☐ *NOT STARTED — the largest unbuilt block*
+### Phase C — Self-serve value + money  🟡 *UI shipped (mock-gated); engine next*
 
-Confirmed @ `cec5437`: no `billing.ts`, no `payment_processor.ts`, no accounting
-adapters, no `subscriptions` table, no `CostSource` interface. All greenfield.
+UI built this sweep in `brand-twin/app/` (Costs `/costs`, Billing `/billing`),
+mock-gated and wired to six specced endpoints (`C-ENDPOINT_GAPS_SPEC.md`). The
+engine remains greenfield @ `cec5437` (no `billing.ts`, `payment_processor.ts`,
+accounting adapters, `subscriptions` table, or `CostSource` interface).
 
-**C1 — COGS aggregator (~XL):**
-- [ ] `CostSource` interface; conform `tally_adapter.ts` *(S)*
-- [ ] `zoho_adapter.ts` — OAuth via A2 *(M)*
-- [ ] `quickbooks_adapter.ts` *(M)*
-- [ ] `xero_adapter.ts` *(M)*
-- [ ] Silent COGS sweep on connect → auto-fill (`onboarding_wizard.ts`) *(M)*
-- [ ] Category-average estimator → `estimatedCogs` tag (`poas_calculator.ts`) *(M)*
-- [ ] Pareto COGS entry UI — `brand-twin/app/` *(M)*
-- [ ] Readiness gate: low coverage → directional-only advice (`risk_radar.ts`) *(M)*
+**C1 — COGS aggregator:**
+- ✅ Pareto COGS entry UI + coverage gate — `costs/page.tsx`, `CogsEntryRow.tsx`
+- ☐ `CostSource` interface; conform `tally_adapter.ts` *(S)*
+- ☐ `zoho_adapter.ts` · `quickbooks_adapter.ts` · `xero_adapter.ts` — OAuth via A2 *(M each)*
+- ☐ Silent COGS sweep on connect → auto-fill (`onboarding_wizard.ts`) *(M)*
+- ☐ Category-average estimator → `estimatedCogs` tag (`poas_calculator.ts`) *(M)*
+- ☐ Readiness gate: low coverage → directional-only advice (`risk_radar.ts`) *(M)*
+- ☐ Endpoints C1.a/b/c (`GET /cogs/coverage`, `GET /cogs/gaps`, `POST /cogs`)
 
-**C2 — Billing + suggest-an-amount (~XL):**
-- [ ] `subscriptions` table + state machine — new `billing.ts` + migration *(M)*
-- [ ] Trial lifecycle jobs: day-14 nudge, day-15 flip, recurring, dunning *(M)*
-- [ ] Day-14 nudge composed from stored findings *(S)*
-- [ ] Day-15 suggest-an-amount screen — `brand-twin/app/` *(M)*
-- [ ] Ops review queue → approve → first charge — `brand-twin/app/`, `billing.ts` *(M)*
-- [ ] `PaymentProcessor` iface + Razorpay + tokenised card — `payment_processor.ts` *(L)*
-- [ ] In-house receipt/invoice generation — `billing.ts` *(S)*
+**C2 — Billing + suggest-an-amount:**
+- ✅ Suggest-an-amount screen + trial strip + state panels + value recap — `billing/page.tsx`
+- ☐ `subscriptions` table + state machine — new `billing.ts` + migration *(M)*
+- ☐ Trial lifecycle jobs: day-14 nudge, day-15 flip, recurring, dunning *(M)*
+- ☐ Ops review queue → approve → first charge — `billing.ts` (+ admin UI) *(M)*
+- ☐ `PaymentProcessor` iface + Razorpay + tokenised card — `payment_processor.ts` *(L)*
+- ☐ In-house receipt/invoice generation — `billing.ts` *(S)*
+- ☐ Endpoints C2.a/b (`GET /billing/subscription`, `POST /billing/suggest`)
 
 ---
 
@@ -142,11 +156,14 @@ adapters, no `subscriptions` table, no `CostSource` interface. All greenfield.
 ```
 A0 external clocks ─────────────────────────────────────────────► gate P4 only (start NOW)
 
-P2 beta ──► P3: B-gaps (small) ──► Phase C COGS+billing ──► P4 GA
-(trust gate)  (parallel w/ C)      (the real build)
+P2 beta ──► P3: B-gaps (small) ──► Phase C engine (COGS adapters + billing) ──► P4 GA
+(in progress)  (parallel w/ C)      (UI done; wire the 6 endpoints + engine lifts)
 ```
 
 **Next three moves:**
 1. **Start A0 applications today** — external review queues, weeks of wait, gate P4 only.
-2. **P2 private beta** — 3 brands, by hand, proves the engine acts on truth before doors open.
-3. **Phase C** — COGS aggregator + billing is the remaining greenfield (everything else is operational or small).
+2. **Phase C engine** — the six endpoints in `C-ENDPOINT_GAPS_SPEC.md` flip the
+   already-built Costs + Billing screens live; behind them sit the COGS adapters,
+   billing state machine, and payment rail (the remaining greenfield).
+3. **P2 beta** — onboard the 3 brands; P2.1 dismiss telemetry UI is ready, add the
+   engine `recommendation_events` sink so H1 is measured, not eyeballed.
