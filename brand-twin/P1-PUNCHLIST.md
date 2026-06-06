@@ -1,66 +1,41 @@
 # P1 Remaining — Punch List (spec vs. landed)
 
-> Diff of `P1-EXECUTION.md` against the live upstream engine
-> (`chandansinghr-ship-it/brand-digital-twin` @ `fb03ddd`). What's done, what's
-> partial, what's open. Keeps the build loop honest.
+> **Status now lives in [`00-REMAINING_WORK.md`](./00-REMAINING_WORK.md)** — the
+> single consolidated plan. This file is kept for the detailed P1 evidence trail.
+>
+> Re-diffed against upstream `chandansinghr-ship-it/brand-digital-twin` @ `91bbbbd`
+> (2026-06-06). **Most of P1 has since landed** — only P1.3 and P1.7 remain.
 
 | Ticket | State | Evidence / gap |
 |--------|-------|----------------|
 | P1.1 atomic job claim | ✅ **DONE** | `claimNextOverdueJob` (`supabase_client.ts:1941`), `schema.sql:346` `FOR UPDATE SKIP LOCKED`, used in `poas_scheduler.ts:63`, **verified** by `tests/e2e/claim_concurrency_test.ts` |
-| P1.2 observability | 🟡 **PARTIAL** | `MetricsTracker` exists (spans, latency, `recordMetric`, `raiseAlert`, `getAverageLatency`) + `/ready` DB-ping landed (`fb03ddd`). **Gaps below.** |
-| P1.3 CI/CD + staging | 🟡 **PARTIAL** | UI CI (`brand-twin-app-ci.yml`) + engine `build.yaml` landed. **Staging env + one-command deploy/rollback not evidenced.** |
-| P1.4 DB safety | 🔴 **OPEN** | Single `schema.sql` — no versioned migrations, no backup/restore drill. |
-| P1.5 secrets | 🟡 **PARTIAL** | `validateEnv()` boot guard **DONE** (`config.ts:64` — refuses mock creds outside `NODE_ENV=test`). **Secret-manager integration absent** — still `process.env` with mock defaults. |
-| P1.6 security review | 🟡 **PARTIAL** | State-forgery (`oauth_flows_test`) + ticket replay/expiry (`server_test.ts:894–923`) tests green. **Dep-audit triage + token-leak log scan not tracked.** |
-| P1.7 load test | 🟡 **PARTIAL** | Job-claim concurrency test done. **Broader load (N-tenant sweep/healing, SSE fan-out) not done.** |
+| P1.2 observability | ✅ **DONE** | `MetricsTracker` alert rules (backlog size, latency, failure-rate thresholds) + `DatabaseErrorSink` with recursion redaction scrubber (`observability.ts`, `migrations/0002_create_error_events.sql`); verified by `observability_test.ts`. |
+| P1.3 CI/CD + staging | 🟡 **OPEN** | UI CI (`brand-twin-app-ci.yml`) + engine `build.yaml` landed. **Staging env + one-command deploy/rollback still not evidenced.** |
+| P1.4 DB safety | ✅ **DONE** | Versioned migrations (`migrations/0001_init.sql`, `0002`) + migration runner + backup export + tested restore drill (`supabase_client.ts`, `supabase_client_test.ts`). |
+| P1.5 secrets | ✅ **DONE** | `SecretProvider` / `EnvSecretProvider` / `ManagedSecretProvider` (VaultClient) integrated into server boot validation; `validateEnv()` stays the boot guard. |
+| P1.6 security review | ✅ **DONE** | npm-audit CI step, scrubber-based token-leak log redaction checks, cross-tenant OAuth callback-state validation + `governance_adversarial_test.ts` (403 lines). |
+| P1.7 load test | 🟡 **OPEN** | Job-claim concurrency test done. **Broader load (N-tenant sweep/healing, SSE fan-out) not done — this is the P1 exit gate.** |
 
 ---
 
-## The actual remaining work
+## The actual remaining work (only 2 items left)
 
-### P1.2 — observability (close the gaps)
-- [ ] **Durable error sink:** `error_events` table + swappable Sentry-compatible
-      webhook. Today metrics/alerts are **in-memory only** (`MetricsTracker`
-      arrays) — they vanish on restart and aren't queryable. Persist them.
-- [ ] **Alert *rules*:** `raiseAlert()` exists but isn't wired to thresholds.
-      Add rules on job-queue backlog + adapter error rate.
-- [ ] **Tenant-scoped, token-redacted** capture in the sink (ties to P1.6).
-
-### P1.3 — staging + release
+### P1.3 — staging + release  🟡 OPEN
 - [ ] Staging environment mirroring prod.
 - [ ] Build-once-promote: the CI artifact is what deploys.
 - [ ] One-command deploy + one-command rollback (governance engine already has a
       rollback primitive — wire it).
 
-### P1.4 — DB safety (open)
-- [ ] Versioned forward-only migrations (from the single `schema.sql`) with a
-      recorded applied-version + rollback support.
-- [ ] Automated backups + a **tested restore drill** on a throwaway DB.
-
-### P1.5 — secret manager
-- [ ] Move prod secrets off `process.env` defaults into a secret manager (vault/KMS).
-      `validateEnv()` stays the boot guard (already correct). Local/test keep `.env`.
-
-### P1.6 — security review (finish)
-- [ ] Triage the `npm audit` advisories surfaced by CI (4 high / 1 moderate in the
-      client tree; `next` already on patched 14.2.35). Resolve or document each.
-- [ ] Token-leak scan across logs + the new `error_events` payloads.
-
-### P1.7 — load test (the exit gate)
+### P1.7 — load test (the exit gate)  🟡 OPEN
 - [ ] Extend the concurrency test into a real load run: N concurrent tenants on
       sweep + healing, SSE fan-out at connection count, ≥2 workers on the queue.
 - [ ] Read P1.2 instrumentation during the run; latency + error rate within budget.
 
 ---
 
-## Priority order for the remaining work
-```
-P1.4 DB safety ──► P1.2 durable sink+rules ──► P1.5 secrets ──► P1.6 audit triage ──► P1.7 load test
-(data-loss risk)   (can't run blind)          (prod boot)       (cheap, do early)     (the gate)
-```
-P1.4 first — an untested restore is the highest-consequence gap (data loss has no
-undo). P1.7 last — it proves the rest under load rather than asserting it.
-
-## Done since the P1 spec
-P1.1 atomic claim (+ concurrency test), `/ready` DB-ping (`fb03ddd`), HTTP server
-hardening (`faa9346`), UI + engine CI, `validateEnv` boot guard.
+## Done since the original P1 spec (landed upstream by `91bbbbd`)
+P1.1 atomic claim (+ concurrency test) · **P1.2** durable error sink + alert rules
++ redaction · **P1.4** versioned migrations + backup/restore drill · **P1.5**
+SecretProvider/Vault integration · **P1.6** npm-audit gate + token-leak scan +
+OAuth callback-state validation + adversarial tests · `/ready` DB-ping ·
+HTTP server hardening · UI + engine CI.
