@@ -1122,6 +1122,229 @@ describe('Native HTTP & SSE Server Integration Test', () => {
         const res2 = await postJson('/api/v1/billing/suggest', stringBody, headers);
         expect(res2.status).toBe('error');
       });
+
+      it('should return receipts when requested', async () => {
+        // Seed some receipts
+        await db.saveReceipt({
+          receipt_id: 'rcpt_1',
+          org_id: 'test-tenant',
+          amount: 499,
+          currency: 'USD',
+          receipt_url: 'https://receipts.com/r1',
+          charged_at: new Date().toISOString(),
+          created_at: new Date().toISOString(),
+        });
+        await db.saveReceipt({
+          receipt_id: 'rcpt_2',
+          org_id: 'test-tenant',
+          amount: 299,
+          currency: 'USD',
+          receipt_url: 'https://receipts.com/r2',
+          charged_at: new Date().toISOString(),
+          created_at: new Date().toISOString(),
+        });
+        // Seed receipt for another tenant to check isolation
+        await db.saveReceipt({
+          receipt_id: 'rcpt_other',
+          org_id: 'other-tenant',
+          amount: 999,
+          currency: 'USD',
+          receipt_url: 'https://receipts.com/ro',
+          charged_at: new Date().toISOString(),
+          created_at: new Date().toISOString(),
+        });
+
+        const res = await getJson('/api/v1/billing/receipts');
+        expect(res.status).toBe('success');
+        expect(res.data.length).toBe(2);
+        expect(res.data.some((r: any) => r.receiptId === 'rcpt_1')).toBe(true);
+        expect(res.data.some((r: any) => r.receiptId === 'rcpt_2')).toBe(true);
+        expect(res.data.some((r: any) => r.receiptId === 'rcpt_other')).toBe(false);
+      });
+    });
+  });
+
+  describe('Support Widget (5.2)', () => {
+    beforeEach(async () => {
+      db.resetLocalMockDb();
+      await db.saveUser({
+        user_id: 'test-user',
+        email: 'testuser@example.com',
+        pw_hash: 'hash',
+        status: 'active',
+        created_at: new Date().toISOString(),
+      });
+    });
+
+    it('should create a support ticket successfully', async () => {
+      const body = {
+        subject: 'API integration broken',
+        description: 'Unable to connect Shopify storefront',
+        severity: 'high',
+      };
+      const headers = { Authorization: `Bearer ${testToken}` };
+      const res = await postJson('/api/v1/support/ticket', body, headers);
+
+      expect(res.status).toBe('success');
+      expect(res.data.ticketId).toBeDefined();
+
+      // Verify ticket is saved in database
+      const tickets = await db.getSupportTickets('test-tenant');
+      expect(tickets.length).toBe(1);
+      expect(tickets[0].ticket_id).toBe(res.data.ticketId);
+      expect(tickets[0].user_email).toBe('testuser@example.com');
+      expect(tickets[0].subject).toBe('API integration broken');
+      expect(tickets[0].severity).toBe('high');
+      expect(tickets[0].status).toBe('open');
+    });
+
+    it('should reject ticket with missing subject or description', async () => {
+      const headers = { Authorization: `Bearer ${testToken}` };
+      const bodyNoSubject = {
+        description: 'No subject here',
+      };
+      const res1 = await postJson('/api/v1/support/ticket', bodyNoSubject, headers);
+      expect(res1.status).toBe('error');
+
+      const bodyNoDesc = {
+        subject: 'No description here',
+      };
+      const res2 = await postJson('/api/v1/support/ticket', bodyNoDesc, headers);
+      expect(res2.status).toBe('error');
+    });
+  });
+
+  describe('Telemetry Lift Seam (5.3)', () => {
+    beforeEach(() => {
+      db.resetLocalMockDb();
+    });
+
+    it('should calculate and persist lift on POST, and retrieve it on GET', async () => {
+      const headers = { Authorization: `Bearer ${testToken}` };
+      
+      // 1. GET when not computed yet
+      let getRes = await getJson('/api/v1/telemetry/lift', headers);
+      expect(getRes.status).toBe('success');
+      expect(getRes.data.status).toBe('not_calculated');
+
+      // 2. POST to calculate
+      const postBody = {
+        treatmentValue: 3.5,
+        holdoutValue: 2.0,
+      };
+      const postRes = await postJson('/api/v1/telemetry/lift', postBody, headers);
+      expect(postRes.status).toBe('success');
+      expect(postRes.data.lift).toBe(0.75);
+
+      // 3. GET again to retrieve
+      getRes = await getJson('/api/v1/telemetry/lift', headers);
+      expect(getRes.status).toBe('success');
+      expect(getRes.data.status).toBe('calculated');
+      expect(getRes.data.lift).toBe(0.75);
+      expect(getRes.data.treatmentPoas).toBe(3.5);
+      expect(getRes.data.holdoutPoas).toBe(2.0);
+      expect(getRes.data.computedAt).toBeDefined();
+    });
+
+    it('should reject invalid POST payloads', async () => {
+      const headers = { Authorization: `Bearer ${testToken}` };
+      const invalidBody = {
+        treatmentValue: -1.0,
+        holdoutValue: 2.0,
+      };
+      const res = await postJson('/api/v1/telemetry/lift', invalidBody, headers);
+      expect(res.status).toBe('error');
+    });
+  });
+
+  describe('Admin Review Queue (3.2)', () => {
+    const adminToken = signJwt(
+      {
+        userId: 'admin-user',
+        orgId: 'test-tenant',
+        role: 'admin',
+        exp: Math.floor(Date.now() / 1000) + 3600,
+      },
+      config.auth.jwtSecret,
+    );
+
+    beforeEach(async () => {
+      db.resetLocalMockDb();
+      // Seed pending review subscription
+      await db.saveSubscription({
+        org_id: 'pending-tenant-1',
+        status: 'pending_review',
+        amount: 899,
+        currency: 'USD',
+        period: 'month',
+        trial_day: 0,
+        trial_length_days: 0,
+        next_charge_at: null,
+        note: 'Customer wants discount',
+        updated_at: new Date().toISOString(),
+      });
+      await db.saveSubscription({
+        org_id: 'active-tenant-2',
+        status: 'active',
+        amount: 499,
+        currency: 'USD',
+        period: 'month',
+        trial_day: 0,
+        trial_length_days: 0,
+        next_charge_at: new Date().toISOString(),
+        note: null,
+        updated_at: new Date().toISOString(),
+      });
+    });
+
+    it('should block non-admin/ops users from accessing admin routes', async () => {
+      const headers = { Authorization: `Bearer ${testToken}` };
+      
+      const getRes = await getJson('/api/v1/admin/billing/queue', headers);
+      expect(getRes.status).toBe('error');
+
+      const postRes = await postJson('/api/v1/admin/billing/approve/pending-tenant-1', {}, headers);
+      expect(postRes.status).toBe('error');
+    });
+
+    it('should allow admin/ops to view pending review queue', async () => {
+      const headers = { Authorization: `Bearer ${adminToken}` };
+      const getRes = await getJson('/api/v1/admin/billing/queue', headers);
+
+      expect(getRes.status).toBe('success');
+      expect(getRes.data.length).toBe(1);
+      expect(getRes.data[0].orgId).toBe('pending-tenant-1');
+      expect(getRes.data[0].status).toBe('pending_review');
+    });
+
+    it('should allow admin/ops to approve a custom billing suggestion', async () => {
+      const headers = { Authorization: `Bearer ${adminToken}` };
+      
+      const postRes = await postJson('/api/v1/admin/billing/approve/pending-tenant-1', {}, headers);
+      expect(postRes.status).toBe('success');
+      expect(postRes.data.status).toBe('active');
+      expect(postRes.data.nextChargeAt).toBeDefined();
+
+      // Verify DB state updated
+      const sub = await db.getSubscription('pending-tenant-1');
+      expect(sub!.status).toBe('active');
+      expect(sub!.next_charge_at).toBeDefined();
+
+      // Verify billing charge job scheduled in DB
+      const jobs = await db.getPendingJobs('pending-tenant-1');
+      expect(jobs.some(j => j.type === 'billing_charge_recurring')).toBe(true);
+    });
+
+    it('should reject approval if subscription not found or not in pending_review', async () => {
+      const headers = { Authorization: `Bearer ${adminToken}` };
+      
+      // Not found
+      const postRes1 = await postJson('/api/v1/admin/billing/approve/non-existent', {}, headers);
+      expect(postRes1.status).toBe('error');
+
+      // Not pending_review (already active)
+      const postRes2 = await postJson('/api/v1/admin/billing/approve/active-tenant-2', {}, headers);
+      expect(postRes2.status).toBe('error');
     });
   });
 

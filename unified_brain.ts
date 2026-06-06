@@ -13,6 +13,7 @@ import {
   SpendForecaster,
   StockoutPredictor,
 } from './forecasting';
+import {ProfitReadinessCalculator} from './profit_readiness';
 import {SupabaseClient} from './supabase_client';
 import {RecommendationCard, BaselineContext, CategoryBenchmarks} from './healing_types';
 import {PoasCalculator} from './poas_calculator';
@@ -42,6 +43,12 @@ export class UnifiedIntelligenceBrain {
    */
   async analyzeProfitability(tenantId: string): Promise<RecommendationCard[]> {
     const cards: RecommendationCard[] = [];
+    
+    // Check profit readiness
+    const readinessCalc = new ProfitReadinessCalculator(this.db);
+    const readiness = await readinessCalc.calculate(tenantId);
+    const isReady = readiness.status === 'ready';
+
     const calculator = new PoasCalculator(this.db);
     const reports = await calculator.calculate(tenantId);
 
@@ -68,9 +75,21 @@ export class UnifiedIntelligenceBrain {
           continue;
         }
 
-        const osActs = diagnosis.prescriptions.filter((p) => p.tier === 1);
-        const userApproves = diagnosis.prescriptions.filter((p) => p.tier === 2);
+        let osActs = diagnosis.prescriptions.filter((p) => p.tier === 1);
+        let userApproves = diagnosis.prescriptions.filter((p) => p.tier === 2);
         const adsCantFix = diagnosis.prescriptions.filter((p) => p.tier === 3);
+
+        let caveat = diagnosis.completeness.caveat;
+        if (!isReady) {
+          // Demote tier 1 (osActs) to tier 2 (userApproves)
+          userApproves = [...userApproves, ...osActs.map(p => ({ ...p, tier: 2 as const }))];
+          osActs = [];
+          
+          const reason = readiness.factors.cogsCoverage < 80 
+            ? `COGS coverage is low (${readiness.factors.cogsCoverage}%).`
+            : `Storefront integrations are incomplete.`;
+          caveat = (caveat ? caveat + ' ' : '') + `[Directional Only] ${reason} Auto-execution disabled.`;
+        }
 
         cards.push({
           campaignId: report.campaignId,
@@ -81,7 +100,7 @@ export class UnifiedIntelligenceBrain {
           dominantCause: diagnosis.rootCause,
           side: diagnosis.side,
           confidence: diagnosis.confidence,
-          caveat: diagnosis.completeness.caveat,
+          caveat,
           osActs,
           userApproves,
           adsCantFix,

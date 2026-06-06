@@ -185,6 +185,54 @@ describe('Omnichannel Storefront Adapters Integration Test', () => {
 
   describe('Omnichannel E-commerce Ingestion Integration Flow', () => {
     it('stores ingested data from multiple platforms in Supabase and runs profitability analytics', async () => {
+      // 0. Setup credentials and variants to make tenant "ready" for auto-execution
+      await db.saveCredential({
+        tenant_id: tenantId,
+        platform: 'shopify',
+        credential_key: 'oauth_token',
+        encrypted_value: 'val',
+        refresh_token: null,
+        expires_at: null,
+        updated_at: new Date().toISOString(),
+      });
+      await db.saveCredential({
+        tenant_id: tenantId,
+        platform: 'google',
+        credential_key: 'oauth_token',
+        encrypted_value: 'val',
+        refresh_token: null,
+        expires_at: null,
+        updated_at: new Date().toISOString(),
+      });
+      await db.saveCredential({
+        tenant_id: tenantId,
+        platform: 'meta',
+        credential_key: 'oauth_token',
+        encrypted_value: 'val',
+        refresh_token: null,
+        expires_at: null,
+        updated_at: new Date().toISOString(),
+      });
+
+      await db.saveVariant({
+        variant_id: 'v1',
+        sku: 'PRODUCT-A',
+        title: 'Product A',
+        price: 90,
+        cost: 40,
+        tenant_id: tenantId,
+        ingested_at: new Date().toISOString(),
+      });
+      await db.saveVariant({
+        variant_id: 'v2',
+        sku: 'PRODUCT-B',
+        title: 'Product B',
+        price: 90,
+        cost: 50,
+        tenant_id: tenantId,
+        ingested_at: new Date().toISOString(),
+      });
+
       // 1. Setup mock source orders
       const shopifyOrderNormalized = {
         order: {

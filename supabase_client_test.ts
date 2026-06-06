@@ -2,7 +2,7 @@ import 'jasmine';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import {BaseError} from './errors';
-import {SupabaseClient} from './supabase_client';
+import {SupabaseClient, SupportTicketEntry, TenantLiftEntry} from './supabase_client';
 
 describe('SupabaseClient Database & Security Suite', () => {
   let db: SupabaseClient;
@@ -362,6 +362,56 @@ describe('SupabaseClient Database & Security Suite', () => {
       expect(stateAfterRestore[0].clientId).toBe('client-1');
       expect(stateAfterRestore[0].name).toBe('Client Nike');
       expect(stateAfterRestore[0].mrr).toBe(5000);
+    });
+  });
+
+  describe('Support Tickets & Tenant Lift (5.2, 5.3)', () => {
+    beforeEach(() => {
+      db.resetLocalMockDb();
+    });
+
+    it('should save and retrieve support tickets successfully', async () => {
+      const ticket: SupportTicketEntry = {
+        ticket_id: 't-1',
+        org_id: 'tenant-a',
+        user_email: 'user@example.com',
+        subject: 'API Broken',
+        description: 'Shopify integration failing',
+        severity: 'high',
+        status: 'open',
+        created_at: new Date().toISOString(),
+      };
+
+      await db.saveSupportTicket(ticket);
+
+      const tickets = await db.getSupportTickets('tenant-a');
+      expect(tickets.length).toBe(1);
+      expect(tickets[0].ticket_id).toBe('t-1');
+      expect(tickets[0].subject).toBe('API Broken');
+      
+      const ticketsB = await db.getSupportTickets('tenant-b');
+      expect(ticketsB.length).toBe(0);
+    });
+
+    it('should save and retrieve tenant lift successfully', async () => {
+      const lift: TenantLiftEntry = {
+        tenant_id: 'tenant-a',
+        lift: 0.15,
+        treatment_poas: 2.3,
+        holdout_poas: 2.0,
+        computed_at: new Date().toISOString(),
+      };
+
+      await db.saveTenantLift(lift);
+
+      const retrieved = await db.getTenantLift('tenant-a');
+      expect(retrieved).not.toBeNull();
+      expect(retrieved!.lift).toBe(0.15);
+      expect(retrieved!.treatment_poas).toBe(2.3);
+      expect(retrieved!.holdout_poas).toBe(2.0);
+
+      const retrievedB = await db.getTenantLift('tenant-b');
+      expect(retrievedB).toBeNull();
     });
   });
 });

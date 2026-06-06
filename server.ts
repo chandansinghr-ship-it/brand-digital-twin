@@ -11,7 +11,7 @@ import {config, initializeConfig} from './config';
 import {SecretProvider} from './secret_provider';
 import {EnvSecretProvider} from './env_secret_provider';
 import {ManagedSecretProvider, VaultClient} from './managed_secret_provider';
-import {sendErrorResponse, ValidationError, RateLimitError, PayloadTooLargeError, AuthError} from './errors';
+import {sendErrorResponse, ValidationError, RateLimitError, PayloadTooLargeError, AuthError, GovernanceError} from './errors';
 import {eventBus} from './event_bus';
 import {GoogleAdsAdapter} from './google_ads_adapter';
 import {authMiddleware, DecodedJwt, signJwt, verifyJwt, signOauthState, verifyOauthState} from './auth';
@@ -784,6 +784,71 @@ export function startServer(port: number, db: SupabaseClient): http.Server {
         return;
       }
 
+      if (path === '/api/v1/billing/receipts' && req.method === 'GET') {
+        const receipts = await db.getReceipts(decodedToken.orgId);
+        sendSuccessResponse(res, receipts);
+        return;
+      }
+
+      // Admin review queue (3.2)
+      if (path === '/api/v1/admin/billing/queue' && req.method === 'GET') {
+        if (decodedToken.role !== 'admin' && decodedToken.role !== 'ops') {
+          throw new GovernanceError('Only admin or ops can view review queue', 403);
+        }
+        const subs = await db.getPendingReviewSubscriptions();
+        sendSuccessResponse(res, subs);
+        return;
+      }
+
+      const approveMatch = path.match(/^\/api\/v1\/admin\/billing\/approve\/([a-zA-Z0-9_-]+)$/);
+      if (approveMatch && req.method === 'POST') {
+        if (decodedToken.role !== 'admin' && decodedToken.role !== 'ops') {
+          throw new GovernanceError('Only admin or ops can approve billing', 403);
+        }
+        const targetOrgId = approveMatch[1];
+        let sub = await db.getSubscription(targetOrgId);
+        if (!sub) {
+          throw new ValidationError(`Subscription for org ${targetOrgId} not found`);
+        }
+        if (sub.status !== 'pending_review') {
+          throw new ValidationError(`Subscription for org ${targetOrgId} is not in pending_review status`);
+        }
+
+        const now = Date.now();
+        sub.status = 'active';
+        sub.next_charge_at = new Date(now + 30 * 24 * 3600 * 1000).toISOString();
+        sub.updated_at = new Date(now).toISOString();
+        await db.saveSubscription(sub);
+
+        // Schedule billing charge recurring job 30 days from now
+        await db.savePendingJob({
+          job_id: `job-billing-charge-${targetOrgId}-${now}`,
+          tenant_id: targetOrgId,
+          type: 'billing_charge_recurring',
+          action_id: null,
+          run_at: sub.next_charge_at,
+          payload: null,
+          status: 'pending',
+          created_at: new Date().toISOString(),
+        });
+
+        await db.logActivity({
+          eventId: `act-bill-approve-${now}`,
+          orgId: targetOrgId,
+          actorId: decodedToken.userId,
+          actionType: 'billing_approved',
+          entityType: 'subscription',
+          entityId: targetOrgId,
+          summary: `Ops approved custom billing of $${sub.amount}/mo. Next charge scheduled on ${sub.next_charge_at}.`,
+          isRead: false,
+          tenantId: targetOrgId,
+          createdAt: now,
+        });
+
+        sendSuccessResponse(res, sub);
+        return;
+      }
+
       if (path === '/api/v1/billing/suggest' && req.method === 'POST') {
         const body = await parseRequestBody(req);
         const {amount, note} = body;
@@ -811,6 +876,41 @@ export function startServer(port: number, db: SupabaseClient): http.Server {
         sub.updated_at = new Date().toISOString();
         await db.saveSubscription(sub);
         sendSuccessResponse(res, sub);
+        return;
+      }
+
+      // Support ticket creation endpoint (5.2)
+      if (path === '/api/v1/support/ticket' && req.method === 'POST') {
+        const body = await parseRequestBody(req);
+        const {subject, description, severity} = body;
+        if (!subject || typeof subject !== 'string' || subject.trim() === '') {
+          throw new ValidationError('Subject is required');
+        }
+        if (!description || typeof description !== 'string' || description.trim() === '') {
+          throw new ValidationError('Description is required');
+        }
+
+        const ticketSeverity = severity || 'low';
+        if (ticketSeverity !== 'low' && ticketSeverity !== 'medium' && ticketSeverity !== 'high') {
+          throw new ValidationError("Severity must be 'low', 'medium', or 'high'");
+        }
+
+        const user = await db.getUserById(decodedToken.userId);
+        const userEmail = user ? user.email : 'unknown';
+
+        const ticketId = `tkt_${Math.random().toString(36).substring(7)}`;
+        await db.saveSupportTicket({
+          ticket_id: ticketId,
+          org_id: decodedToken.orgId,
+          user_email: userEmail,
+          subject: subject.trim(),
+          description: description.trim(),
+          severity: ticketSeverity,
+          status: 'open',
+          created_at: new Date().toISOString(),
+        });
+
+        sendSuccessResponse(res, {ticketId});
         return;
       }
 
@@ -1432,13 +1532,36 @@ export function startServer(port: number, db: SupabaseClient): http.Server {
           treatmentValue < 0 ||
           holdoutValue < 0
         ) {
-          res.writeHead(400, {'Content-Type': 'application/json'});
-          res.end(JSON.stringify({error: 'Invalid or negative values for lift calculation'}));
-          return;
+          throw new ValidationError('Invalid or negative values for lift calculation');
         }
 
         const lift = holdoutValue === 0 ? 0 : (treatmentValue - holdoutValue) / holdoutValue;
+        
+        await db.saveTenantLift({
+          tenant_id: tenantId,
+          lift: Math.round(lift * 100) / 100,
+          treatment_poas: treatmentValue,
+          holdout_poas: holdoutValue,
+          computed_at: new Date().toISOString(),
+        });
+
         sendSuccessResponse(res, {lift, status: 'calculated'});
+        return;
+      }
+
+      if (path === '/api/v1/telemetry/lift' && req.method === 'GET') {
+        const liftEntry = await db.getTenantLift(tenantId);
+        if (!liftEntry) {
+          sendSuccessResponse(res, {status: 'not_calculated'});
+          return;
+        }
+        sendSuccessResponse(res, {
+          lift: liftEntry.lift,
+          treatmentPoas: liftEntry.treatment_poas,
+          holdoutPoas: liftEntry.holdout_poas,
+          computedAt: liftEntry.computed_at,
+          status: 'calculated',
+        });
         return;
       }
 

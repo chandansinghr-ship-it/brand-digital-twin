@@ -1,3 +1,4 @@
+import {CogsManager} from './cogs_manager';
 import {SupabaseClient} from './supabase_client';
 
 export interface ProfitReadinessResponse {
@@ -28,13 +29,10 @@ export class ProfitReadinessCalculator {
     const metaAdsLinked = credentials.some((c) => c.platform === 'meta');
     const bankLinked = credentials.some((c) => c.platform === 'plaid');
 
-    // 2. Fetch variants to calculate COGS coverage
-    const variants = await this.db.getVariants(tenantId);
-    const totalVariants = variants.length;
-    const variantsWithCogs = variants.filter(
-      (v) => v.cost !== null && v.cost !== undefined && Number(v.cost) > 0,
-    ).length;
-    const cogsCoverage = totalVariants > 0 ? Math.round((variantsWithCogs / totalVariants) * 100) : 0;
+    // 2. Calculate COGS coverage using CogsManager (ad-spend weighted with count fallback)
+    const cogsMgr = new CogsManager(this.db);
+    const coverage = await cogsMgr.calculateCoverage(tenantId);
+    const cogsCoverage = coverage.coveragePct;
 
     // 3. Fetch orders to verify transaction data load
     const orders = await this.db.getOrders(tenantId);

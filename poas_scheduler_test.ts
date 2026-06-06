@@ -1,6 +1,7 @@
+import {MockPaymentProcessor} from './payment_processor';
+import {PoasCalculator} from './poas_calculator';
 import {PoasScheduler} from './poas_scheduler';
 import {SupabaseClient} from './supabase_client';
-import {PoasCalculator} from './poas_calculator';
 
 describe('PoasScheduler', () => {
   let db: SupabaseClient;
@@ -185,9 +186,9 @@ describe('PoasScheduler', () => {
     // 1. Register tenant to create initial daily job
     await scheduler.registerTenant(tenantId);
     let jobs = await db.getPendingJobs(tenantId);
-    expect(jobs.length).toBe(1);
-    expect(jobs[0].type).toBe('poas_daily');
-    expect(jobs[0].status).toBe('pending');
+    expect(jobs.length).toBe(2);
+    expect(jobs.some(j => j.type === 'poas_daily')).toBeTrue();
+    expect(jobs.some(j => j.type === 'lift_sync')).toBeTrue();
 
     // 2. Run the polling queue execution
     await scheduler.pollAndExecute();
@@ -198,17 +199,18 @@ describe('PoasScheduler', () => {
     expect(lowPerfSignals.length).toBe(1);
     expect(lowPerfSignals[0].payload['campaignId']).toBe('c-unprofit');
 
-    // 4. Verify original job is rescheduled in future (24 hours from now)
+    // 4. Verify original jobs are rescheduled in future (24 hours from now)
     jobs = await db.getPendingJobs(tenantId);
-    expect(jobs.length).toBe(1);
-    expect(jobs[0].status).toBe('pending');
-    expect(Date.parse(jobs[0].run_at)).toBeGreaterThan(Date.now() + 23 * 3600 * 1000);
+    expect(jobs.length).toBe(2);
+    expect(jobs.every(j => j.status === 'pending')).toBeTrue();
 
     // 5. Subsequent immediate run does not execute (no new signals, no duplicate jobs)
     await scheduler.pollAndExecute();
     const consecutiveJobs = await db.getPendingJobs(tenantId);
-    expect(consecutiveJobs.length).toBe(1);
-    expect(consecutiveJobs[0].job_id).toBe(jobs[0].job_id); // unchanged
+    expect(consecutiveJobs.length).toBe(2);
+    const originalIds = jobs.map(j => j.job_id).sort();
+    const consecutiveIds = consecutiveJobs.map(j => j.job_id).sort();
+    expect(consecutiveIds).toEqual(originalIds);
   });
 
   it('should not duplicate signals on consecutive runs', async () => {
@@ -293,8 +295,9 @@ describe('PoasScheduler', () => {
     // 2. Register tenant to create initial daily job
     await scheduler.registerTenant(tenantId);
     let jobs = await db.getPendingJobs(tenantId);
-    expect(jobs.length).toBe(1);
-    const originalJobId = jobs[0].job_id;
+    expect(jobs.length).toBe(2);
+    const dailyJob = jobs.find(j => j.type === 'poas_daily')!;
+    const originalJobId = dailyJob.job_id;
 
     // 3. Run the scheduler execution
     await scheduler.pollAndExecute();
@@ -309,5 +312,266 @@ describe('PoasScheduler', () => {
     expect(newJobs.length).toBe(1);
     expect(newJobs[0].status).toBe('pending');
     expect(Date.parse(newJobs[0].run_at)).toBeGreaterThan(Date.now() + 23 * 3600 * 1000);
+  });
+
+  describe('Billing Trials & Recurring Charges', () => {
+    let mockPayment: MockPaymentProcessor;
+    let billingScheduler: PoasScheduler;
+    let mockEngine: any;
+    let mockGoogleAdapter: any;
+
+    beforeEach(async () => {
+      mockPayment = new MockPaymentProcessor();
+      billingScheduler = new PoasScheduler(db, 1000, mockPayment);
+
+      mockEngine = {
+        govern: jasmine.createSpy('govern').and.callFake(async (adapter, req, ctx) => {
+          return { status: 'executed', result: { ok: true } };
+        }),
+      };
+      billingScheduler.registerGovernanceEngine(mockEngine);
+
+      mockGoogleAdapter = {
+        platform: 'google',
+      };
+      billingScheduler.registerAdapter('google', mockGoogleAdapter);
+
+      // Seed a subscription in trial
+      await db.saveSubscription({
+        org_id: tenantId,
+        status: 'trial',
+        amount: null,
+        currency: 'USD',
+        period: 'month',
+        trial_day: 1,
+        trial_length_days: 15,
+        next_charge_at: null,
+        note: null,
+        updated_at: new Date().toISOString(),
+      });
+    });
+
+    it('should schedule billing nudge and flip when registering tenant with scheduleBilling=true', async () => {
+      await db.deletePendingJob(`job-poas-daily-${tenantId}`);
+      
+      await billingScheduler.registerTenant(tenantId, true);
+      const jobs = await db.getPendingJobs(tenantId);
+      
+      expect(jobs.length).toBe(4);
+      expect(jobs.some(j => j.type === 'poas_daily')).toBe(true);
+      expect(jobs.some(j => j.type === 'lift_sync')).toBe(true);
+      expect(jobs.some(j => j.type === 'billing_trial_nudge')).toBe(true);
+      expect(jobs.some(j => j.type === 'billing_trial_flip')).toBe(true);
+    });
+
+    it('should execute billing trial nudge: log activity with drag and critical count', async () => {
+      await db.savePendingJob({
+        job_id: 'job-nudge-test',
+        tenant_id: tenantId,
+        type: 'billing_trial_nudge',
+        action_id: null,
+        run_at: new Date().toISOString(),
+        payload: null,
+        status: 'pending',
+        created_at: new Date().toISOString(),
+      });
+
+      await billingScheduler.pollAndExecute();
+
+      const feed = await db.getActivityFeed(tenantId);
+      expect(feed.length).toBe(1);
+      expect(feed[0].actionType).toBe('billing_trial_nudge');
+      expect(feed[0].summary).toContain('Trial ending soon. Potential profit drag:');
+      
+      const jobs = await db.getPendingJobs(tenantId);
+      expect(jobs.some(j => j.job_id === 'job-nudge-test')).toBe(false);
+    });
+
+    it('should execute billing trial flip: transition status to suggest_amount', async () => {
+      await db.savePendingJob({
+        job_id: 'job-flip-test',
+        tenant_id: tenantId,
+        type: 'billing_trial_flip',
+        action_id: null,
+        run_at: new Date().toISOString(),
+        payload: null,
+        status: 'pending',
+        created_at: new Date().toISOString(),
+      });
+
+      await billingScheduler.pollAndExecute();
+
+      const sub = await db.getSubscription(tenantId);
+      expect(sub).not.toBeNull();
+      expect(sub!.status).toBe('suggest_amount');
+
+      const feed = await db.getActivityFeed(tenantId);
+      expect(feed.some(f => f.actionType === 'billing_trial_flipped')).toBe(true);
+
+      const jobs = await db.getPendingJobs(tenantId);
+      expect(jobs.some(j => j.job_id === 'job-flip-test')).toBe(false);
+    });
+
+    it('should execute recurring charge successfully and reschedule next charge', async () => {
+      const sub = await db.getSubscription(tenantId);
+      sub!.status = 'active';
+      sub!.amount = 499;
+      await db.saveSubscription(sub!);
+
+      await db.savePendingJob({
+        job_id: 'job-charge-test',
+        tenant_id: tenantId,
+        type: 'billing_charge_recurring',
+        action_id: null,
+        run_at: new Date().toISOString(),
+        payload: null,
+        status: 'pending',
+        created_at: new Date().toISOString(),
+      });
+
+      await billingScheduler.pollAndExecute();
+
+      const updatedSub = await db.getSubscription(tenantId);
+      expect(updatedSub!.status).toBe('active');
+      expect(updatedSub!.next_charge_at).not.toBeNull();
+
+      const feed = await db.getActivityFeed(tenantId);
+      expect(feed.some(f => f.actionType === 'billing_charge_success')).toBe(true);
+
+      const receipts = await db.getReceipts(tenantId);
+      expect(receipts.length).toBe(1);
+      expect(receipts[0].amount).toBe(499);
+      expect(receipts[0].receipt_id).toContain('rcpt-rec');
+
+      const jobs = await db.getPendingJobs(tenantId);
+      expect(jobs.some(j => j.type === 'billing_charge_recurring')).toBe(true);
+      expect(jobs.some(j => j.job_id === 'job-charge-test')).toBe(false);
+    });
+
+    it('should handle recurring charge failure: transition to past_due and schedule retry 1', async () => {
+      mockPayment.shouldFail = true;
+
+      const sub = await db.getSubscription(tenantId);
+      sub!.status = 'active';
+      sub!.amount = 499;
+      await db.saveSubscription(sub!);
+
+      await db.savePendingJob({
+        job_id: 'job-charge-fail-test',
+        tenant_id: tenantId,
+        type: 'billing_charge_recurring',
+        action_id: null,
+        run_at: new Date().toISOString(),
+        payload: null,
+        status: 'pending',
+        created_at: new Date().toISOString(),
+      });
+
+      await billingScheduler.pollAndExecute();
+
+      const updatedSub = await db.getSubscription(tenantId);
+      expect(updatedSub!.status).toBe('past_due');
+
+      const feed = await db.getActivityFeed(tenantId);
+      expect(feed.some(f => f.actionType === 'billing_charge_failed')).toBe(true);
+
+      const jobs = await db.getPendingJobs(tenantId);
+      const retryJob = jobs.find(j => j.type === 'billing_dunning_retry');
+      expect(retryJob).toBeDefined();
+      expect(retryJob!.payload.retryCount).toBe(1);
+    });
+
+    it('should execute dunning retry successfully, transition to active, and reschedule next charge', async () => {
+      const sub = await db.getSubscription(tenantId);
+      sub!.status = 'past_due';
+      sub!.amount = 499;
+      await db.saveSubscription(sub!);
+
+      await db.savePendingJob({
+        job_id: 'job-retry-test',
+        tenant_id: tenantId,
+        type: 'billing_dunning_retry',
+        action_id: null,
+        run_at: new Date().toISOString(),
+        payload: { retryCount: 1 },
+        status: 'pending',
+        created_at: new Date().toISOString(),
+      });
+
+      await billingScheduler.pollAndExecute();
+
+      const updatedSub = await db.getSubscription(tenantId);
+      expect(updatedSub!.status).toBe('active');
+      expect(updatedSub!.next_charge_at).not.toBeNull();
+
+      const receipts = await db.getReceipts(tenantId);
+      expect(receipts.length).toBe(1);
+      expect(receipts[0].amount).toBe(499);
+      expect(receipts[0].receipt_id).toContain('rcpt-dun');
+
+      const jobs = await db.getPendingJobs(tenantId);
+      expect(jobs.some(j => j.type === 'billing_charge_recurring')).toBe(true);
+    });
+
+    it('should execute dunning retry failure (retry 1 -> 2): reschedule retry 2', async () => {
+      mockPayment.shouldFail = true;
+
+      const sub = await db.getSubscription(tenantId);
+      sub!.status = 'past_due';
+      sub!.amount = 499;
+      await db.saveSubscription(sub!);
+
+      await db.savePendingJob({
+        job_id: 'job-retry-fail-test',
+        tenant_id: tenantId,
+        type: 'billing_dunning_retry',
+        action_id: null,
+        run_at: new Date().toISOString(),
+        payload: { retryCount: 1 },
+        status: 'pending',
+        created_at: new Date().toISOString(),
+      });
+
+      await billingScheduler.pollAndExecute();
+
+      const updatedSub = await db.getSubscription(tenantId);
+      expect(updatedSub!.status).toBe('past_due');
+
+      const jobs = await db.getPendingJobs(tenantId);
+      const nextRetryJob = jobs.find(j => j.type === 'billing_dunning_retry');
+      expect(nextRetryJob).toBeDefined();
+      expect(nextRetryJob!.payload.retryCount).toBe(2);
+    });
+
+    it('should execute dunning retry failure (retry 3 -> suspend): transition status to suspended', async () => {
+      mockPayment.shouldFail = true;
+
+      const sub = await db.getSubscription(tenantId);
+      sub!.status = 'past_due';
+      sub!.amount = 499;
+      await db.saveSubscription(sub!);
+
+      await db.savePendingJob({
+        job_id: 'job-retry-fail-3-test',
+        tenant_id: tenantId,
+        type: 'billing_dunning_retry',
+        action_id: null,
+        run_at: new Date().toISOString(),
+        payload: { retryCount: 3 },
+        status: 'pending',
+        created_at: new Date().toISOString(),
+      });
+
+      await billingScheduler.pollAndExecute();
+
+      const updatedSub = await db.getSubscription(tenantId);
+      expect(updatedSub!.status).toBe('suspended');
+
+      const feed = await db.getActivityFeed(tenantId);
+      expect(feed.some(f => f.actionType === 'billing_suspended')).toBe(true);
+
+      const jobs = await db.getPendingJobs(tenantId);
+      expect(jobs.some(j => j.type === 'billing_dunning_retry')).toBe(false);
+    });
   });
 });

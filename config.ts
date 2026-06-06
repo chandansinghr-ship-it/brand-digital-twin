@@ -54,6 +54,12 @@ const rawConfig = {
         process.env['SHOPIFY_CLIENT_SECRET'] || 'mock-shopify-client-secret',
     },
   },
+  billing: {
+    razorpay: {
+      keyId: process.env['RAZORPAY_KEY_ID'] || 'mock-razorpay-key-id',
+      keySecret: process.env['RAZORPAY_KEY_SECRET'] || 'mock-razorpay-key-secret',
+    },
+  },
   rateLimit: {
     maxRequests: Number(process.env['RATE_LIMIT_MAX_REQUESTS'] || '100'),
     refillRatePerSec: Number(
@@ -95,6 +101,10 @@ export const config = {
   get platforms() {
     assertInitialized();
     return rawConfig.platforms;
+  },
+  get billing() {
+    assertInitialized();
+    return rawConfig.billing;
   },
   get rateLimit() {
     assertInitialized();
@@ -142,6 +152,13 @@ export async function initializeConfig(
     (await provider.getSecret('SHOPIFY_CLIENT_SECRET')) ||
     process.env['SHOPIFY_CLIENT_SECRET'] || 'mock-shopify-client-secret';
 
+  rawConfig.billing.razorpay.keyId =
+    (await provider.getSecret('RAZORPAY_KEY_ID')) ||
+    process.env['RAZORPAY_KEY_ID'] || 'mock-razorpay-key-id';
+  rawConfig.billing.razorpay.keySecret =
+    (await provider.getSecret('RAZORPAY_KEY_SECRET')) ||
+    process.env['RAZORPAY_KEY_SECRET'] || 'mock-razorpay-key-secret';
+
   isInitialized = true;
   validateEnv();
 }
@@ -166,6 +183,8 @@ export function validateEnv() {
     { name: 'GOOGLE_ADS_DEVELOPER_TOKEN', value: rawConfig.platforms.googleAds.developerToken },
     { name: 'META_ADS_APP_ID', value: rawConfig.platforms.metaAds.appId },
     { name: 'JWT_SECRET', value: rawConfig.auth.jwtSecret },
+    { name: 'RAZORPAY_KEY_ID', value: rawConfig.billing.razorpay.keyId },
+    { name: 'RAZORPAY_KEY_SECRET', value: rawConfig.billing.razorpay.keySecret },
   ];
 
   for (const check of checks) {

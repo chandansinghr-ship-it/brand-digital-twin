@@ -372,4 +372,50 @@ describe('Phase 2 Governance & Execution Suite', () => {
     const runAt = Date.parse(jobs[0].run_at);
     expect(runAt).toBeGreaterThanOrEqual(startTime + 150);
   });
+
+  it('should block action if subscription is suspended', async () => {
+    const adapter = new GoogleAdsAdapter(
+      '123-456-7890',
+      'mock_dev',
+      'mock_auth',
+      tenantId,
+    );
+
+    // Seed suspended subscription
+    await engine.supabase.saveSubscription({
+      org_id: tenantId,
+      status: 'suspended',
+      amount: 499,
+      currency: 'USD',
+      period: 'month',
+      trial_day: 0,
+      trial_length_days: 0,
+      next_charge_at: null,
+      note: null,
+      updated_at: new Date().toISOString(),
+    });
+
+    const req: ActionRequest = {
+      idempotencyKey: 'req_suspend_block',
+      op: 'update_budget',
+      entity: 'campaign',
+      targetId: 'c1',
+      payload: {budget: 1200},
+      confidence: 0.9,
+    };
+
+    const ctx: Context = {tenant, role: permittedRole, verifyWindowMs: 100};
+
+    const res = await engine.govern(adapter, req, ctx);
+
+    expect(res.status).toBe('blocked');
+    expect(res.result?.ok).toBe(false);
+    expect(res.result?.error).toContain('suspended');
+
+    // Verify audit log has BLOCK decision
+    const log = await engine.supabase.getAuditLog(tenantId, 'req_suspend_block');
+    expect(log).not.toBeNull();
+    expect(log!.decision).toBe('BLOCK');
+    expect(log!.reason).toContain('suspended');
+  });
 });

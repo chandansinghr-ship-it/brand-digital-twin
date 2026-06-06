@@ -1,8 +1,11 @@
 /**
- * @fileoverview Incident response and self-healing engine.
+ * @fileoverview Incident response and self-healing engine with Severity model.
  */
 
+import {MetricsTracker} from './observability';
 import {SupabaseClient} from './supabase_client';
+
+export type SeverityLevel = 'SEV-0' | 'SEV-1' | 'SEV-2' | 'SEV-3';
 
 export interface Incident {
   incidentId: string;
@@ -11,19 +14,35 @@ export interface Incident {
   type: string; // 'auth_failure' | 'budget_exhaustion' | 'high_error_rate'
   message: string;
   timestamp: number;
+  severity?: SeverityLevel;
 }
 
 export class IncidentResponseManager {
   private apiFailuresCount: Record<string, number> = {};
 
-  constructor(private readonly db: SupabaseClient) {}
+  constructor(
+    private readonly db: SupabaseClient,
+    private readonly metrics?: MetricsTracker,
+  ) {}
 
   /**
-   * Logs an incident and evaluates automated self-healing actions.
+   * Logs an incident, evaluates automated self-healing, and reports to MetricsTracker.
    */
   async handleIncident(
     incident: Incident,
-  ): Promise<{selfHealed: boolean; actionTaken: string}> {
+  ): Promise<{selfHealed: boolean; actionTaken: string; severity: SeverityLevel}> {
+    // 1. Determine initial severity based on type if not specified
+    let severity = incident.severity;
+    if (!severity) {
+      if (incident.type === 'auth_failure') {
+        severity = 'SEV-1';
+      } else if (incident.type === 'high_error_rate') {
+        severity = 'SEV-2';
+      } else {
+        severity = 'SEV-3';
+      }
+    }
+
     // Save to activity feed
     await this.db.logActivity({
       eventId: `act-inc-${incident.incidentId}`,
@@ -32,49 +51,66 @@ export class IncidentResponseManager {
       actionType: 'incident_flagged',
       entityType: 'incident',
       entityId: incident.incidentId,
-      summary: `Incident flagged: ${incident.type} on ${incident.source} - ${incident.message}`,
+      summary: `[${severity}] Incident flagged: ${incident.type} on ${incident.source} - ${incident.message}`,
       isRead: false,
       tenantId: incident.tenantId,
       createdAt: Date.now(),
     });
+
+    let selfHealed = false;
+    let actionTaken = 'Logged. No automated recovery rules match this incident type.';
 
     if (incident.type === 'auth_failure') {
       const rotated = await this.rotateApiCredentials(
         incident.tenantId,
         incident.source,
       );
-      return {
-        selfHealed: rotated,
-        actionTaken: rotated
-          ? `Rotated credentials for ${incident.source} using backup vault token.`
-          : `Failed to rotate credentials for ${incident.source} - no backup token found.`,
-      };
-    }
-
-    if (incident.type === 'high_error_rate') {
+      if (rotated) {
+        selfHealed = true;
+        actionTaken = `Rotated credentials for ${incident.source} using backup vault token.`;
+        // Remains SEV-1 (recovered)
+      } else {
+        actionTaken = `Failed to rotate credentials for ${incident.source} - no backup token found.`;
+        // Escalate to SEV-0 (Total Auth Outage)
+        severity = 'SEV-0';
+      }
+    } else if (incident.type === 'high_error_rate') {
       const key = `${incident.tenantId}-${incident.source}`;
       this.apiFailuresCount[key] = (this.apiFailuresCount[key] || 0) + 1;
 
-      // If failure count exceeds threshold (e.g. 3), trigger self-healing spend re-routing
       if (this.apiFailuresCount[key] >= 3) {
         const reRouted = await this.reRouteBudget(
           incident.tenantId,
           incident.source,
         );
-        return {
-          selfHealed: reRouted,
-          actionTaken: reRouted
-            ? `API failure threshold reached. Re-routed spend from failing ${incident.source} to Google Ads.`
-            : `Unable to re-route spend. Active configurations not found.`,
-        };
+        if (reRouted) {
+          selfHealed = true;
+          actionTaken = `API failure threshold reached. Re-routed spend from failing ${incident.source} to Google Ads.`;
+          // Escalate/Keep SEV-1 because major action was taken
+          severity = 'SEV-1';
+        } else {
+          actionTaken = `API failure threshold reached. Unable to re-route spend. Active configurations not found.`;
+          // Escalate to SEV-0 (No alternate channel)
+          severity = 'SEV-0';
+        }
+      } else {
+        actionTaken = `API failure count is ${this.apiFailuresCount[key]}/3. Logged for trend monitoring.`;
+        // Remains SEV-2
       }
     }
 
-    return {
-      selfHealed: false,
-      actionTaken:
-        'Logged. No automated recovery rules match this incident type.',
-    };
+    // 2. Report alert to MetricsTracker based on final severity
+    if (this.metrics) {
+      if (severity === 'SEV-0') {
+        this.metrics.raiseAlert(`CRITICAL: [SEV-0] Outage on ${incident.source}: ${incident.message}. Recovery Action: ${actionTaken}`);
+      } else if (severity === 'SEV-1') {
+        this.metrics.raiseAlert(`WARNING: [SEV-1] Degradation on ${incident.source}: ${incident.message}. Recovery Action: ${actionTaken}`);
+      } else if (severity === 'SEV-2') {
+        this.metrics.raiseAlert(`WARNING: [SEV-2] Incident on ${incident.source}: ${incident.message}. Recovery Action: ${actionTaken}`);
+      }
+    }
+
+    return {selfHealed, actionTaken, severity};
   }
 
   /**
@@ -88,7 +124,6 @@ export class IncidentResponseManager {
     const targetState = states.find((s) => s.provider === source);
     if (!targetState) return false;
 
-    // Simulate updating token from a backup secret vault
     targetState.settings = {
       ...targetState.settings,
       accessToken: `token-backup-${Date.now()}-${Math.random().toString(36).substring(7)}`,
@@ -110,7 +145,6 @@ export class IncidentResponseManager {
     const clients = await this.db.getClients(tenantId);
     if (clients.length === 0) return false;
 
-    // Log the re-routing activity event in the database
     await this.db.logActivity({
       eventId: `act-reroute-${Date.now()}`,
       orgId: `org-${tenantId}`,

@@ -127,4 +127,94 @@ describe('ProfitReadinessCalculator', () => {
     expect(res.factors.historicalOrdersLoaded).toBeTrue();
     expect(res.status).toBe('ready');
   });
+
+  it('should calculate ad-spend-based coverage instead of count-based when spend is present', async () => {
+    // 1. Link platforms
+    await db.saveCredential({
+      tenant_id: tenantId,
+      platform: 'shopify',
+      credential_key: 'oauth_token',
+      encrypted_value: 'val',
+      refresh_token: null,
+      expires_at: null,
+      updated_at: new Date().toISOString(),
+    });
+
+    // 2. Add variants: 2 variants
+    // v1 has cost (covered)
+    await db.saveVariant({
+      variant_id: 'v1',
+      sku: 'sku1',
+      title: 'V1',
+      price: 10,
+      cost: 5,
+      tenant_id: tenantId,
+      ingested_at: new Date().toISOString(),
+    });
+    // v2 missing cost (not covered)
+    await db.saveVariant({
+      variant_id: 'v2',
+      sku: 'sku2',
+      title: 'V2',
+      price: 10,
+      cost: null,
+      tenant_id: tenantId,
+      ingested_at: new Date().toISOString(),
+    });
+
+    // 3. Link variants to campaigns
+    // v1 -> campaign_1
+    await db.saveProductAdLink({
+      tenant_id: tenantId,
+      variant_id: 'v1',
+      gmc_offer_id: 'offer1',
+      gmc_account_id: 'gmc1',
+      ads_account_id: 'ads1',
+      ads_campaign_id: 'campaign_1',
+      ads_ad_group_id: 'adgroup1',
+      confidence: 1.0,
+      resolved_at: new Date().toISOString(),
+    });
+    // v2 -> campaign_2
+    await db.saveProductAdLink({
+      tenant_id: tenantId,
+      variant_id: 'v2',
+      gmc_offer_id: 'offer2',
+      gmc_account_id: 'gmc1',
+      ads_account_id: 'ads1',
+      ads_campaign_id: 'campaign_2',
+      ads_ad_group_id: 'adgroup1',
+      confidence: 1.0,
+      resolved_at: new Date().toISOString(),
+    });
+
+    // 4. Add spend facts
+    // campaign_1 (v1, covered) has 100 spend
+    await db.saveSpendFact({
+      campaign_id: 'campaign_1',
+      platform: 'google',
+      day: '2026-06-06',
+      amount: 100,
+      currency: 'USD',
+      tenant_id: tenantId,
+      source_system: 'google',
+      ingested_at: new Date().toISOString(),
+    });
+    // campaign_2 (v2, uncovered) has 400 spend
+    await db.saveSpendFact({
+      campaign_id: 'campaign_2',
+      platform: 'google',
+      day: '2026-06-06',
+      amount: 400,
+      currency: 'USD',
+      tenant_id: tenantId,
+      source_system: 'google',
+      ingested_at: new Date().toISOString(),
+    });
+
+    const res = await calculator.calculate(tenantId);
+    // Ad-spend coverage: v1 spend (100) / total spend (500) = 20%
+    // Count-based would be 50%
+    expect(res.factors.cogsCoverage).toBe(20);
+  });
 });

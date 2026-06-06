@@ -7,6 +7,7 @@ import {AttributionEngine, Touchpoint} from './attribution_engine';
 import {Incident, IncidentResponseManager} from './incident_response';
 import {AgentOrchestrator, Proposal} from './multi_agent_governance';
 import {OnboardingParams, OnboardingWizard} from './onboarding_wizard';
+import {MetricsTracker} from './observability';
 import {SupabaseClient} from './supabase_client';
 
 describe('Advanced Operations Integration Suite', () => {
@@ -219,6 +220,66 @@ describe('Advanced Operations Integration Suite', () => {
       result = await manager.handleIncident(incident);
       expect(result.selfHealed).toBeTrue();
       expect(result.actionTaken).toContain('Re-routed spend');
+    });
+
+    it('should raise alerts in MetricsTracker matching severity and escalate on self-healing failure', async () => {
+      const metrics = new MetricsTracker();
+      const manager = new IncidentResponseManager(db, metrics);
+
+      // 1. Log warning-level incident (SEV-2)
+      const incidentWarning: Incident = {
+        incidentId: 'inc-warn-1',
+        tenantId,
+        source: 'meta_ads_api',
+        type: 'high_error_rate',
+        message: 'API error rate at 15%',
+        timestamp: Date.now(),
+      };
+      // 1st failure -> stays SEV-2
+      let res = await manager.handleIncident(incidentWarning);
+      expect(res.severity).toBe('SEV-2');
+      expect(metrics.getAlerts().length).toBe(1);
+      expect(metrics.getAlerts()[0]).toContain('[SEV-2]');
+
+      // 2. Log auth failure where rotation succeeds (stays SEV-1)
+      await db.saveIntegrationState({
+        integrationId: `state-meta-${tenantId}`,
+        tenantId,
+        provider: 'meta_ads_api' as any,
+        status: 'suspended',
+        settings: {accessToken: 'old-broken-token'},
+        updatedAt: Date.now(),
+      });
+      const incidentAuth: Incident = {
+        incidentId: 'inc-auth-heal',
+        tenantId,
+        source: 'meta_ads_api',
+        type: 'auth_failure',
+        message: 'API returned 401',
+        timestamp: Date.now(),
+      };
+      res = await manager.handleIncident(incidentAuth);
+      expect(res.selfHealed).toBeTrue();
+      expect(res.severity).toBe('SEV-1');
+      expect(metrics.getAlerts().length).toBe(2);
+      expect(metrics.getAlerts()[1]).toContain('[SEV-1]');
+
+      // 3. Log auth failure where rotation fails (escalates to SEV-0)
+      (db as any).mockIntegrationStates = [];
+      const incidentAuthFail: Incident = {
+        incidentId: 'inc-auth-fail',
+        tenantId,
+        source: 'meta_ads_api',
+        type: 'auth_failure',
+        message: 'API returned 401',
+        timestamp: Date.now(),
+      };
+      res = await manager.handleIncident(incidentAuthFail);
+      expect(res.selfHealed).toBeFalse();
+      expect(res.severity).toBe('SEV-0');
+      expect(metrics.getAlerts().length).toBe(3);
+      expect(metrics.getAlerts()[2]).toContain('CRITICAL');
+      expect(metrics.getAlerts()[2]).toContain('[SEV-0]');
     });
   });
 

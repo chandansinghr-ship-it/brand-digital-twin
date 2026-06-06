@@ -243,6 +243,31 @@ export class GovernanceEngine {
         }
       }
 
+      // Check if subscription is suspended due to billing failures
+      const sub = await this.supabase.getSubscription(ctx.tenant.tenantId);
+      if (sub && sub.status === 'suspended') {
+        await this.supabase.logAudit({
+          tenant: ctx.tenant.tenantId,
+          timestamp: new Date().toISOString(),
+          action_id: req.idempotencyKey,
+          op: req.op,
+          entity: req.entity,
+          target_id: req.targetId,
+          cost: 0,
+          decision: 'BLOCK',
+          reason: 'Subscription is suspended due to billing failures.',
+        });
+        spanStatus = 'success';
+        return {
+          status: 'blocked',
+          result: {
+            ok: false,
+            auditRef: req.idempotencyKey,
+            error: 'Subscription is suspended due to billing failures.',
+          },
+        };
+      }
+
       if (!adapter.plan || !adapter.execute) {
         throw new Error(`Platform adapter '${adapter.platform}' does not support write/execute operations.`);
       }

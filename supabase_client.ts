@@ -321,7 +321,7 @@ export interface TenantLimits {
 export interface PendingJobEntry {
   job_id: string;
   tenant_id: string;
-  type: 'poas_daily' | 'settling_window' | 'hard_delete_account';
+  type: 'poas_daily' | 'settling_window' | 'hard_delete_account' | 'billing_trial_nudge' | 'billing_trial_flip' | 'billing_charge_recurring' | 'billing_dunning_retry' | 'lift_sync';
   action_id: string | null;
   run_at: string;
   payload: any | null;
@@ -374,6 +374,35 @@ export interface SubscriptionEntry {
   updated_at: string;
 }
 
+export interface ReceiptEntry {
+  receipt_id: string;
+  org_id: string;
+  amount: number;
+  currency: string;
+  receipt_url: string;
+  charged_at: string;
+  created_at: string;
+}
+
+export interface SupportTicketEntry {
+  ticket_id: string;
+  org_id: string;
+  user_email: string;
+  subject: string;
+  description: string;
+  severity: 'low' | 'medium' | 'high';
+  status: 'open' | 'closed';
+  created_at: string;
+}
+
+export interface TenantLiftEntry {
+  tenant_id: string;
+  lift: number;
+  treatment_poas: number;
+  holdout_poas: number;
+  computed_at: string;
+}
+
 interface MockDbContainer {
   mockTrust: TrustEntry[];
   mockErrorEvents: ErrorEventEntry[];
@@ -423,6 +452,9 @@ interface MockDbContainer {
   mockSchemaMigrations: SchemaMigrationEntry[];
   mockRollbacks: Record<string, any>;
   mockSubscriptions: SubscriptionEntry[];
+  mockReceipts: ReceiptEntry[];
+  mockSupportTickets: SupportTicketEntry[];
+  mockTenantLifts: TenantLiftEntry[];
 }
 
 class GlobalMockDb {
@@ -474,6 +506,9 @@ class GlobalMockDb {
   static mockErrorEvents: ErrorEventEntry[] = [];
   static mockRollbacks: Record<string, any> = {};
   static mockSubscriptions: SubscriptionEntry[] = [];
+  static mockReceipts: ReceiptEntry[] = [];
+  static mockSupportTickets: SupportTicketEntry[] = [];
+  static mockTenantLifts: TenantLiftEntry[] = [];
 }
 
 /**
@@ -531,6 +566,9 @@ export class SupabaseClient {
     mockSchemaMigrations: [],
     mockRollbacks: {},
     mockSubscriptions: [],
+    mockReceipts: [],
+    mockSupportTickets: [],
+    mockTenantLifts: [],
   };
 
   static resetGlobalMockDb() {
@@ -548,6 +586,9 @@ export class SupabaseClient {
     GlobalMockDb.mockRefunds = [];
     GlobalMockDb.mockFulfillmentCosts = [];
     GlobalMockDb.mockSubscriptions = [];
+    GlobalMockDb.mockReceipts = [];
+    GlobalMockDb.mockSupportTickets = [];
+    GlobalMockDb.mockTenantLifts = [];
     GlobalMockDb.mockTouchpoints = [];
     GlobalMockDb.mockTeamMembers = [];
     GlobalMockDb.mockClients = [];
@@ -634,6 +675,9 @@ export class SupabaseClient {
       mockSchemaMigrations: [],
       mockRollbacks: {},
       mockSubscriptions: [],
+      mockReceipts: [],
+      mockSupportTickets: [],
+      mockTenantLifts: [],
     };
   }
 
@@ -772,6 +816,12 @@ export class SupabaseClient {
   private set mockSchemaMigrations(v: SchemaMigrationEntry[]) { if (SupabaseClient.useSharedMockDb) GlobalMockDb.mockSchemaMigrations = v; else this.localMockDb.mockSchemaMigrations = v; }
   private get mockSubscriptions(): SubscriptionEntry[] { return SupabaseClient.useSharedMockDb ? GlobalMockDb.mockSubscriptions : this.localMockDb.mockSubscriptions; }
   private set mockSubscriptions(v: SubscriptionEntry[]) { if (SupabaseClient.useSharedMockDb) GlobalMockDb.mockSubscriptions = v; else this.localMockDb.mockSubscriptions = v; }
+  private get mockReceipts(): ReceiptEntry[] { return SupabaseClient.useSharedMockDb ? GlobalMockDb.mockReceipts : this.localMockDb.mockReceipts; }
+  private set mockReceipts(v: ReceiptEntry[]) { if (SupabaseClient.useSharedMockDb) GlobalMockDb.mockReceipts = v; else this.localMockDb.mockReceipts = v; }
+  private get mockSupportTickets(): SupportTicketEntry[] { return SupabaseClient.useSharedMockDb ? GlobalMockDb.mockSupportTickets : this.localMockDb.mockSupportTickets; }
+  private set mockSupportTickets(v: SupportTicketEntry[]) { if (SupabaseClient.useSharedMockDb) GlobalMockDb.mockSupportTickets = v; else this.localMockDb.mockSupportTickets = v; }
+  private get mockTenantLifts(): TenantLiftEntry[] { return SupabaseClient.useSharedMockDb ? GlobalMockDb.mockTenantLifts : this.localMockDb.mockTenantLifts; }
+  private set mockTenantLifts(v: TenantLiftEntry[]) { if (SupabaseClient.useSharedMockDb) GlobalMockDb.mockTenantLifts = v; else this.localMockDb.mockTenantLifts = v; }
 
   private get mockErrorEvents(): ErrorEventEntry[] { return SupabaseClient.useSharedMockDb ? GlobalMockDb.mockErrorEvents : this.localMockDb.mockErrorEvents; }
   private set mockErrorEvents(v: ErrorEventEntry[]) { if (SupabaseClient.useSharedMockDb) GlobalMockDb.mockErrorEvents = v; else this.localMockDb.mockErrorEvents = v; }
@@ -829,6 +879,9 @@ export class SupabaseClient {
     mockErrorEvents: ErrorEventEntry[];
     mockRollbacks: Record<string, any>;
     mockSubscriptions: SubscriptionEntry[];
+    mockReceipts: ReceiptEntry[];
+    mockSupportTickets: SupportTicketEntry[];
+    mockTenantLifts: TenantLiftEntry[];
   } | null = null;
 
   private readonly logger: PinoLogger;
@@ -963,6 +1016,9 @@ export class SupabaseClient {
       mockOrders: this.mockOrders,
       mockOrderLines: this.mockOrderLines,
       mockSubscriptions: this.mockSubscriptions,
+      mockReceipts: this.mockReceipts,
+      mockSupportTickets: this.mockSupportTickets,
+      mockTenantLifts: this.mockTenantLifts,
       mockCampaigns: this.mockCampaigns,
       mockSpendFacts: this.mockSpendFacts,
       mockCustomers: this.mockCustomers,
@@ -1053,6 +1109,9 @@ export class SupabaseClient {
       GlobalMockDb.mockSchemaMigrations = snapshot.mockSchemaMigrations || [];
       GlobalMockDb.mockRollbacks = snapshot.mockRollbacks || {};
       GlobalMockDb.mockSubscriptions = snapshot.mockSubscriptions || [];
+      GlobalMockDb.mockReceipts = snapshot.mockReceipts || [];
+      GlobalMockDb.mockSupportTickets = snapshot.mockSupportTickets || [];
+      GlobalMockDb.mockTenantLifts = snapshot.mockTenantLifts || [];
     } else {
       this.localMockDb.mockTrust = snapshot.mockTrust || [];
       this.localMockDb.mockErrorEvents = snapshot.mockErrorEvents || [];
@@ -1099,6 +1158,9 @@ export class SupabaseClient {
       this.localMockDb.mockSchemaMigrations = snapshot.mockSchemaMigrations || [];
       this.localMockDb.mockRollbacks = snapshot.mockRollbacks || {};
       this.localMockDb.mockSubscriptions = snapshot.mockSubscriptions || [];
+      this.localMockDb.mockReceipts = snapshot.mockReceipts || [];
+      this.localMockDb.mockSupportTickets = snapshot.mockSupportTickets || [];
+      this.localMockDb.mockTenantLifts = snapshot.mockTenantLifts || [];
     }
   }
 
@@ -1151,6 +1213,9 @@ export class SupabaseClient {
     copy.mockLegalAcceptances = this.mockLegalAcceptances;
     copy.mockTenantLimits = this.mockTenantLimits;
     copy.mockSubscriptions = this.mockSubscriptions;
+    copy.mockReceipts = this.mockReceipts;
+    copy.mockSupportTickets = this.mockSupportTickets;
+    copy.mockTenantLifts = this.mockTenantLifts;
     copy.mockRollbacks = this.mockRollbacks;
     copy.mockRecommendationEvents = this.mockRecommendationEvents;
     return copy;
@@ -2599,6 +2664,24 @@ export class SupabaseClient {
     return data[0] || null;
   }
 
+  async getPendingReviewSubscriptions(): Promise<SubscriptionEntry[]> {
+    if (this.mockMode) {
+      return this.mockSubscriptions.filter(s => s.status === 'pending_review');
+    }
+    const url = `${this.supabaseUrl}/rest/v1/subscriptions?status=eq.pending_review&select=*`;
+    const response = await fetch(url, {
+      headers: {
+        'apikey': this.supabaseKey,
+        'Authorization': `Bearer ${this.supabaseKey}`,
+      }
+    });
+    if (response.status === 404) return [];
+    if (!response.ok) {
+      throw new Error(`Failed to fetch pending review subscriptions: ${response.statusText}`);
+    }
+    return await response.json() as SubscriptionEntry[];
+  }
+
   async saveSubscription(sub: SubscriptionEntry): Promise<void> {
     if (this.mockMode) {
       const idx = this.mockSubscriptions.findIndex(s => s.org_id === sub.org_id);
@@ -2622,6 +2705,139 @@ export class SupabaseClient {
     });
     if (!response.ok) {
       throw new Error(`Failed to save subscription: ${response.statusText}`);
+    }
+  }
+
+  async getReceipts(orgId: string): Promise<ReceiptEntry[]> {
+    if (this.mockMode) {
+      return this.mockReceipts.filter(r => r.org_id === orgId);
+    }
+    const url = `${this.supabaseUrl}/rest/v1/receipts?org_id=eq.${encodeURIComponent(orgId)}&select=*`;
+    const response = await fetch(url, {
+      headers: {
+        'apikey': this.supabaseKey,
+        'Authorization': `Bearer ${this.supabaseKey}`,
+      }
+    });
+    if (response.status === 404) return [];
+    if (!response.ok) {
+      throw new Error(`Failed to fetch receipts: ${response.statusText}`);
+    }
+    return await response.json() as ReceiptEntry[];
+  }
+
+  async saveReceipt(receipt: ReceiptEntry): Promise<void> {
+    if (this.mockMode) {
+      const idx = this.mockReceipts.findIndex(r => r.receipt_id === receipt.receipt_id);
+      if (idx >= 0) {
+        this.mockReceipts[idx] = receipt;
+      } else {
+        this.mockReceipts.push(receipt);
+      }
+      return;
+    }
+    const url = `${this.supabaseUrl}/rest/v1/receipts?receipt_id=eq.${encodeURIComponent(receipt.receipt_id)}`;
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'apikey': this.supabaseKey,
+        'Authorization': `Bearer ${this.supabaseKey}`,
+        'Content-Type': 'application/json',
+        'Prefer': 'resolution=merge-duplicates',
+      },
+      body: JSON.stringify(receipt)
+    });
+    if (!response.ok) {
+      throw new Error(`Failed to save receipt: ${response.statusText}`);
+    }
+  }
+
+  async getSupportTickets(orgId: string): Promise<SupportTicketEntry[]> {
+    if (this.mockMode) {
+      return this.mockSupportTickets.filter(t => t.org_id === orgId);
+    }
+    const url = `${this.supabaseUrl}/rest/v1/support_tickets?org_id=eq.${encodeURIComponent(orgId)}&select=*`;
+    const response = await fetch(url, {
+      headers: {
+        'apikey': this.supabaseKey,
+        'Authorization': `Bearer ${this.supabaseKey}`,
+      }
+    });
+    if (response.status === 404) return [];
+    if (!response.ok) {
+      throw new Error(`Failed to fetch support tickets: ${response.statusText}`);
+    }
+    return await response.json() as SupportTicketEntry[];
+  }
+
+  async saveSupportTicket(ticket: SupportTicketEntry): Promise<void> {
+    if (this.mockMode) {
+      const idx = this.mockSupportTickets.findIndex(t => t.ticket_id === ticket.ticket_id);
+      if (idx >= 0) {
+        this.mockSupportTickets[idx] = ticket;
+      } else {
+        this.mockSupportTickets.push(ticket);
+      }
+      return;
+    }
+    const url = `${this.supabaseUrl}/rest/v1/support_tickets?ticket_id=eq.${encodeURIComponent(ticket.ticket_id)}`;
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'apikey': this.supabaseKey,
+        'Authorization': `Bearer ${this.supabaseKey}`,
+        'Content-Type': 'application/json',
+        'Prefer': 'resolution=merge-duplicates',
+      },
+      body: JSON.stringify(ticket)
+    });
+    if (!response.ok) {
+      throw new Error(`Failed to save support ticket: ${response.statusText}`);
+    }
+  }
+
+  async getTenantLift(tenantId: string): Promise<TenantLiftEntry | null> {
+    if (this.mockMode) {
+      return this.mockTenantLifts.find(l => l.tenant_id === tenantId) || null;
+    }
+    const url = `${this.supabaseUrl}/rest/v1/tenant_lifts?tenant_id=eq.${encodeURIComponent(tenantId)}&select=*`;
+    const response = await fetch(url, {
+      headers: {
+        'apikey': this.supabaseKey,
+        'Authorization': `Bearer ${this.supabaseKey}`,
+      }
+    });
+    if (response.status === 404) return null;
+    if (!response.ok) {
+      throw new Error(`Failed to fetch tenant lift: ${response.statusText}`);
+    }
+    const data = await response.json() as TenantLiftEntry[];
+    return data[0] || null;
+  }
+
+  async saveTenantLift(entry: TenantLiftEntry): Promise<void> {
+    if (this.mockMode) {
+      const idx = this.mockTenantLifts.findIndex(l => l.tenant_id === entry.tenant_id);
+      if (idx >= 0) {
+        this.mockTenantLifts[idx] = entry;
+      } else {
+        this.mockTenantLifts.push(entry);
+      }
+      return;
+    }
+    const url = `${this.supabaseUrl}/rest/v1/tenant_lifts?tenant_id=eq.${encodeURIComponent(entry.tenant_id)}`;
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'apikey': this.supabaseKey,
+        'Authorization': `Bearer ${this.supabaseKey}`,
+        'Content-Type': 'application/json',
+        'Prefer': 'resolution=merge-duplicates',
+      },
+      body: JSON.stringify(entry)
+    });
+    if (!response.ok) {
+      throw new Error(`Failed to save tenant lift: ${response.statusText}`);
     }
   }
 
@@ -3083,6 +3299,9 @@ export class SupabaseClient {
       mockErrorEvents: JSON.parse(JSON.stringify(this.mockErrorEvents)) as ErrorEventEntry[],
       mockRollbacks: JSON.parse(JSON.stringify(this.mockRollbacks)) as Record<string, any>,
       mockSubscriptions: JSON.parse(JSON.stringify(this.mockSubscriptions)) as SubscriptionEntry[],
+      mockReceipts: JSON.parse(JSON.stringify(this.mockReceipts)) as ReceiptEntry[],
+      mockSupportTickets: JSON.parse(JSON.stringify(this.mockSupportTickets)) as SupportTicketEntry[],
+      mockTenantLifts: JSON.parse(JSON.stringify(this.mockTenantLifts)) as TenantLiftEntry[],
     };
     this.logger.info('Transaction boundary started');
   }
@@ -3144,6 +3363,9 @@ export class SupabaseClient {
       this.mockErrorEvents = this.snapshots.mockErrorEvents;
       this.mockRollbacks = this.snapshots.mockRollbacks;
       this.mockSubscriptions = this.snapshots.mockSubscriptions;
+      this.mockReceipts = this.snapshots.mockReceipts;
+      this.mockSupportTickets = this.snapshots.mockSupportTickets;
+      this.mockTenantLifts = this.snapshots.mockTenantLifts;
       this.snapshots = null;
     }
     this.logger.info('Transaction boundary rolled back');
