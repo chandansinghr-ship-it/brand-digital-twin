@@ -187,6 +187,7 @@ export function startServer(port: number, db: SupabaseClient): http.Server {
   const globalMetrics = new MetricsTracker(errorSink);
 
   const server = http.createServer(async (req, res) => {
+    console.log(`[Request] ${req.method} ${req.url} (has Auth: ${!!req.headers['authorization']})`);
     let tenantId: string | null = null;
 
     // Secure CORS settings: echo allowed origins only
