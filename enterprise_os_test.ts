@@ -4,7 +4,7 @@ import {RiskRadarAgent} from './agents/risk_radar_agent';
 import {GovernanceShadowAgent} from './agents/governance_shadow_agent';
 import {IsolationContext, TenantIdentity} from './core/isolation_context';
 import {McpToolDefinition, OneMcpServer} from './core/onemcp_server';
-import {SupabaseClient} from 'google3/experimental/brand_twin/supabase_client';
+import {SupabaseClient} from './supabase_client';
 
 
 // Mock sub-agent MCP servers
