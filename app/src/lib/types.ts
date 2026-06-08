@@ -79,10 +79,8 @@ export type Severity = "CRITICAL" | "WARNING" | "OPPORTUNITY";
  * risk_radar.ts (scanStockouts / scanROIEfficiency / scanConversionTracking /
  * scanCheckoutEvents / scanBudgetCappedWinners), verified @ 44ca4ba.
  *
- * NOTE: this rich shape is produced internally but is NOT yet exposed by an
- * endpoint — `/api/v1/risks` currently returns `string[]` (detectRisks). A
- * `GET /api/v1/sweep → { sweep: SweepFinding[] }` endpoint is needed to wire
- * this screen to live data (tracked in 00-REMAINING_WORK.md).
+ * NOTE: this rich shape is produced internally. Wire via
+ * `GET /api/v1/sweep → { sweep: SweepFinding[] }` when the endpoint is ready.
  */
 export interface SweepFinding {
   code: string;
@@ -395,4 +393,170 @@ export interface AttributionView {
   conversionValue: number;
   touchpoints: AttributionTouchpoint[];
   scenarios: AttributionScenario[];
+}
+
+/* ── Account health (account_health.ts) ──────────────────────────────────────
+ * Six-dimension health score with anomaly detection and predictive alerts.
+ */
+
+export type HealthStatus = "good" | "warning" | "critical";
+
+export interface HealthDimension {
+  key: string;
+  label: string;
+  score: number;
+  status: HealthStatus;
+  note: string;
+}
+
+export interface AccountHealthView {
+  clientId: string;
+  overallScore: number;
+  overallStatus: HealthStatus;
+  dimensions: HealthDimension[];
+  anomalies: string[];
+  predictiveAlerts: string[];
+  lastUpdated: string;
+}
+
+/* ── Forecasting: spend + stockout + cash runway ─────────────────────────────
+ * SpendForecaster (24h projection) + StockoutPredictor + BankAdapter runway.
+ */
+
+export interface SkuStockForecast {
+  sku: string;
+  variantName: string;
+  qty: number;
+  salesLast7Days: number;
+  hoursToStockout: number;
+  stockStatus: "healthy" | "low" | "critical" | "out";
+}
+
+export interface ForecastView {
+  forecast24hSpend: number;
+  currentDailySpend: number;
+  cashRunwayMonths: number;
+  monthlyBurn: number;
+  availableBalance: number;
+  bankName: string;
+  currency: string;
+  stockForecasts: SkuStockForecast[];
+}
+
+/* ── AI Agent orchestration (agents/ + multi_agent_governance.ts) ─────────────
+ * CEO orchestrates Analyst, RiskRadar, GovernanceShadow; consensus voting.
+ */
+
+export interface AgentExecutionReport {
+  agent: string;
+  status: "success" | "failed" | "pending";
+  result: string;
+}
+
+export interface AgentVote {
+  agentId: string;
+  role: string;
+  approved: boolean;
+  reason: string;
+}
+
+export interface MultiAgentProposal {
+  proposalId: string;
+  campaignId: string;
+  sourceChannel: string;
+  targetChannel: string;
+  amount: number;
+  rationale: string;
+  status: "pending" | "approved" | "rejected";
+  votes: AgentVote[];
+}
+
+export interface AgentsView {
+  orgId: string;
+  strategyStatus: "running" | "complete" | "idle";
+  executionReports: AgentExecutionReport[];
+  proposals: MultiAgentProposal[];
+  cpluOptimization: {
+    cplu: number;
+    liftedUsers: number;
+    totalSpend: number;
+    actionsPlanned: number;
+  };
+  lastRun: string;
+}
+
+/* ── Inventory / SKU management (stockout_predictor.ts) ──────────────────────
+ * Per-variant stock levels, sales velocity, and campaign budget linkage.
+ */
+
+export interface InventoryItem {
+  sku: string;
+  variantName: string;
+  qty: number;
+  salesLast7Days: number;
+  hoursToStockout: number;
+  linkedCampaign: string | null;
+  stockStatus: "healthy" | "low" | "critical" | "out";
+}
+
+export interface InventoryView {
+  items: InventoryItem[];
+  budgetRedistributionFindings: string[];
+  lastSyncedAt: string;
+}
+
+/* ── Onboarding wizard (onboarding_wizard.ts) ────────────────────────────────
+ * Multi-step setup: profile → team → platforms → COGS → SKU links → margins.
+ */
+
+export type OnboardingStep =
+  | "profile"
+  | "team"
+  | "platforms"
+  | "cogs"
+  | "sku_links"
+  | "margin_discovery";
+
+export interface OnboardingWizardState {
+  tenantId: string;
+  currentStep: OnboardingStep;
+  completedSteps: OnboardingStep[];
+  clientName: string;
+  industry: string;
+  mrr: number;
+  marginTarget: number;
+  teamMembers: string[];
+  platforms: string[];
+}
+
+/* ── Operational hubs (operational_hubs.ts) ──────────────────────────────────
+ * Five integration hubs — brand monitoring, CRM, finance, project mgmt, creative.
+ */
+
+export type HubType =
+  | "brand_monitoring"
+  | "crm"
+  | "finance"
+  | "project_mgmt"
+  | "creative";
+
+export type SignalSeverity = "info" | "warning" | "alert";
+
+export interface HubSignal {
+  id: string;
+  timestamp: string;
+  message: string;
+  severity: SignalSeverity;
+}
+
+export interface OperationalHub {
+  name: string;
+  type: HubType;
+  isConnected: boolean;
+  recentSignals: HubSignal[];
+  lastActivity: string;
+}
+
+export interface HubsView {
+  hubs: OperationalHub[];
 }

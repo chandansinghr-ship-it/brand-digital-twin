@@ -5,6 +5,8 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiFetch, getMockBrandIndex, USE_MOCK } from "./api";
 import {
+  MOCK_ACCOUNT_HEALTH,
+  MOCK_AGENTS,
   MOCK_APPROVALS,
   MOCK_ATTRIBUTION,
   MOCK_BILLING_QUEUE,
@@ -15,6 +17,10 @@ import {
   MOCK_BRAND_SWEEP,
   MOCK_COGS_COVERAGE,
   MOCK_COGS_GAPS,
+  MOCK_FORECAST,
+  MOCK_HUBS,
+  MOCK_INVENTORY,
+  MOCK_ONBOARDING,
   MOCK_READINESS,
   MOCK_RECEIPTS,
   MOCK_SUBSCRIPTION,
@@ -22,13 +28,19 @@ import {
   MOCK_TRUST_TIER,
 } from "./mock";
 import type {
+  AccountHealthView,
+  AgentsView,
   ApprovalRequest,
   AttributionView,
   BillingQueueEntry,
   CogsCoverage,
   CogsGap,
   DismissReason,
+  ForecastView,
+  HubsView,
   IntegrationState,
+  InventoryView,
+  OnboardingWizardState,
   PipelineView,
   ProfitReadiness,
   Receipt,
@@ -367,6 +379,102 @@ export function useAttribution() {
       return apiFetch<AttributionView>("/api/v1/attribution");
     },
     staleTime: 120_000,
+  });
+}
+
+/* ── Account health (account_health.ts) ──────────────────────────────────── */
+
+export function useAccountHealth() {
+  return useQuery({
+    queryKey: ["account-health"],
+    queryFn: async (): Promise<AccountHealthView> => {
+      if (USE_MOCK) {
+        await new Promise((r) => setTimeout(r, 350));
+        return MOCK_ACCOUNT_HEALTH;
+      }
+      return apiFetch<AccountHealthView>("/api/v1/health");
+    },
+    staleTime: 60_000,
+  });
+}
+
+/* ── Forecast (spend_forecaster + stockout_predictor + bank_adapter) ─────── */
+
+export function useForecast() {
+  return useQuery({
+    queryKey: ["forecast"],
+    queryFn: async (): Promise<ForecastView> => {
+      if (USE_MOCK) {
+        await new Promise((r) => setTimeout(r, 400));
+        return MOCK_FORECAST;
+      }
+      return apiFetch<ForecastView>("/api/v1/forecast");
+    },
+    staleTime: 60_000,
+  });
+}
+
+/* ── AI agents view (agents/ + multi_agent_governance.ts) ─────────────────── */
+
+export function useAgents() {
+  return useQuery({
+    queryKey: ["agents"],
+    queryFn: async (): Promise<AgentsView> => {
+      if (USE_MOCK) {
+        await new Promise((r) => setTimeout(r, 500));
+        return MOCK_AGENTS;
+      }
+      return apiFetch<AgentsView>("/api/v1/agents");
+    },
+    staleTime: 30_000,
+  });
+}
+
+/* ── Inventory / SKU management (stockout_predictor.ts) ─────────────────── */
+
+export function useInventory() {
+  return useQuery({
+    queryKey: ["inventory"],
+    queryFn: async (): Promise<InventoryView> => {
+      if (USE_MOCK) {
+        await new Promise((r) => setTimeout(r, 350));
+        return MOCK_INVENTORY;
+      }
+      return apiFetch<InventoryView>("/api/v1/inventory");
+    },
+    staleTime: 60_000,
+  });
+}
+
+/* ── Onboarding wizard (onboarding_wizard.ts) ────────────────────────────── */
+
+export function useOnboarding() {
+  return useQuery({
+    queryKey: ["onboarding"],
+    queryFn: async (): Promise<OnboardingWizardState> => {
+      if (USE_MOCK) {
+        await new Promise((r) => setTimeout(r, 300));
+        return MOCK_ONBOARDING;
+      }
+      return apiFetch<OnboardingWizardState>("/api/v1/onboarding");
+    },
+    staleTime: 60_000,
+  });
+}
+
+/* ── Operational hubs (operational_hubs.ts) ──────────────────────────────── */
+
+export function useHubs() {
+  return useQuery({
+    queryKey: ["hubs"],
+    queryFn: async (): Promise<HubsView> => {
+      if (USE_MOCK) {
+        await new Promise((r) => setTimeout(r, 350));
+        return MOCK_HUBS;
+      }
+      return apiFetch<HubsView>("/api/v1/hubs");
+    },
+    staleTime: 30_000,
   });
 }
 

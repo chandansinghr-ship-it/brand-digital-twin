@@ -7,13 +7,19 @@
  * hides a thin or negative POAS — the gap the product exists to expose.
  */
 import type {
+  AccountHealthView,
+  AgentsView,
   ApprovalRequest,
   AttributionView,
   BillingQueueEntry,
   CogsCoverage,
   CogsGap,
   CrmLead,
+  ForecastView,
+  HubsView,
   IntegrationState,
+  InventoryView,
+  OnboardingWizardState,
   PipelineView,
   ProfitReadiness,
   Receipt,
@@ -850,9 +856,196 @@ export const MOCK_ATTRIBUTION: AttributionView = {
       label: "Position-based (U-shape)",
       description: "40% first touch · 40% last touch · 20% middle — respects both awareness and conversion.",
       credits: [
-        // first (Meta Prospecting) = 40%; last (Google Shopping) = 40%; middle split 10/10
         { platform: "meta",   share: 0.50, allocatedValue: 2800 }, // 40% first + 10% middle
         { platform: "google", share: 0.50, allocatedValue: 2800 }, // 10% middle + 40% last
+      ],
+    },
+  ],
+};
+
+/* ── Account health (account_health.ts) ──────────────────────────────────── */
+
+export const MOCK_ACCOUNT_HEALTH: AccountHealthView = {
+  clientId: "tenant-demo-001",
+  overallScore: 74,
+  overallStatus: "warning",
+  dimensions: [
+    { key: "brand",        label: "Brand Equity",    score: 82, status: "good",     note: "Share-of-voice up 4 pts; sentiment net-positive." },
+    { key: "financial",    label: "Financial",        score: 61, status: "warning",  note: "Cash runway 3.2 months; POAS below breakeven on 2 campaigns." },
+    { key: "team",         label: "Team",             score: 88, status: "good",     note: "Response SLA within target; no open escalations." },
+    { key: "client",       label: "Client",           score: 79, status: "good",     note: "NPS 52; 1 open support ticket." },
+    { key: "operational",  label: "Operational",      score: 55, status: "warning",  note: "2 SKUs approaching stockout; offline sync 1 lead pending." },
+    { key: "performance",  label: "Ad Performance",   score: 68, status: "warning",  note: "CTR trending down 8% WoW; CPC up on brand search." },
+  ],
+  anomalies: [
+    "Spend on Meta Advantage+ spiked 38% vs. 7d average — budget cap not triggered.",
+    "Google Shopping impression share dropped 12 pts overnight — bid strategy changed?",
+  ],
+  predictiveAlerts: [
+    "At current sell-through, SKU-A12 stocks out in ~18 h — pause linked campaigns now to avoid wasted spend.",
+    "Cash runway < 4 months — flagging for billing review.",
+    "Meta CPA trending 22% above target; course-correct before month-end budget reset.",
+  ],
+  lastUpdated: daysAgo(0),
+};
+
+/* ── Forecast view (spend_forecaster + stockout_predictor + bank_adapter) ── */
+
+export const MOCK_FORECAST: ForecastView = {
+  forecast24hSpend: 4820,
+  currentDailySpend: 4200,
+  cashRunwayMonths: 3.2,
+  monthlyBurn: 68000,
+  availableBalance: 217600,
+  bankName: "Barclays Business",
+  currency: "GBP",
+  stockForecasts: [
+    { sku: "SKU-A12", variantName: "Whey Protein — Chocolate 1 kg",   qty: 34,  salesLast7Days: 112, hoursToStockout: 18,  stockStatus: "critical" },
+    { sku: "SKU-B07", variantName: "Creatine — Unflavoured 500 g",    qty: 210, salesLast7Days: 98,  hoursToStockout: 122, stockStatus: "low"      },
+    { sku: "SKU-C03", variantName: "BCAA — Watermelon 300 g",         qty: 540, salesLast7Days: 74,  hoursToStockout: 416, stockStatus: "healthy"  },
+    { sku: "SKU-D19", variantName: "Pre-Workout — Berry Blast 400 g", qty: 88,  salesLast7Days: 120, hoursToStockout: 42,  stockStatus: "low"      },
+    { sku: "SKU-E01", variantName: "Collagen Peptides — Unflavoured", qty: 0,   salesLast7Days: 45,  hoursToStockout: 0,   stockStatus: "out"      },
+  ],
+};
+
+/* ── AI agents view (agents/ + multi_agent_governance.ts) ─────────────────── */
+
+export const MOCK_AGENTS: AgentsView = {
+  orgId: "org-demo-001",
+  strategyStatus: "complete",
+  lastRun: daysAgo(0),
+  executionReports: [
+    { agent: "AnalystAgent",          status: "success", result: "POAS gap identified: Meta Advantage+ −$9 300 drag. Recommendation queued." },
+    { agent: "RiskRadarAgent",        status: "success", result: "Circuit breaker: Google spend spike (+38%) within tolerance — no pause triggered." },
+    { agent: "GovernanceShadowAgent", status: "success", result: "OPA policy check passed; all proposed actions within approved tier thresholds." },
+    { agent: "OrganizationCEOAgent",  status: "success", result: "Delegated to 3 sub-agents; consensus reached; 2 proposals submitted for approval." },
+  ],
+  proposals: [
+    {
+      proposalId: "prop-001",
+      campaignId: "meta-014",
+      sourceChannel: "meta",
+      targetChannel: "google",
+      amount: 2100,
+      rationale: "Meta Advantage+ CPA 22% above target. Shift budget to Google Shopping where POAS is 1.9×.",
+      status: "pending",
+      votes: [
+        { agentId: "analyst-1",    role: "AnalystAgent",          approved: true,  reason: "Margin-positive reallocation confirmed by POAS model." },
+        { agentId: "risk-1",       role: "RiskRadarAgent",         approved: true,  reason: "Reallocation within approved spend caps; no circuit-breaker risk." },
+        { agentId: "governance-1", role: "GovernanceShadowAgent",  approved: true,  reason: "Tier-1 autonomous action — no human approval required." },
+      ],
+    },
+    {
+      proposalId: "prop-002",
+      campaignId: "g-ads-001",
+      sourceChannel: "google",
+      targetChannel: "meta",
+      amount: 5500,
+      rationale: "Brand Search CPC up 31%. Awareness lift via Meta Prospecting costs less per qualified lead.",
+      status: "pending",
+      votes: [
+        { agentId: "analyst-1",    role: "AnalystAgent",          approved: true,  reason: "CPL on Meta Prospecting 18% lower in trailing 30d." },
+        { agentId: "risk-1",       role: "RiskRadarAgent",         approved: false, reason: "Shift exceeds 20% of brand search budget — recommend human review." },
+        { agentId: "governance-1", role: "GovernanceShadowAgent",  approved: false, reason: "Tier-2 action requires user approval per policy rule R-14." },
+      ],
+    },
+  ],
+  cpluOptimization: {
+    cplu: 3.42,
+    liftedUsers: 14800,
+    totalSpend: 50616,
+    actionsPlanned: 3,
+  },
+};
+
+/* ── Inventory view (stockout_predictor.ts) ───────────────────────────────── */
+
+export const MOCK_INVENTORY: InventoryView = {
+  lastSyncedAt: daysAgo(0),
+  budgetRedistributionFindings: [
+    "SKU-A12 at critical stockout risk — recommend pausing Chocolate 1 kg ad sets until restock confirmed.",
+    "SKU-E01 is out of stock — Shopping ads still serving; pause to avoid spend waste and negative ROAS.",
+    "SKU-D19 has 42h runway — reduce daily budget by 60% on linked Pre-Workout campaign until restock.",
+  ],
+  items: [
+    { sku: "SKU-A12", variantName: "Whey Protein — Chocolate 1 kg",   qty: 34,  salesLast7Days: 112, hoursToStockout: 18,  linkedCampaign: "Shopping — Bestsellers",     stockStatus: "critical" },
+    { sku: "SKU-B07", variantName: "Creatine — Unflavoured 500 g",    qty: 210, salesLast7Days: 98,  hoursToStockout: 122, linkedCampaign: "Shopping — Bestsellers",     stockStatus: "low"      },
+    { sku: "SKU-C03", variantName: "BCAA — Watermelon 300 g",         qty: 540, salesLast7Days: 74,  hoursToStockout: 416, linkedCampaign: null,                         stockStatus: "healthy"  },
+    { sku: "SKU-D19", variantName: "Pre-Workout — Berry Blast 400 g", qty: 88,  salesLast7Days: 120, hoursToStockout: 42,  linkedCampaign: "Advantage+ — Prospecting",   stockStatus: "low"      },
+    { sku: "SKU-E01", variantName: "Collagen Peptides — Unflavoured", qty: 0,   salesLast7Days: 45,  hoursToStockout: 0,   linkedCampaign: "Shopping — Bestsellers",     stockStatus: "out"      },
+    { sku: "SKU-F22", variantName: "Omega-3 — Lemon 180 caps",        qty: 720, salesLast7Days: 38,  hoursToStockout: 1080, linkedCampaign: null,                        stockStatus: "healthy"  },
+  ],
+};
+
+/* ── Onboarding wizard (onboarding_wizard.ts) ────────────────────────────── */
+
+export const MOCK_ONBOARDING: OnboardingWizardState = {
+  tenantId: "tenant-demo-001",
+  currentStep: "cogs",
+  completedSteps: ["profile", "team", "platforms"],
+  clientName: "Nutra Peaks Ltd",
+  industry: "Health & Supplements",
+  mrr: 48000,
+  marginTarget: 35,
+  teamMembers: ["alice@nutrapeaks.com", "bob@nutrapeaks.com"],
+  platforms: ["google", "meta", "shopify"],
+};
+
+/* ── Operational hubs (operational_hubs.ts) ──────────────────────────────── */
+
+export const MOCK_HUBS: HubsView = {
+  hubs: [
+    {
+      name: "Brand Monitoring",
+      type: "brand_monitoring",
+      isConnected: true,
+      lastActivity: daysAgo(0),
+      recentSignals: [
+        { id: "bm-1", timestamp: daysAgo(0), message: "Mention spike: +42 brand mentions in last 2h (Reddit r/fitness).", severity: "info" },
+        { id: "bm-2", timestamp: daysAgo(0), message: "Sentiment shift: negative ratio up to 14% — review product feedback thread.", severity: "warning" },
+        { id: "bm-3", timestamp: daysAgo(1), message: "Competitor share-of-voice increased 6 pts this week.", severity: "warning" },
+      ],
+    },
+    {
+      name: "CRM",
+      type: "crm",
+      isConnected: true,
+      lastActivity: daysAgo(0),
+      recentSignals: [
+        { id: "crm-1", timestamp: daysAgo(0), message: "1 closed-won lead awaiting offline conversion sync to Meta CAPI.", severity: "alert" },
+        { id: "crm-2", timestamp: daysAgo(1), message: "3 new SQLs from Meta Lookalike — Prospecting campaign.", severity: "info" },
+        { id: "crm-3", timestamp: daysAgo(2), message: "Pipeline velocity: avg 12d prospect→SQL (↓2d vs last month).", severity: "info" },
+      ],
+    },
+    {
+      name: "Finance",
+      type: "finance",
+      isConnected: true,
+      lastActivity: daysAgo(0),
+      recentSignals: [
+        { id: "fin-1", timestamp: daysAgo(0), message: "Cash runway 3.2 months at current burn — below 4-month threshold.", severity: "alert" },
+        { id: "fin-2", timestamp: daysAgo(1), message: "Open Banking sync completed: £217 600 available balance confirmed.", severity: "info" },
+        { id: "fin-3", timestamp: daysAgo(3), message: "Ad spend variance: +£620 vs forecast (Meta budget cap not triggered).", severity: "warning" },
+      ],
+    },
+    {
+      name: "Project Management",
+      type: "project_mgmt",
+      isConnected: false,
+      lastActivity: daysAgo(14),
+      recentSignals: [
+        { id: "pm-1", timestamp: daysAgo(14), message: "Integration disconnected — reconnect to receive task signals.", severity: "warning" },
+      ],
+    },
+    {
+      name: "Creative",
+      type: "creative",
+      isConnected: true,
+      lastActivity: daysAgo(1),
+      recentSignals: [
+        { id: "cr-1", timestamp: daysAgo(1), message: "Top-performing creative: 'Protein — Transformation' CTR 4.2% (2× account avg).", severity: "info" },
+        { id: "cr-2", timestamp: daysAgo(2), message: "3 ad creatives flagged for fatigue (frequency > 3.5×, CTR declining).", severity: "warning" },
+        { id: "cr-3", timestamp: daysAgo(3), message: "New UGC batch uploaded — 6 assets ready for A/B testing.", severity: "info" },
       ],
     },
   ],
